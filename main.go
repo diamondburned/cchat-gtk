@@ -1,0 +1,32 @@
+package main
+
+import (
+	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui"
+	"github.com/diamondburned/cchat/services"
+
+	_ "github.com/diamondburned/cchat-mock"
+	_ "github.com/diamondburned/cchat/services/plugins"
+)
+
+func main() {
+	gts.Main(func() gts.WindowHeaderer {
+		var app = ui.NewApplication()
+
+		// Load all cchat services.
+		srvcs, errs := services.Get()
+		if len(errs) > 0 {
+			for _, err := range errs {
+				log.Error(err)
+			}
+		}
+
+		// Add the services.
+		for _, srvc := range srvcs {
+			app.AddService(srvc)
+		}
+
+		return app
+	})
+}
