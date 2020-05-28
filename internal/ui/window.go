@@ -17,10 +17,14 @@ func newWindow() *window {
 	services.SetSizeRequest(LeftWidth, -1)
 	mesgview := message.NewView()
 
+	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
+	separator.Show()
+
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.Show()
 	box.PackStart(services, false, false, 0)
+	box.PackStart(separator, false, false, 0)
 	box.PackStart(mesgview, true, true, 0)
+	box.Show()
 
 	return &window{box, services, mesgview}
 }

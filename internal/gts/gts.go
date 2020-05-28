@@ -48,12 +48,13 @@ type WindowHeaderer interface {
 func Main(wfn func() WindowHeaderer) {
 	App.Application.Connect("activate", func() {
 		App.Header, _ = gtk.HeaderBarNew()
-		App.Header.Show()
 		App.Header.SetShowCloseButton(true)
+		App.Header.Show()
 
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
-		App.Window.Show()
+		App.Window.SetDefaultSize(750, 400)
 		App.Window.SetTitlebar(App.Header)
+		App.Window.Show()
 
 		// Execute the function later, because we need it to run after
 		// initialization.

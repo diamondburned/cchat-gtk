@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/Xuanwo/go-locale v0.2.0
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/diamondburned/cchat v0.0.9
 	github.com/diamondburned/cchat-mock v0.0.0-20200525222906-807afeffb7d4
 	github.com/goodsign/monday v1.0.0

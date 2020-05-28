@@ -11,38 +11,40 @@ import (
 )
 
 type Message struct {
+	index int
 	ID    string
 	Nonce string
 
-	*gtk.Box
 	Timestamp *gtk.Label
 	Username  *gtk.Label
 	Content   *gtk.Label
 }
 
 func NewMessage(msg cchat.MessageCreate) Message {
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 3)
-	box.Show()
-
 	ts, _ := gtk.LabelNew("")
-	ts.Show()
-	ts.SetWidthChars(12)
+	ts.SetLineWrap(true)
 	ts.SetLineWrapMode(pango.WRAP_WORD)
+	ts.SetHAlign(gtk.ALIGN_END)
+	ts.SetVAlign(gtk.ALIGN_START)
+	ts.Show()
 
 	user, _ := gtk.LabelNew("")
-	user.Show()
+	user.SetLineWrap(true)
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	user.SetHAlign(gtk.ALIGN_END)
+	user.SetVAlign(gtk.ALIGN_START)
+	user.Show()
 
 	content, _ := gtk.LabelNew("")
+	content.SetHExpand(true)
+	content.SetXAlign(0) // left-align with size filled
+	content.SetVAlign(gtk.ALIGN_START)
+	content.SetLineWrap(true)
+	content.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	content.Show()
-
-	box.PackStart(ts, false, false, 0)
-	box.PackStart(user, false, false, 0)
-	box.PackStart(content, true, true, 0)
 
 	m := Message{
 		ID:        msg.ID(),
-		Box:       box,
 		Timestamp: ts,
 		Username:  user,
 		Content:   content,
@@ -56,6 +58,12 @@ func NewMessage(msg cchat.MessageCreate) Message {
 	}
 
 	return m
+}
+
+func (m *Message) Attach(grid *gtk.Grid, row int) {
+	grid.Attach(m.Timestamp, 0, row, 1, 1)
+	grid.Attach(m.Username, 1, row, 1, 1)
+	grid.Attach(m.Content, 2, row, 1, 1)
 }
 
 func (m *Message) UpdateTimestamp(t time.Time) {

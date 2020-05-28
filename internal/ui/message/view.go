@@ -21,9 +21,9 @@ func NewView() *View {
 	sendinput := input.NewField()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.Show()
 	box.PackStart(container, true, true, 0)
 	box.PackStart(sendinput, false, false, 0)
+	box.Show()
 
 	return &View{
 		Box:       box,
@@ -37,6 +37,9 @@ func (v *View) JoinServer(server cchat.ServerMessage) {
 		if err := v.current.LeaveServer(); err != nil {
 			log.Error(errors.Wrap(err, "Error leaving server"))
 		}
+
+		// Clean all messages.
+		v.Container.Reset()
 	}
 
 	v.current = server
