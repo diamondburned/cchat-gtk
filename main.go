@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat/services"
 
 	_ "github.com/diamondburned/cchat-mock"
-	_ "github.com/diamondburned/cchat/services/plugins"
 )
 
 func main() {

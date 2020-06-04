@@ -37,6 +37,10 @@ func Error(err error) {
 	Write("Error: " + err.Error())
 }
 
+func Warn(err error) {
+	Write("Warn: " + err.Error())
+}
+
 func Write(msg string) {
 	WriteEntry(Entry{
 		Time: time.Now(),

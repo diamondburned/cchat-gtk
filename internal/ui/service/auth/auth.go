@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/pango"
 )
 
 type Dialog struct {
@@ -116,19 +115,20 @@ func (d *Dialog) ok() {
 type Request struct {
 	*gtk.Grid
 	labels  []*gtk.Label
-	entries []*gtk.Entry
+	entries []Texter
 }
 
 func NewRequest(authEntries []cchat.AuthenticateEntry) *Request {
 	grid, _ := gtk.GridNew()
 	grid.Show()
-	grid.SetRowHomogeneous(true)
-	grid.SetRowSpacing(2)
+	grid.SetRowSpacing(7)
+	grid.SetColumnHomogeneous(true)
+	grid.SetColumnSpacing(5)
 
 	req := &Request{
 		Grid:    grid,
 		labels:  make([]*gtk.Label, len(authEntries)),
-		entries: make([]*gtk.Entry, len(authEntries)),
+		entries: make([]Texter, len(authEntries)),
 	}
 
 	for i, authEntry := range authEntries {
@@ -147,29 +147,91 @@ func NewRequest(authEntries []cchat.AuthenticateEntry) *Request {
 func (r *Request) values() []string {
 	var values = make([]string, len(r.entries))
 	for i, entry := range r.entries {
-		values[i], _ = entry.GetText()
+		values[i] = entry.GetText()
 	}
 
 	return values
 }
 
-func newEntry(authEntry cchat.AuthenticateEntry) (*gtk.Label, *gtk.Entry) {
+func newEntry(authEntry cchat.AuthenticateEntry) (*gtk.Label, Texter) {
 	label, _ := gtk.LabelNew(authEntry.Name)
 	label.Show()
 	label.SetXAlign(1) // right align
-	label.SetEllipsize(pango.ELLIPSIZE_END)
+	label.SetJustify(gtk.JUSTIFY_RIGHT)
+	label.SetLineWrap(true)
 
-	input, _ := gtk.EntryNew()
-	input.Show()
+	var texter Texter
 
-	if authEntry.Secret {
-		input.SetInputPurpose(gtk.INPUT_PURPOSE_PASSWORD)
-		input.SetVisibility(false)
-		input.SetInvisibleChar('●')
+	if authEntry.Multiline {
+		texter = NewMultilineInput()
 	} else {
-		// usually; this is just an assumption
-		input.SetInputPurpose(gtk.INPUT_PURPOSE_EMAIL)
+		var input = NewEntryInput()
+		if authEntry.Secret {
+			input.SetInputPurpose(gtk.INPUT_PURPOSE_PASSWORD)
+			input.SetVisibility(false)
+			input.SetInvisibleChar('●')
+		} else {
+			// usually; this is just an assumption
+			input.SetInputPurpose(gtk.INPUT_PURPOSE_EMAIL)
+		}
+
+		texter = input
 	}
 
-	return label, input
+	return label, texter
+}
+
+type Texter interface {
+	gtk.IWidget
+	GetText() string
+	SetText(string)
+}
+
+type EntryInput struct {
+	*gtk.Entry
+}
+
+var _ Texter = (*EntryInput)(nil)
+
+func NewEntryInput() EntryInput {
+	input, _ := gtk.EntryNew()
+	input.SetVAlign(gtk.ALIGN_CENTER)
+	input.Show()
+
+	return EntryInput{
+		input,
+	}
+}
+
+func (i EntryInput) GetText() (text string) {
+	text, _ = i.Entry.GetText()
+	return
+}
+
+type MultilineInput struct {
+	*gtk.TextView
+	Buffer *gtk.TextBuffer
+}
+
+var _ Texter = (*MultilineInput)(nil)
+
+func NewMultilineInput() MultilineInput {
+	view, _ := gtk.TextViewNew()
+	view.SetWrapMode(gtk.WRAP_WORD_CHAR)
+	view.SetEditable(true)
+	view.Show()
+
+	buf, _ := view.GetBuffer()
+
+	return MultilineInput{view, buf}
+}
+
+func (i MultilineInput) GetText() (text string) {
+	start, end := i.Buffer.GetBounds()
+	text, _ = i.Buffer.GetText(start, end, true)
+	return
+}
+
+func (i MultilineInput) SetText(text string) {
+	i.Buffer.SetText(text)
 }

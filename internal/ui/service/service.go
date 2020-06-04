@@ -3,11 +3,18 @@ package service
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 )
+
+const IconSize = 32
+
+type Controller interface {
+	session.Controller
+	AuthenticateSession(*Container, cchat.Service)
+}
 
 type View struct {
 	*gtk.ScrolledWindow
@@ -33,10 +40,11 @@ func NewView() *View {
 	}
 }
 
-func (v *View) AddService(svc cchat.Service, rowctrl server.RowController) {
-	s := NewContainer(svc, rowctrl)
+func (v *View) AddService(svc cchat.Service, ctrl Controller) *Container {
+	s := NewContainer(svc, ctrl)
 	v.Services = append(v.Services, s)
 	v.Box.Add(s)
+	return s
 }
 
 type Container struct {
@@ -44,18 +52,19 @@ type Container struct {
 	header   *header
 	revealer *gtk.Revealer
 	children *children
-	rowctrl  server.RowController
+	rowctrl  Controller
 }
 
-func NewContainer(svc cchat.Service, rowctrl server.RowController) *Container {
-	header := newHeader(svc)
-
+func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	children := newChildren()
 
 	chrev, _ := gtk.RevealerNew()
-	chrev.SetRevealChild(false)
+	chrev.SetRevealChild(true)
 	chrev.Add(children)
 	chrev.Show()
+
+	header := newHeader(svc)
+	header.reveal.SetActive(chrev.GetRevealChild())
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.Show()
@@ -64,7 +73,7 @@ func NewContainer(svc cchat.Service, rowctrl server.RowController) *Container {
 
 	primitives.AddClass(box, "service")
 
-	var container = &Container{box, header, chrev, children, rowctrl}
+	var container = &Container{box, header, chrev, children, ctrl}
 
 	// On click, toggle reveal.
 	header.reveal.Connect("clicked", func() {
@@ -75,30 +84,40 @@ func NewContainer(svc cchat.Service, rowctrl server.RowController) *Container {
 
 	// On click, show the auth dialog.
 	header.add.Connect("clicked", func() {
-		auth.NewDialog(svc.Name(), svc.Authenticate(), container.addSession)
+		ctrl.AuthenticateSession(container, svc)
 	})
 
 	return container
 }
 
-func (c *Container) addSession(ses cchat.Session) {
+func (c *Container) AddSession(ses cchat.Session) {
 	srow := session.New(ses, c.rowctrl)
 	c.children.addSessionRow(srow)
 }
 
+func (c *Container) Sessions() []cchat.Session {
+	var sessions = make([]cchat.Session, len(c.children.Sessions))
+	for i, s := range c.children.Sessions {
+		sessions[i] = s.Session
+	}
+	return sessions
+}
+
 type header struct {
 	*gtk.Box
-	reveal *gtk.ToggleButton
+	reveal *rich.ToggleButtonImage // no rich text here but it's left aligned
 	add    *gtk.Button
 }
 
 func newHeader(svc cchat.Service) *header {
-	reveal, _ := gtk.ToggleButtonNewWithLabel(svc.Name())
-	primitives.BinLeftAlignLabel(reveal) // do this first
-
+	reveal := rich.NewToggleButtonImage(text.Rich{Content: svc.Name()}, "")
+	reveal.Box.SetHAlign(gtk.ALIGN_START)
 	reveal.SetRelief(gtk.RELIEF_NONE)
 	reveal.SetMode(true)
 	reveal.Show()
+
+	// Set a custom icon.
+	primitives.SetImageIcon(&reveal.Image, "folder-remote-symbolic", IconSize)
 
 	add, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
 	add.SetRelief(gtk.RELIEF_NONE)

@@ -27,7 +27,7 @@ func init() {
 		},
 	}
 
-	App.Application, _ = gtk.ApplicationNew("com.github.diamondburned.gtkcord3", 0)
+	App.Application, _ = gtk.ApplicationNew("com.github.diamondburned.cchat-gtk", 0)
 }
 
 type Windower interface {
@@ -52,7 +52,7 @@ func Main(wfn func() WindowHeaderer) {
 		App.Header.Show()
 
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
-		App.Window.SetDefaultSize(750, 400)
+		App.Window.SetDefaultSize(1000, 500)
 		App.Window.SetTitlebar(App.Header)
 		App.Window.Show()
 
