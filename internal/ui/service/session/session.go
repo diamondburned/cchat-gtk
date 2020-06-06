@@ -2,14 +2,12 @@ package session
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 const IconSize = 32
@@ -38,23 +36,18 @@ func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Controller) *Ro
 	}
 	row.Servers = server.NewChildren(row, ses, row)
 
-	row.Button = rich.NewToggleButtonImage(text.Rich{}, "")
+	row.Button = rich.NewToggleButtonImage(text.Rich{})
 	row.Button.Box.SetHAlign(gtk.ALIGN_START)
+	row.Button.Image.SetPlaceholderIcon("user-available-symbolic", IconSize)
 	row.Button.SetRelief(gtk.RELIEF_NONE)
-	row.Button.Show()
 	// On click, toggle reveal.
 	row.Button.Connect("clicked", func() {
 		revealed := !row.Servers.GetRevealChild()
 		row.Servers.SetRevealChild(revealed)
 		row.Button.SetActive(revealed)
 	})
-
-	primitives.SetImageIcon(&row.Button.Image, "user-available-symbolic", IconSize)
-
-	if err := ses.Name(row.Button); err != nil {
-		log.Error(errors.Wrap(err, "Failed to get the username"))
-		row.Button.SetLabel(text.Rich{Content: "Unknown"})
-	}
+	row.Button.Show()
+	row.Button.Try(ses, "session")
 
 	row.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	row.Box.SetMarginStart(server.ChildrenMargin)

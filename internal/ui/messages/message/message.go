@@ -1,4 +1,4 @@
-package compact
+package message
 
 import (
 	"time"
@@ -11,44 +11,46 @@ import (
 	"github.com/gotk3/gotk3/pango"
 )
 
-type Message struct {
-	index    int
-	ID       string
-	AuthorID string
-	Nonce    string
+type Container interface {
+	ID() string
+	AuthorID() string
+	Nonce() string
+
+	UpdateAuthor(cchat.MessageAuthor)
+	UpdateAuthorName(text.Rich)
+	UpdateContent(text.Rich)
+	UpdateTimestamp(time.Time)
+}
+
+// GenericContainer provides a single generic message container for subpackages
+// to use.
+type GenericContainer struct {
+	id       string
+	authorID string
+	nonce    string
 
 	Timestamp *gtk.Label
 	Username  *gtk.Label
 	Content   *gtk.Label
 }
 
-func NewMessage(msg cchat.MessageCreate) Message {
-	m := NewEmptyMessage()
-	m.ID = msg.ID()
-	m.UpdateTimestamp(msg.Time())
-	m.UpdateAuthor(msg.Author())
-	m.UpdateContent(msg.Content())
+var _ Container = (*GenericContainer)(nil)
+
+func NewContainer(msg cchat.MessageCreate) *GenericContainer {
+	c := NewEmptyContainer()
+	c.id = msg.ID()
+	c.UpdateTimestamp(msg.Time())
+	c.UpdateAuthor(msg.Author())
+	c.UpdateContent(msg.Content())
 
 	if noncer, ok := msg.(cchat.MessageNonce); ok {
-		m.Nonce = noncer.Nonce()
+		c.nonce = noncer.Nonce()
 	}
 
-	return m
+	return c
 }
 
-func NewPresendMessage(content string, author text.Rich, authorID, nonce string) Message {
-	msgc := NewEmptyMessage()
-	msgc.Nonce = nonce
-	msgc.AuthorID = authorID
-	msgc.SetSensitive(false)
-	msgc.UpdateContent(text.Rich{Content: content})
-	msgc.UpdateTimestamp(time.Now())
-	msgc.updateAuthorName(author)
-
-	return msgc
-}
-
-func NewEmptyMessage() Message {
+func NewEmptyContainer() *GenericContainer {
 	ts, _ := gtk.LabelNew("")
 	ts.SetLineWrap(true)
 	ts.SetLineWrapMode(pango.WRAP_WORD)
@@ -75,39 +77,39 @@ func NewEmptyMessage() Message {
 	content.SetSelectable(true)
 	content.Show()
 
-	return Message{
+	return &GenericContainer{
 		Timestamp: ts,
 		Username:  user,
 		Content:   content,
 	}
 }
 
-func (m *Message) SetSensitive(sensitive bool) {
-	m.Timestamp.SetSensitive(sensitive)
-	m.Username.SetSensitive(sensitive)
-	m.Content.SetSensitive(sensitive)
+func (m *GenericContainer) ID() string {
+	return m.id
 }
 
-func (m *Message) Attach(grid *gtk.Grid, row int) {
-	grid.Attach(m.Timestamp, 0, row, 1, 1)
-	grid.Attach(m.Username, 1, row, 1, 1)
-	grid.Attach(m.Content, 2, row, 1, 1)
+func (m *GenericContainer) AuthorID() string {
+	return m.authorID
 }
 
-func (m *Message) UpdateTimestamp(t time.Time) {
+func (m *GenericContainer) Nonce() string {
+	return m.nonce
+}
+
+func (m *GenericContainer) UpdateTimestamp(t time.Time) {
 	m.Timestamp.SetLabel(humanize.TimeAgo(t))
 	m.Timestamp.SetTooltipText(t.Format(time.Stamp))
 }
 
-func (m *Message) UpdateAuthor(author cchat.MessageAuthor) {
-	m.AuthorID = author.ID()
-	m.updateAuthorName(author.Name())
+func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
+	m.authorID = author.ID()
+	m.UpdateAuthorName(author.Name())
 }
 
-func (m *Message) updateAuthorName(name text.Rich) {
+func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
 	m.Username.SetMarkup(parser.RenderMarkup(name))
 }
 
-func (m *Message) UpdateContent(content text.Rich) {
+func (m *GenericContainer) UpdateContent(content text.Rich) {
 	m.Content.SetMarkup(parser.RenderMarkup(content))
 }

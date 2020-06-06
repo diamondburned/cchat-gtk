@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"github.com/diamondburned/cchat-gtk/internal/ui/message"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -9,13 +9,13 @@ import (
 type window struct {
 	*gtk.Box
 	Services    *service.View
-	MessageView *message.View
+	MessageView *messages.View
 }
 
 func newWindow() *window {
 	services := service.NewView()
 	services.SetSizeRequest(LeftWidth, -1)
-	mesgview := message.NewView()
+	mesgview := messages.NewView()
 
 	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
 	separator.Show()

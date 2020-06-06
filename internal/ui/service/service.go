@@ -2,12 +2,14 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 const IconSize = 32
@@ -115,14 +117,18 @@ type header struct {
 }
 
 func newHeader(svc cchat.Service) *header {
-	reveal := rich.NewToggleButtonImage(text.Rich{Content: svc.Name()}, "")
+	reveal := rich.NewToggleButtonImage(text.Rich{Content: svc.Name()})
 	reveal.Box.SetHAlign(gtk.ALIGN_START)
+	reveal.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
 	reveal.SetRelief(gtk.RELIEF_NONE)
 	reveal.SetMode(true)
 	reveal.Show()
 
-	// Set a custom icon.
-	primitives.SetImageIcon(&reveal.Image, "folder-remote-symbolic", IconSize)
+	if iconer, ok := svc.(cchat.Icon); ok {
+		if err := iconer.Icon(reveal); err != nil {
+			log.Error(errors.Wrap(err, "Error getting session logo"))
+		}
+	}
 
 	add, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
 	add.SetRelief(gtk.RELIEF_NONE)

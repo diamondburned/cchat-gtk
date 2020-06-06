@@ -5,7 +5,7 @@ import "github.com/gotk3/gotk3/gtk"
 type ScrolledWindow struct {
 	gtk.ScrolledWindow
 	vadj     gtk.Adjustment
-	bottomed bool // :floshed:
+	Bottomed bool // :floshed:
 }
 
 func NewScrolledWindow() *ScrolledWindow {
@@ -15,20 +15,16 @@ func NewScrolledWindow() *ScrolledWindow {
 	sw := &ScrolledWindow{*gtksw, *gtksw.GetVAdjustment(), true} // bottomed by default
 	sw.Connect("size-allocate", func(_ *gtk.ScrolledWindow) {
 		// We can't really trust Gtk to be competent.
-		if sw.bottomed {
+		if sw.Bottomed {
 			sw.ScrollToBottom()
 		}
 	})
 	sw.vadj.Connect("value-changed", func(adj *gtk.Adjustment) {
 		// Manually check if we're anchored on scroll.
-		sw.bottomed = (adj.GetUpper() - adj.GetPageSize()) <= adj.GetValue()
+		sw.Bottomed = (adj.GetUpper() - adj.GetPageSize()) <= adj.GetValue()
 	})
 
 	return sw
-}
-
-func (s *ScrolledWindow) Bottomed() bool {
-	return s.bottomed
 }
 
 // GetVAdjustment overrides gtk.ScrolledWindow's.

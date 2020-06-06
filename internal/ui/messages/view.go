@@ -1,10 +1,11 @@
-package message
+package messages
 
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
-	"github.com/diamondburned/cchat-gtk/internal/ui/message/compact"
-	"github.com/diamondburned/cchat-gtk/internal/ui/message/input"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/compact"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -22,7 +23,7 @@ type Container interface {
 
 type View struct {
 	*gtk.Box
-	Container Container
+	Container container.Container
 	SendInput *input.Field
 
 	current cchat.ServerMessage
@@ -32,6 +33,7 @@ type View struct {
 func NewView() *View {
 	view := &View{}
 
+	// TODO: change
 	view.Container = compact.NewContainer()
 	view.SendInput = input.NewField(view)
 

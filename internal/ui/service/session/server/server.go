@@ -13,6 +13,7 @@ import (
 )
 
 const ChildrenMargin = 24
+const IconSize = 18
 
 type Controller interface {
 	MessageRowSelected(*Row, cchat.ServerMessage)
@@ -34,15 +35,12 @@ type Row struct {
 }
 
 func NewRow(parent breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *Row {
-	button := rich.NewToggleButtonImage(text.Rich{}, "")
+	button := rich.NewToggleButtonImage(text.Rich{})
 	button.Box.SetHAlign(gtk.ALIGN_START)
+	button.Image.SetSize(IconSize)
 	button.SetRelief(gtk.RELIEF_NONE)
 	button.Show()
-
-	if err := server.Name(button); err != nil {
-		log.Error(errors.Wrap(err, "Failed to get the server name"))
-		button.SetLabel(text.Rich{Content: "Unknown"})
-	}
+	button.Try(server, "server")
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.PackStart(button, false, false, 0)
