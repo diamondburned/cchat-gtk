@@ -9,6 +9,8 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
+const AppID = "com.github.diamondburned.cchat-gtk"
+
 var Args = append([]string{}, os.Args...)
 var recvPool *sync.Pool
 
@@ -27,7 +29,7 @@ func init() {
 		},
 	}
 
-	App.Application, _ = gtk.ApplicationNew("com.github.diamondburned.cchat-gtk", 0)
+	App.Application, _ = gtk.ApplicationNew(AppID, 0)
 }
 
 type Windower interface {
@@ -47,9 +49,15 @@ type WindowHeaderer interface {
 
 func Main(wfn func() WindowHeaderer) {
 	App.Application.Connect("activate", func() {
+		// Load all CSS onto the default screen.
+		loadProviders(getDefaultScreen())
+
 		App.Header, _ = gtk.HeaderBarNew()
 		App.Header.SetShowCloseButton(true)
 		App.Header.Show()
+
+		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+		App.Header.SetCustomTitle(b)
 
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
 		App.Window.SetDefaultSize(1000, 500)

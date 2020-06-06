@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
@@ -91,7 +92,7 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 }
 
 func (c *Container) AddSession(ses cchat.Session) {
-	srow := session.New(ses, c.rowctrl)
+	srow := session.New(c, ses, c.rowctrl)
 	c.children.addSessionRow(srow)
 }
 
@@ -101,6 +102,10 @@ func (c *Container) Sessions() []cchat.Session {
 		sessions[i] = s.Session
 	}
 	return sessions
+}
+
+func (c *Container) Breadcrumb() breadcrumb.Breadcrumb {
+	return breadcrumb.Try(nil, c.header.reveal.GetText())
 }
 
 type header struct {

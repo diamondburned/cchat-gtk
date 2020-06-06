@@ -5,6 +5,7 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -104,10 +105,9 @@ func (m *Message) UpdateAuthor(author cchat.MessageAuthor) {
 }
 
 func (m *Message) updateAuthorName(name text.Rich) {
-	m.Username.SetLabel(name.Content)
-	m.Username.SetTooltipText(name.Content)
+	m.Username.SetMarkup(parser.RenderMarkup(name))
 }
 
 func (m *Message) UpdateContent(content text.Rich) {
-	m.Content.SetLabel(content.Content)
+	m.Content.SetMarkup(parser.RenderMarkup(content))
 }

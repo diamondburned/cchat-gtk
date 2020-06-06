@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -58,4 +59,8 @@ func WriteEntry(entry Entry) {
 			fn(entry)
 		}
 	}()
+}
+
+func Println(v ...interface{}) {
+	log.Println(v...)
 }

@@ -10,7 +10,13 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/markbates/pkger"
 )
+
+func init() {
+	// Load the local CSS.
+	gts.LoadCSS(pkger.Include("/internal/ui/style.css"))
+}
 
 const LeftWidth = 220
 
@@ -54,7 +60,7 @@ func (app *App) MessageRowSelected(ses *session.Row, srv *server.Row, smsg cchat
 	app.lastRowHighlighter = srv.Button.SetActive
 	app.lastRowHighlighter(true)
 
-	log.Println("Breadcrumb:")
+	app.header.SetBreadcrumb(srv.Breadcrumb())
 
 	// Show the messages.
 	app.window.MessageView.JoinServer(ses.Session, smsg)

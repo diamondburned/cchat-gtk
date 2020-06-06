@@ -10,11 +10,48 @@ import (
 	"github.com/pkg/errors"
 )
 
+type usernameContainer struct {
+	*gtk.Revealer
+	label *rich.Label
+}
+
+func newUsernameContainer() *usernameContainer {
+	label := rich.NewLabel(text.Rich{})
+	label.SetMaxWidthChars(35)
+	label.SetVAlign(gtk.ALIGN_START)
+	label.SetMarginTop(inputmargin)
+	label.SetMarginBottom(inputmargin)
+	label.SetMarginStart(10)
+	label.SetMarginEnd(10)
+	label.Show()
+
+	rev, _ := gtk.RevealerNew()
+	rev.SetRevealChild(false)
+	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
+	rev.SetTransitionDuration(50)
+	rev.Add(label)
+
+	return &usernameContainer{rev, label}
+}
+
+// GetLabel is not thread-safe.
+func (u *usernameContainer) GetLabel() text.Rich {
+	return u.label.GetLabel()
+}
+
+// SetLabel is thread-safe.
+func (u *usernameContainer) SetLabel(content text.Rich) {
+	gts.ExecAsync(func() {
+		u.label.SetLabelUnsafe(content)
+
+		// Reveal if the name is not empty.
+		u.SetRevealChild(!u.label.GetLabel().Empty())
+	})
+}
+
 type Field struct {
 	*gtk.Box
-
-	namerev  *gtk.Revealer
-	username *rich.Label // TODO
+	username *usernameContainer
 
 	TextScroll *gtk.ScrolledWindow
 	text       *gtk.TextView
@@ -30,24 +67,11 @@ type Controller interface {
 	PresendMessage(msg PresendMessage) (onErr func(error))
 }
 
-const inputmargin = 3
+const inputmargin = 4
 
 func NewField(ctrl Controller) *Field {
-	username := rich.NewLabel(text.Rich{})
-	username.SetMaxWidthChars(35)
-	username.SetVAlign(gtk.ALIGN_START)
-	username.SetMarginTop(inputmargin)
-	username.SetMarginBottom(inputmargin)
-	username.SetMarginStart(10)
-	username.SetMarginEnd(10)
+	username := newUsernameContainer()
 	username.Show()
-
-	namerev, _ := gtk.RevealerNew()
-	namerev.SetRevealChild(false)
-	namerev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
-	namerev.SetTransitionDuration(50)
-	namerev.Add(username)
-	namerev.Show()
 
 	text, _ := gtk.TextViewNew()
 	text.SetSensitive(false)
@@ -68,13 +92,12 @@ func NewField(ctrl Controller) *Field {
 	sw.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(namerev, false, false, 0)
+	box.PackStart(username, false, false, 0)
 	box.PackStart(sw, true, true, 0)
 	box.Show()
 
 	field := &Field{
 		Box:        box,
-		namerev:    namerev,
 		username:   username,
 		TextScroll: sw,
 		text:       text,
@@ -106,9 +129,6 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 	if err != nil {
 		log.Warn(err)
 	}
-
-	// Reveal if the name is not empty.
-	f.namerev.SetRevealChild(!f.username.GetLabel().Empty())
 
 	// Set the sender.
 	f.sender = sender
