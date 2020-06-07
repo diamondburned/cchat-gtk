@@ -3,7 +3,6 @@ package session
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
@@ -11,7 +10,6 @@ import (
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 const IconSize = 32
@@ -19,18 +17,24 @@ const IconSize = 32
 // Controller extends server.RowController to add session.
 type Controller interface {
 	MessageRowSelected(*Row, *server.Row, cchat.ServerMessage)
-	RestoreSession(*Row, cchat.SessionRestorer) // async
+	RestoreSession(*Row, keyring.Session) // async
+	RemoveSession(id string)
 }
 
 type Row struct {
 	*gtk.Box
 	Button  *rich.ToggleButtonImage
 	Session cchat.Session
-
 	Servers *server.Children
+
+	menu  *gtk.Menu
+	retry *gtk.MenuItem
 
 	ctrl   Controller
 	parent breadcrumb.Breadcrumber
+
+	// nil after calling SetSession()
+	krs keyring.Session
 }
 
 func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Controller) *Row {
@@ -42,8 +46,7 @@ func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Controller) *Ro
 func NewLoading(parent breadcrumb.Breadcrumber, name string, ctrl Controller) *Row {
 	row := new(parent, ctrl)
 	row.Button.SetLabelUnsafe(text.Rich{Content: name})
-	row.Button.Image.SetPlaceholderIcon("content-loading-symbolic", IconSize)
-	row.SetSensitive(false)
+	row.setLoading()
 
 	return row
 }
@@ -53,6 +56,7 @@ func new(parent breadcrumb.Breadcrumber, ctrl Controller) *Row {
 		ctrl:   ctrl,
 		parent: parent,
 	}
+	row.Servers = server.NewChildren(parent, row)
 
 	row.Button = rich.NewToggleButtonImage(text.Rich{})
 	row.Button.Box.SetHAlign(gtk.ALIGN_START)
@@ -74,48 +78,72 @@ func new(parent breadcrumb.Breadcrumber, ctrl Controller) *Row {
 
 	primitives.AddClass(row.Box, "session")
 
+	row.menu, _ = gtk.MenuNew()
+	primitives.BindMenu(row.menu, row.Button)
+
+	row.retry = primitives.HiddenMenuItem("Retry", func() {
+		// Show the loading stuff.
+		row.setLoading()
+		// Reuse the failed keyring session provided. As this variable is reset
+		// after a success, it relies of the button not triggering.
+		ctrl.RestoreSession(row, row.krs)
+	})
+	row.retry.SetSensitive(false)
+
+	primitives.AppendMenuItems(row.menu, []*gtk.MenuItem{
+		row.retry,
+		primitives.MenuItem("Remove", func() {
+			ctrl.RemoveSession(row.Session.ID())
+		}),
+	})
+
 	return row
 }
 
+func (r *Row) setLoading() {
+	// set the loading icon
+	r.Button.Image.SetPlaceholderIcon("content-loading-symbolic", IconSize)
+	// restore the old label's color
+	r.Button.SetLabelUnsafe(r.Button.GetLabel())
+	// blur - set the color darker
+	r.SetSensitive(false)
+}
+
 // KeyringSession returns a keyring session, or nil if the session cannot be
-// saved. This function is not cached, as I'd rather not keep the map in memory.
+// saved.
 func (r *Row) KeyringSession() *keyring.Session {
-	// Is the session saveable?
-	saver, ok := r.Session.(cchat.SessionSaver)
-	if !ok {
-		return nil
-	}
-
-	ks := keyring.Session{
-		ID:   r.Session.ID(),
-		Name: r.Button.GetText(),
-	}
-
-	s, err := saver.Save()
-	if err != nil {
-		log.Error(errors.Wrapf(err, "Failed to save session ID %s (%s)", ks.ID, ks.Name))
-		return nil
-	}
-	ks.Data = s
-
-	return &ks
+	return keyring.GetSession(r.Session, r.Button.GetText())
 }
 
 func (r *Row) SetSession(ses cchat.Session) {
+	// Disable the retry button.
+	r.retry.SetSensitive(false)
+	r.retry.Hide()
+
 	r.Session = ses
-	r.Servers = server.NewChildren(r, ses, r)
+	r.Servers.SetServerList(ses)
 	r.Button.Image.SetPlaceholderIcon("user-available-symbolic", IconSize)
 	r.Box.PackStart(r.Servers, false, false, 0)
 	r.SetSensitive(true)
 
 	// Set the session's name to the button.
 	r.Button.Try(ses, "session")
+
+	// Wipe the keyring session off.
+	r.krs = keyring.Session{}
 }
 
-func (r *Row) SetFailed(err error) {
+func (r *Row) SetFailed(krs keyring.Session, err error) {
+	// Set the failed keyring session.
+	r.krs = krs
+
+	// Allow the retry button to be pressed.
+	r.retry.SetSensitive(true)
+	r.retry.Show()
+
+	r.SetSensitive(true)
 	r.SetTooltipText(err.Error())
-	// TODO: setting the label directly here is kind of shitty, as it screws up
-	// the getter. Fix?
+	// Intentional side-effect of not changing the actual label state.
 	r.Button.Label.SetMarkup(rich.MakeRed(r.Button.GetLabel()))
 }
 

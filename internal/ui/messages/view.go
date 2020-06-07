@@ -46,8 +46,8 @@ func NewView() *View {
 	return view
 }
 
-// JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server cchat.ServerMessage) {
+func (v *View) Reset() {
+	// Leave the server if any.
 	if v.current != nil {
 		// Backend should handle synchronizing joins and leaves if it needs to.
 		go func() {
@@ -55,11 +55,19 @@ func (v *View) JoinServer(session cchat.Session, server cchat.ServerMessage) {
 				log.Error(errors.Wrap(err, "Error leaving server"))
 			}
 		}()
-
-		// Clean all messages.
-		v.Container.Reset()
 	}
 
+	// Clean all messages.
+	v.Container.Reset()
+
+	// Reset the input.
+	v.SendInput.Reset()
+}
+
+// JoinServer is not thread-safe, but it calls backend functions asynchronously.
+func (v *View) JoinServer(session cchat.Session, server cchat.ServerMessage) {
+	// Reset before setting.
+	v.Reset()
 	v.current = server
 
 	// Skipping ok check because sender can be nil. Without the empty check, Go

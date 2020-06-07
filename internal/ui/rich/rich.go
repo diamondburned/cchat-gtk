@@ -44,6 +44,12 @@ func NewLabel(content text.Rich) *Label {
 	return &Label{*label, content}
 }
 
+// Reset wipes the state to be just after construction.
+func (l *Label) Reset() {
+	l.current = text.Rich{}
+	l.Label.SetText("")
+}
+
 // SetLabel is thread-safe.
 func (l *Label) SetLabel(content text.Rich) {
 	gts.ExecAsync(func() {

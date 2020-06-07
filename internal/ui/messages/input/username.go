@@ -60,6 +60,12 @@ func newUsernameContainer() *usernameContainer {
 	}
 }
 
+func (u *usernameContainer) Reset() {
+	u.SetRevealChild(false)
+	u.avatar.Reset()
+	u.label.Reset()
+}
+
 // Update is not thread-safe.
 func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMessageSender) {
 	// Does sender (aka Server) implement ServerNickname? If not, we fallback to
@@ -112,4 +118,9 @@ func (u *usernameContainer) SetIcon(url string) {
 			u.SetRevealChild(true)
 		}
 	})
+}
+
+// GetIconURL is not thread-safe.
+func (u *usernameContainer) GetIconURL() string {
+	return u.avatar.URL()
 }

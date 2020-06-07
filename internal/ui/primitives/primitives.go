@@ -1,6 +1,11 @@
 package primitives
 
-import "github.com/gotk3/gotk3/gtk"
+import (
+	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/glib"
+	"github.com/gotk3/gotk3/gtk"
+)
 
 type StyleContexter interface {
 	GetStyleContext() (*gtk.StyleContext, error)
@@ -41,20 +46,32 @@ func SetImageIcon(img *gtk.Image, icon string, sizepx int) {
 	img.SetSizeRequest(sizepx, sizepx)
 }
 
-type MenuItem struct {
-	Name string
-	Fn   func()
-}
-
-func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []MenuItem) {
+func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []*gtk.MenuItem) {
 	for _, item := range items {
-		menu.Append(NewMenuItem(item.Name, item.Fn))
+		menu.Append(item)
 	}
 }
 
-func NewMenuItem(label string, fn func()) *gtk.MenuItem {
+func HiddenMenuItem(label string, fn func()) *gtk.MenuItem {
 	mb, _ := gtk.MenuItemNewWithLabel(label)
-	mb.Show()
 	mb.Connect("activate", fn)
 	return mb
+}
+
+func MenuItem(label string, fn func()) *gtk.MenuItem {
+	menuitem := HiddenMenuItem(label, fn)
+	menuitem.Show()
+	return menuitem
+}
+
+type Connector interface {
+	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+}
+
+func BindMenu(menu *gtk.Menu, connector Connector) {
+	connector.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			menu.PopupAtPointer(ev)
+		}
+	})
 }

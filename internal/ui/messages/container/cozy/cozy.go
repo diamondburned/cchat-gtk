@@ -40,7 +40,12 @@ func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 
 func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
 	var presend = NewFullSendingMessage(msg)
-	c.reuseAvatar(msg.AuthorID(), presend.Avatar)
+
+	// Try and see if we can reuse the avatar, and fallback if possible.
+	if !c.reuseAvatar(msg.AuthorID(), presend.Avatar) {
+		presend.overrideAuthorAvatar(msg.AuthorAvatarURL())
+	}
+
 	return presend
 }
 

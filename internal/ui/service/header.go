@@ -2,12 +2,11 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
-	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -47,14 +46,9 @@ func newHeader(svc cchat.Service) *header {
 		}
 	}
 
-	menu, _ := gtk.MenuNew()
-
 	// Spawn the menu on right click.
-	reveal.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
-		if gts.EventIsRightClick(ev) {
-			menu.PopupAtPointer(ev)
-		}
-	})
+	menu, _ := gtk.MenuNew()
+	primitives.BindMenu(menu, reveal)
 
 	return &header{box, reveal, add, menu}
 }

@@ -1,18 +1,16 @@
 package input
 
 import (
-	"strconv"
-	"time"
-
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat/text"
 )
 
 type SendMessageData struct {
-	content  string
-	author   text.Rich
-	authorID string
-	nonce    string
+	content   string
+	author    text.Rich
+	authorID  string
+	authorURL string // avatar
+	nonce     string
 }
 
 type PresendMessage interface {
@@ -21,20 +19,13 @@ type PresendMessage interface {
 
 	Author() text.Rich
 	AuthorID() string
+	AuthorAvatarURL() string // may be empty
 }
 
 var (
 	_ cchat.SendableMessage = (*SendMessageData)(nil)
 	_ cchat.MessageNonce    = (*SendMessageData)(nil)
 )
-
-func NewSendMessageData(content string, author text.Rich, authorID string) SendMessageData {
-	return SendMessageData{
-		content: content,
-		author:  author,
-		nonce:   "cchat-gtk_" + strconv.FormatInt(time.Now().UnixNano(), 10),
-	}
-}
 
 func (s SendMessageData) Content() string {
 	return s.content
@@ -46,6 +37,10 @@ func (s SendMessageData) Author() text.Rich {
 
 func (s SendMessageData) AuthorID() string {
 	return s.authorID
+}
+
+func (s SendMessageData) AuthorAvatarURL() string {
+	return s.authorURL
 }
 
 func (s SendMessageData) Nonce() string {

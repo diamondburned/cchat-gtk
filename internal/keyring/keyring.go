@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"strings"
 
+	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/pkg/errors"
 	"github.com/zalando/go-keyring"
@@ -35,6 +36,31 @@ type Session struct {
 	ID   string
 	Name string
 	Data map[string]string
+}
+
+func GetSession(ses cchat.Session, name string) *Session {
+	saver, ok := ses.(cchat.SessionSaver)
+	if !ok {
+		return nil
+	}
+
+	s, err := saver.Save()
+	if err != nil {
+		log.Error(errors.Wrapf(err, "Failed to save session ID %s (%s)", ses.ID(), name))
+		return nil
+	}
+
+	// Treat the ID as name if none is provided. This is a shitty hack around
+	// backends that only set the name after returning.
+	if name == "" {
+		name = ses.ID()
+	}
+
+	return &Session{
+		ID:   ses.ID(),
+		Name: name,
+		Data: s,
+	}
 }
 
 func SaveSessions(serviceName string, sessions []Session) {

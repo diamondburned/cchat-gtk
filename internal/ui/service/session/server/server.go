@@ -62,9 +62,10 @@ func NewRow(parent breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller
 
 	switch server := server.(type) {
 	case cchat.ServerList:
-		row.children = NewChildren(row, server, ctrl)
-		box.PackStart(row.children, false, false, 0)
+		row.children = NewChildren(row, ctrl)
+		row.children.SetServerList(server)
 
+		box.PackStart(row.children, false, false, 0)
 		primitives.AddClass(box, "server-list")
 
 	case cchat.ServerMessage:
@@ -112,7 +113,7 @@ type Children struct {
 	Parent breadcrumb.Breadcrumber
 }
 
-func NewChildren(parent breadcrumb.Breadcrumber, list cchat.ServerList, ctrl Controller) *Children {
+func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.SetMarginStart(ChildrenMargin)
 	main.Show()
@@ -122,19 +123,20 @@ func NewChildren(parent breadcrumb.Breadcrumber, list cchat.ServerList, ctrl Con
 	rev.Add(main)
 	rev.Show()
 
-	children := &Children{
+	return &Children{
 		Revealer: rev,
 		Main:     main,
-		List:     list,
 		rowctrl:  ctrl,
 		Parent:   parent,
 	}
+}
 
-	if err := list.Servers(children); err != nil {
+func (c *Children) SetServerList(list cchat.ServerList) {
+	c.List = list
+
+	if err := list.Servers(c); err != nil {
 		log.Error(errors.Wrap(err, "Failed to get servers"))
 	}
-
-	return children
 }
 
 func (c *Children) SetServers(servers []cchat.Server) {

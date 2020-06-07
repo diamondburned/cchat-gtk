@@ -1,6 +1,9 @@
 package input
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
@@ -71,20 +74,30 @@ func NewField(ctrl Controller) *Field {
 	return field
 }
 
-// SetSender changes the sender of the input field. If nil, the input will be
-// disabled.
-func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
-	f.UserID = session.ID()
+// Reset prepares the field before SetSender() is called.
+func (f *Field) Reset() {
+	// Paranoia.
+	f.text.SetSensitive(false)
 
+	f.UserID = ""
+	f.sender = nil
+	f.username.Reset()
+
+	// reset the input
+	f.buffer.Delete(f.buffer.GetBounds())
+}
+
+// SetSender changes the sender of the input field. If nil, the input will be
+// disabled. Reset() should be called first.
+func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
 	// Update the left username container in the input.
 	f.username.Update(session, sender)
 
 	// Set the sender.
-	f.sender = sender
-	f.text.SetSensitive(sender != nil) // grey if sender is nil
-
-	// reset the input
-	f.buffer.Delete(f.buffer.GetBounds())
+	if sender != nil {
+		f.sender = sender
+		f.text.SetSensitive(true)
+	}
 }
 
 // SendMessage yanks the text from the input field and sends it to the backend.
@@ -100,7 +113,13 @@ func (f *Field) SendMessage() {
 	}
 
 	var sender = f.sender
-	var data = NewSendMessageData(text, f.username.GetLabel(), f.UserID)
+	var data = SendMessageData{
+		content:   text,
+		author:    f.username.GetLabel(),
+		authorID:  f.UserID,
+		authorURL: f.username.GetIconURL(),
+		nonce:     "cchat-gtk_" + strconv.FormatInt(time.Now().UnixNano(), 10),
+	}
 
 	// presend message into the container through the controller
 	var done = f.ctrl.PresendMessage(data)

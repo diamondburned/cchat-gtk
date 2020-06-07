@@ -2,24 +2,16 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
-
-type Controller interface {
-	session.Controller
-
-	// MessageRowSelected is wrapped around session's MessageRowSelected.
-	MessageRowSelected(*session.Row, *server.Row, cchat.ServerMessage)
-	// AuthenticateSession is called to spawn the authentication dialog.
-	AuthenticateSession(*Container, cchat.Service)
-	// SaveAllSessions is called to save all available sessions from the menu.
-	SaveAllSessions(*Container)
-}
 
 type View struct {
 	*gtk.ScrolledWindow
@@ -49,7 +41,21 @@ func (v *View) AddService(svc cchat.Service, ctrl Controller) *Container {
 	s := NewContainer(svc, ctrl)
 	v.Services = append(v.Services, s)
 	v.Box.Add(s)
+
+	// Try and restore all sessions.
+	s.restoreAllSessions()
+
 	return s
+}
+
+type Controller interface {
+	// MessageRowSelected is wrapped around session's MessageRowSelected.
+	MessageRowSelected(*session.Row, *server.Row, cchat.ServerMessage)
+	// AuthenticateSession is called to spawn the authentication dialog.
+	AuthenticateSession(*Container, cchat.Service)
+	// RemoveSession is called to remove a session. This should also clear out
+	// the message view in the parent package.
+	RemoveSession(id string)
 }
 
 type Container struct {
@@ -63,6 +69,9 @@ type Container struct {
 	// Embed controller and extend it to override RestoreSession.
 	Controller
 }
+
+// Guarantee that our interface is up-to-date with session's controller.
+var _ session.Controller = (*Container)(nil)
 
 func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	children := newChildren()
@@ -104,10 +113,10 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	})
 
 	// Make menu items.
-	primitives.AppendMenuItems(header.Menu, []primitives.MenuItem{
-		{Name: "Save Sessions", Fn: func() {
-			ctrl.SaveAllSessions(container)
-		}},
+	primitives.AppendMenuItems(header.Menu, []*gtk.MenuItem{
+		primitives.MenuItem("Save Sessions", func() {
+			container.SaveAllSessions()
+		}),
 	})
 
 	return container
@@ -116,20 +125,74 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 func (c *Container) AddSession(ses cchat.Session) *session.Row {
 	srow := session.New(c, ses, c)
 	c.children.addSessionRow(ses.ID(), srow)
-
+	c.SaveAllSessions()
 	return srow
 }
 
 func (c *Container) AddLoadingSession(id, name string) *session.Row {
 	srow := session.NewLoading(c, name, c)
 	c.children.addSessionRow(id, srow)
-
 	return srow
 }
 
-// KeyringSessions returns all known keyring sessions. Sessions that can't be
+func (c *Container) RemoveSession(id string) {
+	c.children.removeSessionRow(id)
+	c.SaveAllSessions()
+	// Call the parent's method.
+	c.Controller.RemoveSession(id)
+}
+
+// RestoreSession tries to restore sessions asynchronously. This satisfies
+// session.Controller.
+func (c *Container) RestoreSession(row *session.Row, krs keyring.Session) {
+	// Can this session be restored? If not, exit.
+	restorer, ok := c.Service.(cchat.SessionRestorer)
+	if !ok {
+		return
+	}
+	c.restoreSession(row, restorer, krs)
+}
+
+// internal method called on AddService.
+func (c *Container) restoreAllSessions() {
+	// Can this session be restored? If not, exit.
+	restorer, ok := c.Service.(cchat.SessionRestorer)
+	if !ok {
+		return
+	}
+
+	var sessions = keyring.RestoreSessions(c.Service.Name())
+
+	for _, krs := range sessions {
+		// Copy the session to avoid race conditions.
+		krs := krs
+		row := c.AddLoadingSession(krs.ID, krs.Name)
+
+		c.restoreSession(row, restorer, krs)
+	}
+}
+
+func (c *Container) restoreSession(r *session.Row, res cchat.SessionRestorer, k keyring.Session) {
+	go func() {
+		s, err := res.RestoreSession(k.Data)
+		if err != nil {
+			err = errors.Wrapf(err, "Failed to restore session %s (%s)", k.ID, k.Name)
+			log.Error(err)
+
+			gts.ExecAsync(func() { r.SetFailed(k, err) })
+		} else {
+			gts.ExecAsync(func() { r.SetSession(s) })
+		}
+	}()
+}
+
+func (c *Container) SaveAllSessions() {
+	keyring.SaveSessions(c.Service.Name(), c.keyringSessions())
+}
+
+// keyringSessions returns all known keyring sessions. Sessions that can't be
 // saved will not be in the slice.
-func (c *Container) KeyringSessions() []keyring.Session {
+func (c *Container) keyringSessions() []keyring.Session {
 	var ksessions = make([]keyring.Session, 0, len(c.children.Sessions))
 	for _, s := range c.children.Sessions {
 		if k := s.KeyringSession(); k != nil {

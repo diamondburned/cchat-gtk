@@ -14,11 +14,12 @@ import (
 
 type Icon struct {
 	*gtk.Revealer
-	Image *gtk.Image
-
+	Image   *gtk.Image
 	resizer imgutil.Processor
 	procs   []imgutil.Processor
-	url     string // state
+
+	// state
+	url string
 }
 
 const DefaultIconSize = 16
@@ -46,6 +47,12 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 		resizer:  imgutil.Resize(sizepx, sizepx),
 		procs:    procs,
 	}
+}
+
+// Reset wipes the state to be just after construction.
+func (i *Icon) Reset() {
+	i.url = ""
+	i.Revealer.SetRevealChild(false)
 }
 
 // URL is not thread-safe.

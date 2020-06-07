@@ -114,3 +114,18 @@ func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
 		FullMessage:      *WrapFullMessage(msgc.GenericContainer),
 	}
 }
+
+// make an exception for sending messages.
+func (m *FullSendingMessage) overrideAuthorAvatar(url string) {
+	if url == "" {
+		return
+	}
+
+	// TODO: put in fn
+	httputil.AsyncImageSized(
+		m.Avatar,
+		url,
+		AvatarSize, AvatarSize,
+		imgutil.Round(true),
+	)
+}
