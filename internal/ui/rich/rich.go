@@ -1,6 +1,8 @@
 package rich
 
 import (
+	"html"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -11,9 +13,17 @@ import (
 
 // TODO: parser
 
+func MakeRed(content text.Rich) string {
+	return `<span color="red">` + html.EscapeString(content.Content) + `</span>`
+}
+
 type Labeler interface {
+	// thread-safe
 	cchat.LabelContainer // thread-safe
-	GetLabel() text.Rich // not thread-safe
+
+	// not thread-safe
+	SetLabelUnsafe(text.Rich)
+	GetLabel() text.Rich
 	GetText() string
 }
 

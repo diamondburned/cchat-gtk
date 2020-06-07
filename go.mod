@@ -4,6 +4,8 @@ go 1.14
 
 replace github.com/diamondburned/cchat-mock => ../cchat-mock/
 
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200606223630-b0c33ec7b10a
+
 require (
 	github.com/Xuanwo/go-locale v0.2.0
 	github.com/diamondburned/cchat v0.0.15

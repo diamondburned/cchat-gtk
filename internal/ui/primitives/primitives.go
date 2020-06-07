@@ -40,3 +40,21 @@ func SetImageIcon(img *gtk.Image, icon string, sizepx int) {
 	img.SetProperty("pixel-size", sizepx)
 	img.SetSizeRequest(sizepx, sizepx)
 }
+
+type MenuItem struct {
+	Name string
+	Fn   func()
+}
+
+func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []MenuItem) {
+	for _, item := range items {
+		menu.Append(NewMenuItem(item.Name, item.Fn))
+	}
+}
+
+func NewMenuItem(label string, fn func()) *gtk.MenuItem {
+	mb, _ := gtk.MenuItemNewWithLabel(label)
+	mb.Show()
+	mb.Connect("activate", fn)
+	return mb
+}

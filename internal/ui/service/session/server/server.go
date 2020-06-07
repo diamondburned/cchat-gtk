@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat/text"
+	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -37,6 +38,7 @@ type Row struct {
 func NewRow(parent breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *Row {
 	button := rich.NewToggleButtonImage(text.Rich{})
 	button.Box.SetHAlign(gtk.ALIGN_START)
+	button.Image.AddProcessors(imgutil.Round(true))
 	button.Image.SetSize(IconSize)
 	button.SetRelief(gtk.RELIEF_NONE)
 	button.Show()

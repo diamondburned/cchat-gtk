@@ -4,7 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/compact"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -34,7 +34,8 @@ func NewView() *View {
 	view := &View{}
 
 	// TODO: change
-	view.Container = compact.NewContainer()
+	// view.Container = compact.NewContainer()
+	view.Container = cozy.NewContainer()
 	view.SendInput = input.NewField(view)
 
 	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)

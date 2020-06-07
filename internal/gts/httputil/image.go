@@ -8,16 +8,68 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
-// AsyncImage loads an image. This method uses the cache.
-func AsyncImage(img *gtk.Image, url string, procs ...imgutil.Processor) {
-	go asyncImage(img, url, procs...)
+type ImageContainer interface {
+	SetFromPixbuf(*gdk.Pixbuf)
+	SetFromAnimation(*gdk.PixbufAnimation)
 }
 
-func asyncImage(img *gtk.Image, url string, procs ...imgutil.Processor) {
+type ImageContainerSizer interface {
+	ImageContainer
+	SetSizeRequest(w, h int)
+}
+
+// AsyncImage loads an image. This method uses the cache.
+func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
+	go syncImageFn(img, url, procs, func(l *gdk.PixbufLoader, gif bool) {
+		l.Connect("area-prepared", areaPreparedFn(img, gif))
+	})
+}
+
+// AsyncImageSized resizes using GdkPixbuf. This method does not use the cache.
+func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...imgutil.Processor) {
+	go syncImageFn(img, url, procs, func(l *gdk.PixbufLoader, gif bool) {
+		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
+			w, h = imgutil.MaxSize(imgW, imgH, w, h)
+			if w != imgW || h != imgH {
+				l.SetSize(w, h)
+				img.SetSizeRequest(w, h)
+			}
+		})
+
+		l.Connect("area-prepared", areaPreparedFn(img, gif))
+	})
+}
+
+func areaPreparedFn(img ImageContainer, gif bool) func(l *gdk.PixbufLoader) {
+	return func(l *gdk.PixbufLoader) {
+		if !gif {
+			p, err := l.GetPixbuf()
+			if err != nil {
+				log.Error(errors.Wrap(err, "Failed to get pixbuf"))
+				return
+			}
+			gts.ExecAsync(func() { img.SetFromPixbuf(p) })
+		} else {
+			p, err := l.GetAnimation()
+			if err != nil {
+				log.Error(errors.Wrap(err, "Failed to get animation"))
+				return
+			}
+			gts.ExecAsync(func() { img.SetFromAnimation(p) })
+		}
+	}
+}
+
+func syncImageFn(
+	img ImageContainer,
+	url string,
+	procs []imgutil.Processor,
+	middle func(l *gdk.PixbufLoader, gif bool),
+) {
+
 	r, err := get(url, true)
 	if err != nil {
 		log.Error(err)
@@ -36,24 +88,8 @@ func asyncImage(img *gtk.Image, url string, procs ...imgutil.Processor) {
 	// This is a very important signal, so we must do it synchronously. Gotk3's
 	// callback implementation requires all connects to be synchronous to a
 	// certain thread.
-	gts.ExecSync(func() {
-		l.Connect("area-prepared", func() {
-			if gif {
-				p, err := l.GetPixbuf()
-				if err != nil {
-					log.Error(errors.Wrap(err, "Failed to get pixbuf"))
-					return
-				}
-				img.SetFromPixbuf(p)
-			} else {
-				p, err := l.GetAnimation()
-				if err != nil {
-					log.Error(errors.Wrap(err, "Failed to get animation"))
-					return
-				}
-				img.SetFromAnimation(p)
-			}
-		})
+	<-gts.ExecSync(func() {
+		middle(l, gif)
 	})
 
 	// If we have processors, then write directly in there.
@@ -76,10 +112,4 @@ func asyncImage(img *gtk.Image, url string, procs ...imgutil.Processor) {
 	if err := l.Close(); err != nil {
 		log.Error(errors.Wrap(err, "Failed to close pixbuf"))
 	}
-}
-
-// AsyncImageSized resizes using GdkPixbuf. This method does not use the cache.
-func AsyncImageSized(img *gtk.Image, url string, w, h int, procs ...imgutil.Processor) {
-	// TODO
-	panic("TODO")
 }

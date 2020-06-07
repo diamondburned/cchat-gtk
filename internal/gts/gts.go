@@ -2,9 +2,9 @@ package gts
 
 import (
 	"os"
-	"sync"
 
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -12,7 +12,6 @@ import (
 const AppID = "com.github.diamondburned.cchat-gtk"
 
 var Args = append([]string{}, os.Args...)
-var recvPool *sync.Pool
 
 var App struct {
 	*gtk.Application
@@ -22,13 +21,6 @@ var App struct {
 
 func init() {
 	gtk.Init(&Args)
-
-	recvPool = &sync.Pool{
-		New: func() interface{} {
-			return make(chan struct{})
-		},
-	}
-
 	App.Application, _ = gtk.ApplicationNew(AppID, 0)
 }
 
@@ -98,8 +90,7 @@ func ExecAsync(fn func()) {
 // ExecSync executes the function asynchronously, but returns a channel that
 // indicates when the job is done.
 func ExecSync(fn func()) <-chan struct{} {
-	ch := recvPool.Get().(chan struct{})
-	defer recvPool.Put(ch)
+	var ch = make(chan struct{})
 
 	glib.IdleAdd(func() {
 		fn()
@@ -107,4 +98,9 @@ func ExecSync(fn func()) <-chan struct{} {
 	})
 
 	return ch
+}
+
+func EventIsRightClick(ev *gdk.Event) bool {
+	keyev := gdk.EventButtonNewFromEvent(ev)
+	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_SECONDARY
 }

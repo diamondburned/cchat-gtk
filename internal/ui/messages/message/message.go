@@ -22,6 +22,12 @@ type Container interface {
 	UpdateTimestamp(time.Time)
 }
 
+func FillContainer(c Container, msg cchat.MessageCreate) {
+	c.UpdateAuthor(msg.Author())
+	c.UpdateContent(msg.Content())
+	c.UpdateTimestamp(msg.Time())
+}
+
 // GenericContainer provides a single generic message container for subpackages
 // to use.
 type GenericContainer struct {
@@ -36,12 +42,12 @@ type GenericContainer struct {
 
 var _ Container = (*GenericContainer)(nil)
 
+// NewContainer creates a new message container with the given ID and nonce. It
+// does not update the widgets, so FillContainer should be called afterwards.
 func NewContainer(msg cchat.MessageCreate) *GenericContainer {
 	c := NewEmptyContainer()
 	c.id = msg.ID()
-	c.UpdateTimestamp(msg.Time())
-	c.UpdateAuthor(msg.Author())
-	c.UpdateContent(msg.Content())
+	c.authorID = msg.Author().ID()
 
 	if noncer, ok := msg.(cchat.MessageNonce); ok {
 		c.nonce = noncer.Nonce()
@@ -102,7 +108,6 @@ func (m *GenericContainer) UpdateTimestamp(t time.Time) {
 }
 
 func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
-	m.authorID = author.ID()
 	m.UpdateAuthorName(author.Name())
 }
 

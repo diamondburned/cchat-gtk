@@ -9,7 +9,6 @@ import (
 )
 
 type PresendContainer interface {
-	Container
 	SetID(id string)
 	SetDone()
 	SetSentError(err error)
@@ -24,7 +23,10 @@ type GenericPresendContainer struct {
 var _ PresendContainer = (*GenericPresendContainer)(nil)
 
 func NewPresendContainer(msg input.PresendMessage) *GenericPresendContainer {
-	c := NewEmptyContainer()
+	return WrapPresendContainer(NewEmptyContainer(), msg)
+}
+
+func WrapPresendContainer(c *GenericContainer, msg input.PresendMessage) *GenericPresendContainer {
 	c.nonce = msg.Nonce()
 	c.authorID = msg.AuthorID()
 	c.UpdateContent(text.Rich{Content: msg.Content()})
@@ -52,6 +54,8 @@ func (m *GenericPresendContainer) SetDone() {
 }
 
 func (m *GenericPresendContainer) SetSentError(err error) {
-	m.Content.SetMarkup(`<span color="red">` + html.EscapeString(m.Content.GetLabel()) + `</span>`)
+	var content = html.EscapeString(m.Content.GetLabel())
+
+	m.Content.SetMarkup(`<span color="red">` + content + `</span>`)
 	m.Content.SetTooltipText(err.Error())
 }

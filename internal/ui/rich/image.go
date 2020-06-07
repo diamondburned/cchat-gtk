@@ -48,7 +48,21 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 	}
 }
 
-// Thread-unsafe methods should only be called right after construction.
+// URL is not thread-safe.
+func (i *Icon) URL() string {
+	return i.url
+}
+
+func (i *Icon) CopyPixbuf(dst httputil.ImageContainer) {
+	switch i.Image.GetStorageType() {
+	case gtk.IMAGE_PIXBUF:
+		dst.SetFromPixbuf(i.Image.GetPixbuf())
+	case gtk.IMAGE_ANIMATION:
+		dst.SetFromAnimation(i.Image.GetAnimation())
+	}
+}
+
+// Thread-unsafe setter methods should only be called right after construction.
 
 // SetPlaceholderIcon is not thread-safe.
 func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
@@ -73,7 +87,14 @@ func (i *Icon) AddProcessors(procs ...imgutil.Processor) {
 
 // SetIcon is thread-safe.
 func (i *Icon) SetIcon(url string) {
-	gts.ExecAsync(func() { i.SetRevealChild(true) })
+	gts.ExecAsync(func() {
+		i.SetIconUnsafe(url)
+	})
+}
+
+// SetIconUnsafe is not thread-safe.
+func (i *Icon) SetIconUnsafe(url string) {
+	i.SetRevealChild(true)
 	i.url = url
 	i.updateAsync()
 }

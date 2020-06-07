@@ -9,6 +9,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/diamondburned/cchat v0.0.15 h1:1o4OX8zw/CdSv3Idaylz7vjHVOZKEi/xkg8BpEvtsHY=
 github.com/diamondburned/cchat v0.0.15/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
+github.com/diamondburned/gotk3 v0.0.0-20200606223630-b0c33ec7b10a h1:pH6WLWVhzzvpXjGwPQbPhhp1g0ZMLZFS5S8zLoRGYRg=
+github.com/diamondburned/gotk3 v0.0.0-20200606223630-b0c33ec7b10a/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/imgutil v0.0.0-20200606035324-63abbc0fdea6 h1:APALM1hskCByjOVW9CoUwjg0TIJgKZ62dgFr/9soqss=
 github.com/diamondburned/imgutil v0.0.0-20200606035324-63abbc0fdea6/go.mod h1:kBQKaukR/LyCfhED99/T4/XxUMDNEEzf1Fx6vreD3RQ=
 github.com/die-net/lrucache v0.0.0-20190707192454-883874fe3947 h1:U/5Sq2nJQ0XDyks+8ATghtHSuquIGq7JYrqSrvtR2dg=

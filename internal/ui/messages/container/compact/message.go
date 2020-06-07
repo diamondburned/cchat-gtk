@@ -9,17 +9,17 @@ import (
 )
 
 type PresendMessage struct {
-	*message.GenericPresendContainer
+	message.PresendContainer
+	Message
 }
 
 func NewPresendMessage(msg input.PresendMessage) PresendMessage {
-	return PresendMessage{
-		GenericPresendContainer: message.NewPresendContainer(msg),
-	}
-}
+	var msgc = message.NewPresendContainer(msg)
 
-func (p PresendMessage) Attach(grid *gtk.Grid, row int) {
-	attachGenericContainer(p.GenericContainer, grid, row)
+	return PresendMessage{
+		PresendContainer: msgc,
+		Message:          Message{msgc.GenericContainer},
+	}
 }
 
 type Message struct {
@@ -29,15 +29,13 @@ type Message struct {
 var _ container.GridMessage = (*Message)(nil)
 
 func NewMessage(msg cchat.MessageCreate) Message {
-	return Message{
-		GenericContainer: message.NewContainer(msg),
-	}
+	msgc := message.NewContainer(msg)
+	message.FillContainer(msgc, msg)
+	return Message{msgc}
 }
 
 func NewEmptyMessage() Message {
-	return Message{
-		GenericContainer: message.NewEmptyContainer(),
-	}
+	return Message{message.NewEmptyContainer()}
 }
 
 // TODO: fix a bug here related to new messages overlapping
@@ -46,7 +44,5 @@ func (m Message) Attach(grid *gtk.Grid, row int) {
 }
 
 func attachGenericContainer(m *message.GenericContainer, grid *gtk.Grid, row int) {
-	grid.Attach(m.Timestamp, 0, row, 1, 1)
-	grid.Attach(m.Username, 1, row, 1, 1)
-	grid.Attach(m.Content, 2, row, 1, 1)
+	container.AttachRow(grid, row, m.Timestamp, m.Username, m.Content)
 }

@@ -21,13 +21,6 @@ type PresendGridMessage interface {
 	message.PresendContainer
 }
 
-// gridMessage w/ required internals
-type gridMessage struct {
-	GridMessage
-	presend message.PresendContainer // this shouldn't be here but i'm lazy
-	index   int
-}
-
 // Constructor is an interface for making custom message implementations which
 // allows GridContainer to generically work with.
 type Constructor interface {
@@ -47,6 +40,14 @@ type Container interface {
 	PresendMessage(input.PresendMessage) (done func(sendError error))
 }
 
+func AttachRow(grid *gtk.Grid, row int, widgets ...gtk.IWidget) {
+	for i, w := range widgets {
+		grid.Attach(w, i, row, 1, 1)
+	}
+}
+
+const ColumnSpacing = 10
+
 // GridContainer is an implementation of Container, which allows flexible
 // message grids.
 type GridContainer struct {
@@ -55,8 +56,15 @@ type GridContainer struct {
 
 	construct Constructor
 
-	messages  map[string]*gridMessage
-	nonceMsgs map[string]*gridMessage
+	messages   []*gridMessage // sync w/ grid rows
+	messageIDs map[string]int
+	nonceMsgs  map[string]int
+}
+
+// gridMessage w/ required internals
+type gridMessage struct {
+	GridMessage
+	presend message.PresendContainer // this shouldn't be here but i'm lazy
 }
 
 var (
@@ -66,7 +74,7 @@ var (
 
 func NewGridContainer(constr Constructor) *GridContainer {
 	grid, _ := gtk.GridNew()
-	grid.SetColumnSpacing(10)
+	grid.SetColumnSpacing(ColumnSpacing)
 	grid.SetRowSpacing(5)
 	grid.SetMarginStart(5)
 	grid.SetMarginEnd(5)
@@ -82,42 +90,42 @@ func NewGridContainer(constr Constructor) *GridContainer {
 		ScrolledWindow: sw,
 		Main:           grid,
 		construct:      constr,
-		messages:       map[string]*gridMessage{},
-		nonceMsgs:      map[string]*gridMessage{},
+		messageIDs:     map[string]int{},
+		nonceMsgs:      map[string]int{},
 	}
 
 	return &container
 }
 
 func (c *GridContainer) Reset() {
-	// does this actually work?
-	var rows = c.len()
-	for i := 0; i < rows; i++ {
-		c.Main.RemoveRow(i)
-	}
+	c.Main.GetChildren().Foreach(func(v interface{}) {
+		// Unsafe assertion ftw.
+		c.Main.Remove(v.(gtk.IWidget))
+	})
 
-	c.messages = map[string]*gridMessage{}
-	c.nonceMsgs = map[string]*gridMessage{}
+	c.messages = nil
+	c.messageIDs = map[string]int{}
+	c.nonceMsgs = map[string]int{}
 
 	c.ScrolledWindow.Bottomed = true
-}
-
-func (c *GridContainer) len() int {
-	return len(c.messages) + len(c.nonceMsgs)
 }
 
 // PresendMessage is not thread-safe.
 func (c *GridContainer) PresendMessage(msg input.PresendMessage) func(error) {
 	presend := c.construct.NewPresendMessage(msg)
 
-	msgc := gridMessage{
+	msgc := &gridMessage{
 		GridMessage: presend,
 		presend:     presend,
-		index:       c.len(),
 	}
 
-	c.nonceMsgs[presend.Nonce()] = &msgc
-	msgc.Attach(c.Main, msgc.index)
+	// Grab index before appending, as that'll be where the added message is.
+	index := len(c.messages)
+
+	c.messages = append(c.messages, msgc)
+
+	c.nonceMsgs[presend.Nonce()] = index
+	msgc.Attach(c.Main, index)
 
 	return func(err error) {
 		if err != nil {
@@ -127,19 +135,31 @@ func (c *GridContainer) PresendMessage(msg input.PresendMessage) func(error) {
 	}
 }
 
-// FindMessage is not thread-safe. This exists for backwards compatibility.
-func (c *GridContainer) FindMessage(msg cchat.MessageHeader) GridMessage {
-	if m := c.findMessage(msg); m != nil {
+// FindMessage iterates backwards and returns the message if isMessage() returns
+// true on that message.
+func (c *GridContainer) FindMessage(isMessage func(msg GridMessage) bool) GridMessage {
+	for i := len(c.messages) - 1; i >= 0; i-- {
+		if msg := c.messages[i].GridMessage; isMessage(msg) {
+			return msg
+		}
+	}
+	return nil
+}
+
+// Message finds the message state in the container. It is not thread-safe. This
+// exists for backwards compatibility.
+func (c *GridContainer) Message(msg cchat.MessageHeader) GridMessage {
+	if m := c.message(msg); m != nil {
 		return m.GridMessage
 	}
 	return nil
 }
 
-func (c *GridContainer) findMessage(msg cchat.MessageHeader) *gridMessage {
+func (c *GridContainer) message(msg cchat.MessageHeader) *gridMessage {
 	// Search using the ID first.
-	m, ok := c.messages[msg.ID()]
+	i, ok := c.messageIDs[msg.ID()]
 	if ok {
-		return m
+		return c.messages[i]
 	}
 
 	// Is this an existing message?
@@ -147,11 +167,14 @@ func (c *GridContainer) findMessage(msg cchat.MessageHeader) *gridMessage {
 		var nonce = noncer.Nonce()
 
 		// Things in this map are guaranteed to have presend != nil.
-		m, ok := c.nonceMsgs[nonce]
+		i, ok := c.nonceMsgs[nonce]
 		if ok {
-			// Move the message outside nonceMsgs.
+			// Move the message outside nonceMsgs and into messageIDs.
 			delete(c.nonceMsgs, nonce)
-			c.messages[msg.ID()] = m
+			c.messageIDs[msg.ID()] = i
+
+			// Get the message pointer.
+			m := c.messages[i]
 
 			// Set the right ID.
 			m.presend.SetID(msg.ID())
@@ -168,27 +191,31 @@ func (c *GridContainer) findMessage(msg cchat.MessageHeader) *gridMessage {
 
 func (c *GridContainer) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
-		// Attempt update before insert (aka upsert).
-		if msgc := c.FindMessage(msg); msgc != nil {
+		// Attempt to update before insertion (aka upsert).
+		if msgc := c.Message(msg); msgc != nil {
 			msgc.UpdateAuthor(msg.Author())
 			msgc.UpdateContent(msg.Content())
 			msgc.UpdateTimestamp(msg.Time())
 			return
 		}
 
-		msgc := gridMessage{
+		msgc := &gridMessage{
 			GridMessage: c.construct.NewMessage(msg),
-			index:       c.len(),
 		}
 
-		c.messages[msgc.ID()] = &msgc
-		msgc.Attach(c.Main, msgc.index)
+		// Grab index before appending, as that'll be where the added message is.
+		index := len(c.messages)
+
+		c.messages = append(c.messages, msgc)
+
+		c.messageIDs[msgc.ID()] = index
+		msgc.Attach(c.Main, index)
 	})
 }
 
 func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 	gts.ExecAsync(func() {
-		if msgc := c.FindMessage(msg); msgc != nil {
+		if msgc := c.Message(msg); msgc != nil {
 			if author := msg.Author(); author != nil {
 				msgc.UpdateAuthor(author)
 			}
@@ -202,9 +229,13 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() {
 		// TODO: add nonce check.
-		if m, ok := c.messages[msg.ID()]; ok {
-			delete(c.messages, msg.ID())
-			c.Main.RemoveRow(m.index)
+		if i, ok := c.messageIDs[msg.ID()]; ok {
+			// Remove off the slice.
+			c.messages = append(c.messages[:i], c.messages[i+1:]...)
+
+			// Remove off the map.
+			delete(c.messageIDs, msg.ID())
+			c.Main.RemoveRow(i)
 		}
 	})
 }

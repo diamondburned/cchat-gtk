@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/markbates/pkger"
+	"github.com/pkg/errors"
 )
 
 func init() {
@@ -46,8 +47,45 @@ func NewApplication() *App {
 func (app *App) AddService(svc cchat.Service) {
 	var container = app.window.Services.AddService(svc, app)
 
-	// Attempt to restore sessions asynchronously.
-	keyring.RestoreSessions(svc, container.AddSession)
+	// Can this session be restored? If not, exit.
+	restorer, ok := container.Service.(cchat.SessionRestorer)
+	if !ok {
+		return
+	}
+
+	var sessions = keyring.RestoreSessions(container.Service.Name())
+
+	for _, krs := range sessions {
+		// Copy the session to avoid race conditions.
+		krs := krs
+		row := container.AddLoadingSession(krs.ID, krs.Name)
+
+		go app.restoreSession(row, restorer, krs)
+	}
+}
+
+// RestoreSession attempts to restore the session asynchronously.
+func (app *App) RestoreSession(row *session.Row, r cchat.SessionRestorer) {
+	// Get the restore data.
+	ks := row.KeyringSession()
+	if ks == nil {
+		log.Warn(errors.New("Attempted restore in ui.go"))
+		return
+	}
+	go app.restoreSession(row, r, *ks)
+}
+
+// synchronous op
+func (app *App) restoreSession(row *session.Row, r cchat.SessionRestorer, k keyring.Session) {
+	s, err := r.RestoreSession(k.Data)
+	if err != nil {
+		err = errors.Wrapf(err, "Failed to restore session %s (%s)", k.ID, k.Name)
+		log.Error(err)
+
+		gts.ExecAsync(func() { row.SetFailed(err) })
+	} else {
+		gts.ExecAsync(func() { row.SetSession(s) })
+	}
 }
 
 func (app *App) MessageRowSelected(ses *session.Row, srv *server.Row, smsg cchat.ServerMessage) {
@@ -70,11 +108,13 @@ func (app *App) AuthenticateSession(container *service.Container, svc cchat.Serv
 	auth.NewDialog(svc.Name(), svc.Authenticate(), func(ses cchat.Session) {
 		container.AddSession(ses)
 
-		// Save all sessions.
-		for _, err := range keyring.SaveSessions(svc, container.Sessions()) {
-			log.Error(err)
-		}
+		// Try and save all keyring sessions.
+		app.SaveAllSessions(container)
 	})
+}
+
+func (app *App) SaveAllSessions(container *service.Container) {
+	keyring.SaveSessions(container.Service.Name(), container.KeyringSessions())
 }
 
 func (app *App) Header() gtk.IWidget {

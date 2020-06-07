@@ -11,15 +11,17 @@ type Container struct {
 }
 
 func NewContainer() *Container {
-	c := &Container{}
-	c.GridContainer = container.NewGridContainer(c)
-	return c
+	return &Container{
+		GridContainer: container.NewGridContainer(constructor{}),
+	}
 }
 
-func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
+type constructor struct{}
+
+func (constructor) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 	return NewMessage(msg)
 }
 
-func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
+func (constructor) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
 	return NewPresendMessage(msg)
 }
