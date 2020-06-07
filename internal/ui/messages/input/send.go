@@ -22,10 +22,7 @@ type PresendMessage interface {
 	AuthorAvatarURL() string // may be empty
 }
 
-var (
-	_ cchat.SendableMessage = (*SendMessageData)(nil)
-	_ cchat.MessageNonce    = (*SendMessageData)(nil)
-)
+var _ PresendMessage = (*SendMessageData)(nil)
 
 func (s SendMessageData) Content() string {
 	return s.content
