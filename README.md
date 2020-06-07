@@ -1,3 +1,3 @@
 # cchat-gtk
 
-[screenshot](screenshot.png)
+![screenshot](screenshot.png)
