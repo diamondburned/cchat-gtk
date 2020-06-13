@@ -5,13 +5,17 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
-// TODO: parser
+func Small(text string) string {
+	return `<span size="small" color="#808080">` + text + "</span>"
+}
 
 func MakeRed(content text.Rich) string {
 	return `<span color="red">` + html.EscapeString(content.Content) + `</span>`
@@ -48,6 +52,14 @@ func NewLabel(content text.Rich) *Label {
 func (l *Label) Reset() {
 	l.current = text.Rich{}
 	l.Label.SetText("")
+}
+
+func (l *Label) AsyncSetLabel(fn func(cchat.LabelContainer) error, info string) {
+	go func() {
+		if err := fn(l); err != nil {
+			log.Error(errors.Wrap(err, info))
+		}
+	}()
 }
 
 // SetLabel is thread-safe.

@@ -3,12 +3,10 @@ package input
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 const AvatarSize = 20
@@ -68,27 +66,19 @@ func (u *usernameContainer) Reset() {
 
 // Update is not thread-safe.
 func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMessageSender) {
-	// Does sender (aka Server) implement ServerNickname? If not, we fallback to
-	// the username inside session.
-	var err error
-	if nicknamer, ok := sender.(cchat.ServerNickname); ok {
-		err = errors.Wrap(nicknamer.Nickname(u), "Failed to get nickname")
-	} else {
-		err = errors.Wrap(session.Name(u), "Failed to get username")
-	}
+	// Set the fallback username.
+	u.label.SetLabelUnsafe(session.Name())
+	// Reveal the name if it's not empty.
+	u.SetRevealChild(!u.label.GetLabel().Empty())
 
-	// Do a bit of trivial error handling.
-	if err != nil {
-		log.Warn(err)
+	// Does sender (aka Server) implement ServerNickname? If yes, use it.
+	if nicknamer, ok := sender.(cchat.ServerNickname); ok {
+		u.label.AsyncSetLabel(nicknamer.Nickname, "Error fetching server nickname")
 	}
 
 	// Does session implement an icon? Update if so.
 	if iconer, ok := session.(cchat.Icon); ok {
-		err = iconer.Icon(u)
-	}
-
-	if err != nil {
-		log.Warn(errors.Wrap(err, "Failed to get icon"))
+		u.avatar.AsyncSetIcon(iconer.Icon, "Error fetching session icon URL")
 	}
 }
 

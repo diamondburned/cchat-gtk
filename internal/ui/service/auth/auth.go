@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
+	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -25,7 +26,7 @@ type Dialog struct {
 
 // NewDialog makes a new authentication dialog. Auth() is called when the user
 // is authenticated successfully inside the Gtk main thread.
-func NewDialog(name string, auther cchat.Authenticator, auth func(cchat.Session)) *Dialog {
+func NewDialog(name text.Rich, auther cchat.Authenticator, auth func(cchat.Session)) *Dialog {
 	label, _ := gtk.LabelNew("")
 	label.Show()
 
@@ -57,7 +58,7 @@ func NewDialog(name string, auther cchat.Authenticator, auth func(cchat.Session)
 		body:   box,
 		label:  label,
 	}
-	d.Dialog = dialog.NewModal(stack, "Log in to "+name, "Log in", d.ok)
+	d.Dialog = dialog.NewModal(stack, "Log in to "+name.Content, "Log in", d.ok)
 	d.Dialog.SetDefaultSize(400, 300)
 	d.spin(nil)
 	d.Show()

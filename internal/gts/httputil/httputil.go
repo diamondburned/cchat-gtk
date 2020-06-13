@@ -1,6 +1,7 @@
 package httputil
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"os"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/die-net/lrucache"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
 	"github.com/peterbourgon/diskv"
@@ -16,7 +16,6 @@ import (
 )
 
 var dskcached *http.Client
-var memcached *http.Client
 
 func init() {
 	var basePath = filepath.Join(os.TempDir(), "cchat-gtk-pridemonth")
@@ -34,12 +33,6 @@ func init() {
 			CacheSizeMax: 25 * 1024 * 1024, // 25 MiB in memory
 		})),
 	)
-
-	memcached = &(*http.DefaultClient)
-	memcached.Transport = httpcache.NewTransport(lrucache.New(
-		25*1024*1024,      // 25 MiB in memory
-		secs(2*time.Hour), // 2 hours cache
-	))
 }
 
 func secs(dura time.Duration) int64 {
@@ -48,7 +41,7 @@ func secs(dura time.Duration) int64 {
 
 func AsyncStreamUncached(url string, fn func(r io.Reader)) {
 	gts.Async(func() (func(), error) {
-		r, err := get(url, false)
+		r, err := get(context.Background(), url, false)
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +55,7 @@ func AsyncStreamUncached(url string, fn func(r io.Reader)) {
 
 func AsyncStream(url string, fn func(r io.Reader)) {
 	gts.Async(func() (func(), error) {
-		r, err := get(url, true)
+		r, err := get(context.Background(), url, true)
 		if err != nil {
 			return nil, err
 		}
@@ -74,13 +67,19 @@ func AsyncStream(url string, fn func(r io.Reader)) {
 	})
 }
 
-func get(url string, cached bool) (r *http.Response, err error) {
-	if cached {
-		r, err = dskcached.Get(url)
-	} else {
-		r, err = memcached.Get(url)
+func get(ctx context.Context, url string, cached bool) (r *http.Response, err error) {
+	// if cached {
+	// 	r, err = dskcached.Get(url)
+	// } else {
+	// 	r, err = memcached.Get(url)
+	// }
+
+	q, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to make a request")
 	}
 
+	r, err = dskcached.Do(q)
 	if err != nil {
 		return nil, err
 	}

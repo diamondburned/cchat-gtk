@@ -1,15 +1,62 @@
 package input
 
 import (
-	"strconv"
-	"time"
-
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
+
+// Controller is an interface to control message containers.
+type Controller interface {
+	AddPresendMessage(msg PresendMessage) (onErr func(error))
+}
+
+type InputView struct {
+	*gtk.Box
+	*Field
+	Completer *completion.View
+}
+
+func NewView(ctrl Controller) *InputView {
+	text, _ := gtk.TextViewNew()
+	text.SetSensitive(false)
+	text.SetWrapMode(gtk.WRAP_WORD_CHAR)
+	text.SetProperty("top-margin", inputmargin)
+	text.SetProperty("left-margin", inputmargin)
+	text.SetProperty("right-margin", inputmargin)
+	text.SetProperty("bottom-margin", inputmargin)
+	text.Show()
+
+	// Bind the text event handler to text first.
+	c := completion.New(text)
+	c.Show()
+
+	// Bind the input callback later.
+	f := NewField(text, ctrl)
+	f.Show()
+
+	b, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	b.PackStart(c, false, true, 0)
+	b.PackStart(f, false, false, 0)
+	b.Show()
+
+	// Connect to the field's revealer. On resize, we want the autocompleter to
+	// have the right padding too.
+	f.username.Connect("size-allocate", func(w gtk.IWidget) {
+		// Set the autocompleter's left margin to be the same.
+		c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
+	})
+
+	return &InputView{b, f, c}
+}
+
+func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
+	v.Field.SetSender(session, sender)
+
+	// Ignore ok; completer can be nil.
+	completer, _ := sender.(cchat.ServerMessageSendCompleter)
+	v.Completer.SetCompleter(completer)
+}
 
 type Field struct {
 	*gtk.Box
@@ -20,29 +67,16 @@ type Field struct {
 	buffer     *gtk.TextBuffer
 
 	UserID string
+	Sender cchat.ServerMessageSender
 
-	sender cchat.ServerMessageSender
-	ctrl   Controller
-}
-
-type Controller interface {
-	PresendMessage(msg PresendMessage) (onErr func(error))
+	ctrl Controller
 }
 
 const inputmargin = 4
 
-func NewField(ctrl Controller) *Field {
+func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	username := newUsernameContainer()
 	username.Show()
-
-	text, _ := gtk.TextViewNew()
-	text.SetSensitive(false)
-	text.SetWrapMode(gtk.WRAP_WORD_CHAR)
-	text.SetProperty("top-margin", inputmargin)
-	text.SetProperty("left-margin", inputmargin)
-	text.SetProperty("right-margin", inputmargin)
-	text.SetProperty("bottom-margin", inputmargin)
-	text.Show()
 
 	buf, _ := text.GetBuffer()
 
@@ -80,7 +114,7 @@ func (f *Field) Reset() {
 	f.text.SetSensitive(false)
 
 	f.UserID = ""
-	f.sender = nil
+	f.Sender = nil
 	f.username.Reset()
 
 	// reset the input
@@ -95,46 +129,9 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 
 	// Set the sender.
 	if sender != nil {
-		f.sender = sender
+		f.Sender = sender
 		f.text.SetSensitive(true)
 	}
-}
-
-// SendMessage yanks the text from the input field and sends it to the backend.
-// This function is not thread-safe.
-func (f *Field) SendMessage() {
-	if f.sender == nil {
-		return
-	}
-
-	var text = f.yankText()
-	if text == "" {
-		return
-	}
-
-	var sender = f.sender
-	var data = SendMessageData{
-		content:   text,
-		author:    f.username.GetLabel(),
-		authorID:  f.UserID,
-		authorURL: f.username.GetIconURL(),
-		nonce:     "cchat-gtk_" + strconv.FormatInt(time.Now().UnixNano(), 10),
-	}
-
-	// presend message into the container through the controller
-	var done = f.ctrl.PresendMessage(data)
-
-	go func() {
-		err := sender.SendMessage(data)
-
-		gts.ExecAsync(func() {
-			done(err)
-		})
-
-		if err != nil {
-			log.Error(errors.Wrap(err, "Failed to send message"))
-		}
-	}()
 }
 
 // yankText cuts the text from the input field and returns it.

@@ -31,7 +31,7 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 		}
 
 		// Else, send the message.
-		f.SendMessage()
+		f.SendInput()
 		return true
 	}
 

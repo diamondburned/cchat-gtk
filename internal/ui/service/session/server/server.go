@@ -7,7 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
-	"github.com/diamondburned/cchat/text"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -36,13 +36,16 @@ type Row struct {
 }
 
 func NewRow(parent breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *Row {
-	button := rich.NewToggleButtonImage(text.Rich{})
+	button := rich.NewToggleButtonImage(server.Name())
 	button.Box.SetHAlign(gtk.ALIGN_START)
 	button.Image.AddProcessors(imgutil.Round(true))
 	button.Image.SetSize(IconSize)
 	button.SetRelief(gtk.RELIEF_NONE)
 	button.Show()
-	button.Try(server, "server")
+
+	if iconer, ok := server.(cchat.Icon); ok {
+		button.Image.AsyncSetIcon(iconer.Icon, "Error getting server icon URL")
+	}
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.PackStart(button, false, false, 0)
@@ -79,16 +82,23 @@ func NewRow(parent breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller
 	return row
 }
 
+// Deactivate calls the disconnect function then sets the button to false. This
+// function is not thread-safe.
+func (row *Row) Deactivate() {
+	row.Button.SetSensitive(true) // allow clicks again
+	row.Button.SetActive(false)   // stop highlighting
+}
+
 func (row *Row) GetActive() bool {
 	return row.Button.GetActive()
 }
 
 func (row *Row) onClick() {
 	switch {
-
 	// If the server is a message server. We're only selected if the button is
 	// pressed.
 	case row.message != nil && row.GetActive():
+		row.Button.SetSensitive(false) // prevent clicks from deactivating
 		row.ctrl.MessageRowSelected(row, row.message)
 
 	// If the server is a list of smaller servers.
@@ -105,6 +115,7 @@ func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
 type Children struct {
 	*gtk.Revealer
 	Main *gtk.Box
+	load *loading.Button // nil after init
 	List cchat.ServerList
 
 	rowctrl Controller
@@ -114,7 +125,11 @@ type Children struct {
 }
 
 func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
+	load := loading.NewButton()
+	load.Show()
+
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	main.Add(load)
 	main.SetMarginStart(ChildrenMargin)
 	main.Show()
 
@@ -126,6 +141,7 @@ func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
 	return &Children{
 		Revealer: rev,
 		Main:     main,
+		load:     load,
 		rowctrl:  ctrl,
 		Parent:   parent,
 	}
@@ -134,13 +150,21 @@ func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
 func (c *Children) SetServerList(list cchat.ServerList) {
 	c.List = list
 
-	if err := list.Servers(c); err != nil {
-		log.Error(errors.Wrap(err, "Failed to get servers"))
-	}
+	go func() {
+		if err := list.Servers(c); err != nil {
+			log.Error(errors.Wrap(err, "Failed to get servers"))
+		}
+	}()
 }
 
 func (c *Children) SetServers(servers []cchat.Server) {
 	gts.ExecAsync(func() {
+		// Do we have the spinning circle button? If yes, remove it.
+		if c.load != nil {
+			c.Main.Remove(c.load)
+			c.load = nil
+		}
+
 		// Save the current state.
 		var oldID string
 		for _, row := range c.Rows {

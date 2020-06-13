@@ -75,10 +75,12 @@ func Async(fn func() (func(), error)) {
 		f, err := fn()
 		if err != nil {
 			log.Error(err)
-			return
 		}
 
-		glib.IdleAdd(f)
+		// Attempt to run the callback if it's there.
+		if f != nil {
+			glib.IdleAdd(f)
+		}
 	}()
 }
 

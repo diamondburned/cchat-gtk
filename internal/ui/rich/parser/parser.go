@@ -44,6 +44,11 @@ func (a *attrAppendMap) finalize(strlen int) []int {
 }
 
 func RenderMarkup(content text.Rich) string {
+	// Fast path.
+	if len(content.Segments) == 0 {
+		return html.EscapeString(content.Content)
+	}
+
 	buf := bytes.Buffer{}
 	buf.Grow(len(content.Content))
 

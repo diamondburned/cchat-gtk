@@ -53,11 +53,13 @@ type Controller interface {
 	MessageRowSelected(*session.Row, *server.Row, cchat.ServerMessage)
 	// AuthenticateSession is called to spawn the authentication dialog.
 	AuthenticateSession(*Container, cchat.Service)
-	// RemoveSession is called to remove a session. This should also clear out
+	// OnSessionRemove is called to remove a session. This should also clear out
 	// the message view in the parent package.
-	RemoveSession(id string)
+	OnSessionRemove(id string)
 }
 
+// Container represents a single service, including the button header and the
+// child containers.
 type Container struct {
 	*gtk.Box
 	Service cchat.Service
@@ -124,22 +126,28 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 
 func (c *Container) AddSession(ses cchat.Session) *session.Row {
 	srow := session.New(c, ses, c)
-	c.children.addSessionRow(ses.ID(), srow)
+	c.children.AddSessionRow(ses.ID(), srow)
 	c.SaveAllSessions()
 	return srow
 }
 
 func (c *Container) AddLoadingSession(id, name string) *session.Row {
 	srow := session.NewLoading(c, name, c)
-	c.children.addSessionRow(id, srow)
+	c.children.AddSessionRow(id, srow)
 	return srow
 }
 
-func (c *Container) RemoveSession(id string) {
-	c.children.removeSessionRow(id)
+func (c *Container) RemoveSession(row *session.Row) {
+	var id = row.Session.ID()
+	c.children.RemoveSessionRow(id)
 	c.SaveAllSessions()
 	// Call the parent's method.
-	c.Controller.RemoveSession(id)
+	c.Controller.OnSessionRemove(id)
+}
+
+func (c *Container) MoveSession(rowID, beneathRowID string) {
+	c.children.MoveSession(rowID, beneathRowID)
+	c.SaveAllSessions()
 }
 
 // RestoreSession tries to restore sessions asynchronously. This satisfies
@@ -187,19 +195,16 @@ func (c *Container) restoreSession(r *session.Row, res cchat.SessionRestorer, k 
 }
 
 func (c *Container) SaveAllSessions() {
-	keyring.SaveSessions(c.Service.Name(), c.keyringSessions())
-}
+	var sessions = c.children.Sessions()
+	var ksessions = make([]keyring.Session, 0, len(sessions))
 
-// keyringSessions returns all known keyring sessions. Sessions that can't be
-// saved will not be in the slice.
-func (c *Container) keyringSessions() []keyring.Session {
-	var ksessions = make([]keyring.Session, 0, len(c.children.Sessions))
-	for _, s := range c.children.Sessions {
+	for _, s := range sessions {
 		if k := s.KeyringSession(); k != nil {
 			ksessions = append(ksessions, *k)
 		}
 	}
-	return ksessions
+
+	keyring.SaveSessions(c.Service.Name(), ksessions)
 }
 
 func (c *Container) Breadcrumb() breadcrumb.Breadcrumb {

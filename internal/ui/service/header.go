@@ -5,7 +5,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -22,7 +21,7 @@ type header struct {
 }
 
 func newHeader(svc cchat.Service) *header {
-	reveal := rich.NewToggleButtonImage(text.Rich{Content: svc.Name()})
+	reveal := rich.NewToggleButtonImage(svc.Name())
 	reveal.Box.SetHAlign(gtk.ALIGN_START)
 	reveal.Image.AddProcessors(imgutil.Round(true))
 	reveal.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)

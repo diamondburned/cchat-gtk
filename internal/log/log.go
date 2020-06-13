@@ -1,6 +1,8 @@
 package log
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -35,6 +37,16 @@ func AddEntryHandler(fn func(Entry)) {
 }
 
 func Error(err error) {
+	// Ignore nil errors.
+	if err == nil {
+		return
+	}
+
+	// Ignore context cancel errors.
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	Write("Error: " + err.Error())
 }
 

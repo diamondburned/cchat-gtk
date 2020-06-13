@@ -2,22 +2,21 @@ package message
 
 import (
 	"html"
-	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
-	"github.com/diamondburned/cchat/text"
 )
 
 type PresendContainer interface {
-	SetID(id string)
-	SetDone()
+	SetDone(id string)
+	SetLoading()
 	SetSentError(err error)
 }
 
 // PresendGenericContainer is the generic container with extra methods
-// implemented for mutability of the generic message container.
+// implemented for stateful mutability of the generic message container.
 type GenericPresendContainer struct {
 	*GenericContainer
+	sendString string // to be cleared on SetDone()
 }
 
 var _ PresendContainer = (*GenericPresendContainer)(nil)
@@ -29,33 +28,36 @@ func NewPresendContainer(msg input.PresendMessage) *GenericPresendContainer {
 func WrapPresendContainer(c *GenericContainer, msg input.PresendMessage) *GenericPresendContainer {
 	c.nonce = msg.Nonce()
 	c.authorID = msg.AuthorID()
-	c.UpdateContent(text.Rich{Content: msg.Content()})
-	c.UpdateTimestamp(time.Now())
+	c.UpdateTimestamp(msg.Time())
 	c.UpdateAuthorName(msg.Author())
 
 	p := &GenericPresendContainer{
 		GenericContainer: c,
+		sendString:       msg.Content(),
 	}
-	p.SetSensitive(false)
+	p.SetLoading()
 
 	return p
-}
-
-func (m *GenericPresendContainer) SetID(id string) {
-	m.id = id
 }
 
 func (m *GenericPresendContainer) SetSensitive(sensitive bool) {
 	m.Content.SetSensitive(sensitive)
 }
 
-func (m *GenericPresendContainer) SetDone() {
+func (m *GenericPresendContainer) SetDone(id string) {
+	m.id = id
 	m.SetSensitive(true)
+	m.sendString = ""
+}
+
+func (m *GenericPresendContainer) SetLoading() {
+	m.SetSensitive(false)
+	m.Content.SetText(m.sendString)
+	m.Content.SetTooltipText("")
 }
 
 func (m *GenericPresendContainer) SetSentError(err error) {
-	var content = html.EscapeString(m.Content.GetLabel())
-
-	m.Content.SetMarkup(`<span color="red">` + content + `</span>`)
+	m.SetSensitive(true) // allow events incl right clicks
+	m.Content.SetMarkup(`<span color="red">` + html.EscapeString(m.sendString) + `</span>`)
 	m.Content.SetTooltipText(err.Error())
 }

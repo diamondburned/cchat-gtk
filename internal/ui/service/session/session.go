@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -18,9 +19,12 @@ const IconSize = 32
 type Controller interface {
 	MessageRowSelected(*Row, *server.Row, cchat.ServerMessage)
 	RestoreSession(*Row, keyring.Session) // async
-	RemoveSession(id string)
+	RemoveSession(*Row)
+	MoveSession(id, movingID string)
 }
 
+// Row represents a single session, including the button header and the
+// children servers.
 type Row struct {
 	*gtk.Box
 	Button  *rich.ToggleButtonImage
@@ -51,6 +55,11 @@ func NewLoading(parent breadcrumb.Breadcrumber, name string, ctrl Controller) *R
 	return row
 }
 
+var dragEntries = []gtk.TargetEntry{
+	primitives.NewTargetEntry("GTK_TOGGLE_BUTTON"),
+}
+var dragAtom = gdk.GdkAtomIntern("GTK_TOGGLE_BUTTON", true)
+
 func new(parent breadcrumb.Breadcrumber, ctrl Controller) *Row {
 	row := &Row{
 		ctrl:   ctrl,
@@ -63,13 +72,14 @@ func new(parent breadcrumb.Breadcrumber, ctrl Controller) *Row {
 	row.Button.Image.AddProcessors(imgutil.Round(true))
 	// Set the loading icon.
 	row.Button.SetRelief(gtk.RELIEF_NONE)
+	row.Button.Show()
+
 	// On click, toggle reveal.
 	row.Button.Connect("clicked", func() {
 		revealed := !row.Servers.GetRevealChild()
 		row.Servers.SetRevealChild(revealed)
 		row.Button.SetActive(revealed)
 	})
-	row.Button.Show()
 
 	row.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	row.Box.SetMarginStart(server.ChildrenMargin)
@@ -93,7 +103,7 @@ func new(parent breadcrumb.Breadcrumber, ctrl Controller) *Row {
 	primitives.AppendMenuItems(row.menu, []*gtk.MenuItem{
 		row.retry,
 		primitives.MenuItem("Remove", func() {
-			ctrl.RemoveSession(row.Session.ID())
+			ctrl.RemoveSession(row)
 		}),
 	})
 
@@ -122,12 +132,16 @@ func (r *Row) SetSession(ses cchat.Session) {
 
 	r.Session = ses
 	r.Servers.SetServerList(ses)
+	r.Button.SetLabelUnsafe(ses.Name())
 	r.Button.Image.SetPlaceholderIcon("user-available-symbolic", IconSize)
 	r.Box.PackStart(r.Servers, false, false, 0)
 	r.SetSensitive(true)
+	r.SetTooltipText("") // reset
 
-	// Set the session's name to the button.
-	r.Button.Try(ses, "session")
+	// Try and set the session's icon.
+	if iconer, ok := ses.(cchat.Icon); ok {
+		r.Button.Image.AsyncSetIcon(iconer.Icon, "Error fetching session icon URL")
+	}
 
 	// Wipe the keyring session off.
 	r.krs = keyring.Session{}
@@ -153,4 +167,10 @@ func (r *Row) MessageRowSelected(server *server.Row, smsg cchat.ServerMessage) {
 
 func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
 	return breadcrumb.Try(r.parent, r.Button.GetLabel().Content)
+}
+
+// BindMover binds with the ID stored in the parent container to be used in the
+// method itself. The ID may or may not have to do with session.
+func (r *Row) BindMover(id string) {
+	primitives.BindDragSortable(r.Button, "GTK_TOGGLE_BUTTON", id, r.ctrl.MoveSession)
 }

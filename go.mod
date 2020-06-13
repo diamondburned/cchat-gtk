@@ -2,16 +2,13 @@ module github.com/diamondburned/cchat-gtk
 
 go 1.14
 
-replace github.com/diamondburned/cchat-mock => ../cchat-mock/
-
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200606223630-b0c33ec7b10a
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200612012846-9df87fea4f6d
 
 require (
 	github.com/Xuanwo/go-locale v0.2.0
-	github.com/diamondburned/cchat v0.0.15
-	github.com/diamondburned/cchat-mock v0.0.0-20200605224934-31a53c555ea2
-	github.com/diamondburned/imgutil v0.0.0-20200606035324-63abbc0fdea6
-	github.com/die-net/lrucache v0.0.0-20190707192454-883874fe3947
+	github.com/diamondburned/cchat v0.0.25
+	github.com/diamondburned/cchat-mock v0.0.0-20200613003444-b36f8f47debe
+	github.com/diamondburned/imgutil v0.0.0-20200611215339-650ac7cfaf64
 	github.com/goodsign/monday v1.0.0
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gotk3/gotk3 v0.4.1-0.20200524052254-cb2aa31c6194

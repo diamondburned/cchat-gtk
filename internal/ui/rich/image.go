@@ -53,6 +53,7 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 func (i *Icon) Reset() {
 	i.url = ""
 	i.Revealer.SetRevealChild(false)
+	i.Image.SetFromPixbuf(nil) // destroy old pb
 }
 
 // URL is not thread-safe.
@@ -97,6 +98,14 @@ func (i *Icon) SetIcon(url string) {
 	gts.ExecAsync(func() {
 		i.SetIconUnsafe(url)
 	})
+}
+
+func (i *Icon) AsyncSetIcon(fn func(cchat.IconContainer) error, wrap string) {
+	go func() {
+		if err := fn(i); err != nil {
+			log.Error(errors.Wrap(err, wrap))
+		}
+	}()
 }
 
 // SetIconUnsafe is not thread-safe.
@@ -149,23 +158,5 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 		Label: &l.Label,
 		Image: i,
 		Box:   box,
-	}
-}
-
-type Namer interface {
-	Name(cchat.LabelContainer) error
-}
-
-// Try tries to set the name from namer. It also tries Icon.
-func (b *ToggleButtonImage) Try(namer Namer, desc string) {
-	if err := namer.Name(b); err != nil {
-		log.Error(errors.Wrap(err, "Failed to get name for "+desc))
-		b.SetLabel(text.Rich{Content: "Unknown"})
-	}
-
-	if iconer, ok := namer.(cchat.Icon); ok {
-		if err := iconer.Icon(b); err != nil {
-			log.Error(errors.Wrap(err, "Failed to get icon for "+desc))
-		}
 	}
 }

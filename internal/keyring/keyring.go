@@ -7,6 +7,7 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat/text"
 	"github.com/pkg/errors"
 	"github.com/zalando/go-keyring"
 )
@@ -63,17 +64,17 @@ func GetSession(ses cchat.Session, name string) *Session {
 	}
 }
 
-func SaveSessions(serviceName string, sessions []Session) {
-	if err := set(serviceName, sessions); err != nil {
+func SaveSessions(serviceName text.Rich, sessions []Session) {
+	if err := set(serviceName.Content, sessions); err != nil {
 		log.Warn(errors.Wrap(err, "Error saving session"))
 	}
 }
 
 // RestoreSessions restores all sessions of the service asynchronously, then
 // calls the auth callback inside the Gtk main thread.
-func RestoreSessions(serviceName string) (sessions []Session) {
+func RestoreSessions(serviceName text.Rich) (sessions []Session) {
 	// Ignore the error, it's not important.
-	if err := get(serviceName, &sessions); err != nil {
+	if err := get(serviceName.Content, &sessions); err != nil {
 		log.Warn(err)
 	}
 	return
