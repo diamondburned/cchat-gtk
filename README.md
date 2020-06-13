@@ -6,7 +6,6 @@
 
 <br>
 
-<!-- Width is manually taken from image. Update if needed. -->
-<img width="740" alt="Screenshot" src="screenshot.png" />
+<img alt="Screenshot" src="screenshot.png" />
 
 </p>
