@@ -115,6 +115,8 @@ func (r *Row) setLoading() {
 	r.Button.Image.SetPlaceholderIcon("content-loading-symbolic", IconSize)
 	// restore the old label's color
 	r.Button.SetLabelUnsafe(r.Button.GetLabel())
+	// clear the tooltip
+	r.SetTooltipText("")
 	// blur - set the color darker
 	r.SetSensitive(false)
 }
