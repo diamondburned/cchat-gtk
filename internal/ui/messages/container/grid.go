@@ -126,10 +126,18 @@ func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessag
 	return nil
 }
 
+// FirstMessage returns the first message.
+func (c *GridStore) FirstMessage() GridMessage {
+	if len(c.messageIDs) > 0 {
+		return c.messages[c.messageIDs[0]].GridMessage
+	}
+	return nil
+}
+
 // LastMessage returns the latest message.
 func (c *GridStore) LastMessage() GridMessage {
 	if l := len(c.messageIDs); l > 0 {
-		return c.messages[c.messageIDs[l-1]]
+		return c.messages[c.messageIDs[l-1]].GridMessage
 	}
 	return nil
 }

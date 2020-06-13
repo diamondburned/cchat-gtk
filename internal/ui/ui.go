@@ -17,7 +17,23 @@ func init() {
 	gts.LoadCSS(pkger.Include("/internal/ui/style.css"))
 }
 
-const LeftWidth = 220
+// constraints for the left panel
+const (
+	leftMinWidth     = 200
+	leftCurrentWidth = 250
+	leftMaxWidth     = 400
+)
+
+func clamp(n, min, max int) int {
+	switch {
+	case n > max:
+		return max
+	case n < min:
+		return min
+	default:
+		return n
+	}
+}
 
 type App struct {
 	window *window
@@ -38,6 +54,14 @@ func NewApplication() *App {
 		window: newWindow(),
 		header: newHeader(),
 	}
+
+	// Resize the left-side header w/ the left-side pane.
+	app.window.Services.Connect("size-allocate", func(wv gtk.IWidget) {
+		// Get the current width of the left sidebar.
+		var width = app.window.GetPosition()
+		// Set the left-side header's size.
+		app.header.left.SetSizeRequest(width, -1)
+	})
 
 	return app
 }

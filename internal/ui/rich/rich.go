@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
 	"github.com/pkg/errors"
 )
 
@@ -44,7 +45,8 @@ var (
 func NewLabel(content text.Rich) *Label {
 	label, _ := gtk.LabelNew("")
 	label.SetMarkup(parser.RenderMarkup(content))
-	label.SetHAlign(gtk.ALIGN_START)
+	label.SetXAlign(0) // left align
+	label.SetEllipsize(pango.ELLIPSIZE_END)
 	return &Label{*label, content}
 }
 

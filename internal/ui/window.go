@@ -7,24 +7,24 @@ import (
 )
 
 type window struct {
-	*gtk.Box
+	*gtk.Paned
 	Services    *service.View
 	MessageView *messages.View
 }
 
 func newWindow() *window {
 	services := service.NewView()
-	services.SetSizeRequest(LeftWidth, -1)
+	services.SetSizeRequest(leftMinWidth, -1)
+	services.Show()
+
 	mesgview := messages.NewView()
+	mesgview.Show()
 
-	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	separator.Show()
+	pane, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)
+	pane.Pack1(services, false, false)
+	pane.Pack2(mesgview, true, false)
+	pane.SetPosition(leftCurrentWidth)
+	pane.Show()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(services, false, false, 0)
-	box.PackStart(separator, false, false, 0)
-	box.PackStart(mesgview, true, true, 0)
-	box.Show()
-
-	return &window{box, services, mesgview}
+	return &window{pane, services, mesgview}
 }

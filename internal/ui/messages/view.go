@@ -94,8 +94,6 @@ func NewView() *View {
 	logo.Show()
 
 	view.FaceView = sadface.New(view.Box, logo)
-	view.FaceView.Show()
-
 	return view
 }
 

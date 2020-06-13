@@ -16,7 +16,7 @@ type header struct {
 
 func newHeader() *header {
 	left, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	left.SetSizeRequest(LeftWidth, -1)
+	left.SetSizeRequest(leftMinWidth, -1)
 	left.Show()
 
 	right := newHeaderRight()

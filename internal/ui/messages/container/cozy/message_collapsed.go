@@ -36,6 +36,8 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	}
 }
 
+func (c *CollapsedMessage) Collapsed() bool { return true }
+
 func (c *CollapsedMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
 	grid.Remove(c.Timestamp)

@@ -28,7 +28,6 @@ func NewView() *View {
 	sw, _ := gtk.ScrolledWindowNew(nil, nil)
 	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
 	sw.Add(box)
-	sw.Show()
 
 	return &View{
 		sw,

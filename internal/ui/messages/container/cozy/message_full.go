@@ -86,6 +86,8 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	}
 }
 
+func (c *FullMessage) Collapsed() bool { return false }
+
 func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
 	m.HeaderBox.Remove(m.Username)

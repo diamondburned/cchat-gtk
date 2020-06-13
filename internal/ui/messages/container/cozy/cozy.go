@@ -23,6 +23,20 @@ var (
 	_ Unwrapper = (*FullSendingMessage)(nil)
 )
 
+// Collapsible is an interface for cozy messages to return whether or not
+// they're full or collapsed.
+type Collapsible interface {
+	// Compact returns true if the message is a compact one and not full.
+	Collapsed() bool
+}
+
+var (
+	_ Collapsible = (*CollapsedMessage)(nil)
+	_ Collapsible = (*CollapsedSendingMessage)(nil)
+	_ Collapsible = (*FullMessage)(nil)
+	_ Collapsible = (*FullSendingMessage)(nil)
+)
+
 const (
 	AvatarSize   = 40
 	AvatarMargin = 10
@@ -106,6 +120,25 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 	}
 }
 
+func (c *Container) CreateMessage(msg cchat.MessageCreate) {
+	gts.ExecAsync(func() {
+		// Create the message in the parent's handler. This handler will also
+		// wipe old messages.
+		c.GridContainer.CreateMessageUnsafe(msg)
+
+		// Did the handler wipe old messages? It will only do so if the user is
+		// scrolled to the bottom.
+		if !c.ScrolledWindow.Bottomed {
+			// If we're not at the bottom, then we exit.
+			return
+		}
+
+		// We need to uncollapse the first (top) message. No length check is
+		// needed here, as we just inserted a message.
+		c.uncompact(c.FirstMessage())
+	})
+}
+
 func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() {
 		// Get the previous and next message before deleting. We'll need them to
@@ -138,21 +171,31 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 			return
 		}
 
-		// Get the unwrapper method, which allows us to get the
-		// *message.GenericContainer.
-		uw, ok := next.(Unwrapper)
-		if !ok {
-			return
-		}
-
-		// Start the "lengthy" uncollapse process.
-		full := WrapFullMessage(uw.Unwrap(c.Grid))
-		// Update the container to reformat everything including the timestamps.
-		message.RefreshContainer(full, full.GenericContainer)
-		// Update the avatar if needed be, since we're now showing it.
-		c.reuseAvatar(next.AuthorID(), next.AvatarURL(), full)
-
-		// Swap the old next message out for a new one.
-		c.GridStore.SwapMessage(full)
+		// Uncompact or turn the message to a full one.
+		c.uncompact(next)
 	})
+}
+
+func (c *Container) uncompact(msg container.GridMessage) {
+	// We should only uncompact the message if it's compacted in the first
+	// place.
+	if collapse, ok := msg.(Collapsible); !ok || !collapse.Collapsed() {
+		return
+	}
+
+	// We can't unwrap if the message doesn't implement Unwrapper.
+	uw, ok := msg.(Unwrapper)
+	if !ok {
+		return
+	}
+
+	// Start the "lengthy" uncollapse process.
+	full := WrapFullMessage(uw.Unwrap(c.Grid))
+	// Update the container to reformat everything including the timestamps.
+	message.RefreshContainer(full, full.GenericContainer)
+	// Update the avatar if needed be, since we're now showing it.
+	c.reuseAvatar(msg.AuthorID(), msg.AvatarURL(), full)
+
+	// Swap the old next message out for a new one.
+	c.GridStore.SwapMessage(full)
 }
