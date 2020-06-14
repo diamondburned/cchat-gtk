@@ -79,6 +79,12 @@ func (app *App) OnSessionRemove(id string) {
 	}
 }
 
+func (app *App) OnSessionDisconnect(id string) {
+	// We're basically doing the same thing as removing a session. Check
+	// OnSessionRemove above.
+	app.OnSessionRemove(id)
+}
+
 func (app *App) MessageRowSelected(ses *session.Row, srv *server.Row, smsg cchat.ServerMessage) {
 	// Is there an old row that we should deactivate?
 	if app.lastDeactivator != nil {

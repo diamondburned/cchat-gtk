@@ -39,7 +39,7 @@ type Session struct {
 	Data map[string]string
 }
 
-func GetSession(ses cchat.Session, name string) *Session {
+func ConvertSession(ses cchat.Session, name string) *Session {
 	saver, ok := ses.(cchat.SessionSaver)
 	if !ok {
 		return nil
@@ -78,4 +78,14 @@ func RestoreSessions(serviceName text.Rich) (sessions []Session) {
 		log.Warn(err)
 	}
 	return
+}
+
+func RestoreSession(serviceName text.Rich, id string) *Session {
+	var sessions = RestoreSessions(serviceName)
+	for _, session := range sessions {
+		if session.ID == id {
+			return &session
+		}
+	}
+	return nil
 }

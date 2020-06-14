@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
@@ -55,6 +57,8 @@ type Controller interface {
 	// OnSessionRemove is called to remove a session. This should also clear out
 	// the message view in the parent package.
 	OnSessionRemove(id string)
+	// OnSessionDisconnect is here to satisfy session's controller.
+	OnSessionDisconnect(id string)
 }
 
 // Container represents a single service, including the button header and the
@@ -114,7 +118,7 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	})
 
 	// Make menu items.
-	primitives.AppendMenuItems(header.Menu, []*gtk.MenuItem{
+	primitives.AppendMenuItems(header.Menu, []gtk.IMenuItem{
 		primitives.MenuItem("Save Sessions", func() {
 			container.SaveAllSessions()
 		}),
@@ -131,7 +135,7 @@ func (c *Container) AddSession(ses cchat.Session) *session.Row {
 }
 
 func (c *Container) AddLoadingSession(id, name string) *session.Row {
-	srow := session.NewLoading(c, name, c)
+	srow := session.NewLoading(c, id, name, c)
 	c.children.AddSessionRow(id, srow)
 	return srow
 }
@@ -149,15 +153,31 @@ func (c *Container) MoveSession(rowID, beneathRowID string) {
 	c.SaveAllSessions()
 }
 
+func (c *Container) OnSessionDisconnect(ses *session.Row) {
+	c.Controller.OnSessionDisconnect(ses.ID())
+}
+
 // RestoreSession tries to restore sessions asynchronously. This satisfies
 // session.Controller.
-func (c *Container) RestoreSession(row *session.Row, krs keyring.Session) {
+func (c *Container) RestoreSession(row *session.Row, id string) {
 	// Can this session be restored? If not, exit.
 	restorer, ok := c.Service.(cchat.SessionRestorer)
 	if !ok {
 		return
 	}
-	c.restoreSession(row, restorer, krs)
+
+	// Do we even have a session stored?
+	krs := keyring.RestoreSession(c.Service.Name(), id)
+	if krs == nil {
+		log.Error(fmt.Errorf(
+			"Missing keyring for service %s, session ID %s",
+			c.Service.Name().Content, id,
+		))
+
+		return
+	}
+
+	c.restoreSession(row, restorer, *krs)
 }
 
 // internal method called on AddService.
@@ -186,7 +206,7 @@ func (c *Container) restoreSession(r *session.Row, res cchat.SessionRestorer, k 
 			err = errors.Wrapf(err, "Failed to restore session %s (%s)", k.ID, k.Name)
 			log.Error(err)
 
-			gts.ExecAsync(func() { r.SetFailed(k, err) })
+			gts.ExecAsync(func() { r.SetFailed(err) })
 		} else {
 			gts.ExecAsync(func() { r.SetSession(s) })
 		}

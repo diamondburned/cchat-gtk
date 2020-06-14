@@ -9,8 +9,12 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/diamondburned/cchat v0.0.25 h1:+kf2gQu5TQs1vD/gCaVlzKu5vOqZz/1Qw87xHdeFYj4=
 github.com/diamondburned/cchat v0.0.25/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
+github.com/diamondburned/cchat v0.0.26 h1:QBt4d65uzUPJz3jF8b2pJ09Jz8LeBRyG2ol47FOy0g0=
+github.com/diamondburned/cchat v0.0.26/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
 github.com/diamondburned/cchat-mock v0.0.0-20200613003444-b36f8f47debe h1:OoTLxpryxB9iQyu3bjw5N9N/3Bvu6FwklJ85X9erCAY=
 github.com/diamondburned/cchat-mock v0.0.0-20200613003444-b36f8f47debe/go.mod h1:vitBma+rd/ah+ujQsp6lPm/AfS2KtLKEh+Owxbv5BQM=
+github.com/diamondburned/cchat-mock v0.0.0-20200613233949-1e7651c8dd84 h1:NSuksZ9HiLiau93qAz4yNba6Xd7ExOFc956dumONDQ0=
+github.com/diamondburned/cchat-mock v0.0.0-20200613233949-1e7651c8dd84/go.mod h1:JxTay4MVEqmDisGqDGk8TG0UnKX7wDEImFywyoPfGjk=
 github.com/diamondburned/gotk3 v0.0.0-20200612012846-9df87fea4f6d h1:NFTuwBU+CNZDB1iaGC3gDuBRf9FTd1h2WnIh6NF7elg=
 github.com/diamondburned/gotk3 v0.0.0-20200612012846-9df87fea4f6d/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/imgutil v0.0.0-20200611215339-650ac7cfaf64 h1:/ykUYHuYyj+NN/aaqe6lfaCZQc3EMZs93wAGVJTh5j0=

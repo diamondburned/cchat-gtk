@@ -106,7 +106,13 @@ func SetImageIcon(img *gtk.Image, icon string, sizepx int) {
 	img.SetSizeRequest(sizepx, sizepx)
 }
 
-func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []*gtk.MenuItem) {
+func PrependMenuItems(menu interface{ Prepend(gtk.IMenuItem) }, items []gtk.IMenuItem) {
+	for i := len(items) - 1; i >= 0; i-- {
+		menu.Prepend(items[i])
+	}
+}
+
+func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []gtk.IMenuItem) {
 	for _, item := range items {
 		menu.Append(item)
 	}
@@ -115,6 +121,12 @@ func AppendMenuItems(menu interface{ Append(gtk.IMenuItem) }, items []*gtk.MenuI
 func HiddenMenuItem(label string, fn interface{}) *gtk.MenuItem {
 	mb, _ := gtk.MenuItemNewWithLabel(label)
 	mb.Connect("activate", fn)
+	return mb
+}
+
+func HiddenDisabledMenuItem(label string, fn interface{}) *gtk.MenuItem {
+	mb := HiddenMenuItem(label, fn)
+	mb.SetSensitive(false)
 	return mb
 }
 
@@ -128,9 +140,19 @@ type Connector interface {
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 
-func BindMenu(menu *gtk.Menu, connector Connector) {
+func BindMenu(connector Connector, menu *gtk.Menu) {
 	connector.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
+			menu.PopupAtPointer(ev)
+		}
+	})
+}
+
+func BindDynamicMenu(connector Connector, constr func(menu *gtk.Menu)) {
+	connector.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			menu, _ := gtk.MenuNew()
+			constr(menu)
 			menu.PopupAtPointer(ev)
 		}
 	})

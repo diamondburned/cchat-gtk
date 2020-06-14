@@ -47,7 +47,7 @@ func newHeader(svc cchat.Service) *header {
 
 	// Spawn the menu on right click.
 	menu, _ := gtk.MenuNew()
-	primitives.BindMenu(menu, reveal)
+	primitives.BindMenu(reveal, menu)
 
 	return &header{box, reveal, add, menu}
 }

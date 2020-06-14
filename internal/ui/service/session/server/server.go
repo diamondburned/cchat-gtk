@@ -115,21 +115,17 @@ func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
 type Children struct {
 	*gtk.Revealer
 	Main *gtk.Box
-	load *loading.Button // nil after init
 	List cchat.ServerList
 
 	rowctrl Controller
 
+	load   *loading.Button // nil after init
 	Rows   []*Row
 	Parent breadcrumb.Breadcrumber
 }
 
 func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
-	load := loading.NewButton()
-	load.Show()
-
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	main.Add(load)
 	main.SetMarginStart(ChildrenMargin)
 	main.Show()
 
@@ -141,10 +137,36 @@ func NewChildren(parent breadcrumb.Breadcrumber, ctrl Controller) *Children {
 	return &Children{
 		Revealer: rev,
 		Main:     main,
-		load:     load,
 		rowctrl:  ctrl,
 		Parent:   parent,
 	}
+}
+
+func (c *Children) SetLoading() {
+	// If we're already loading, then exit.
+	if c.load != nil {
+		return
+	}
+
+	c.load = loading.NewButton()
+	c.load.Show()
+	c.Main.Add(c.load)
+}
+
+func (c *Children) Reset() {
+	// Do we have the spinning circle button? If yes, remove it.
+	if c.load != nil {
+		c.Main.Remove(c.load)
+		c.load = nil
+	}
+
+	// Remove old servers from the list.
+	for _, row := range c.Rows {
+		c.Main.Remove(row)
+	}
+
+	// Wipe the list empty.
+	c.Rows = nil
 }
 
 func (c *Children) SetServerList(list cchat.ServerList) {
@@ -159,12 +181,6 @@ func (c *Children) SetServerList(list cchat.ServerList) {
 
 func (c *Children) SetServers(servers []cchat.Server) {
 	gts.ExecAsync(func() {
-		// Do we have the spinning circle button? If yes, remove it.
-		if c.load != nil {
-			c.Main.Remove(c.load)
-			c.load = nil
-		}
-
 		// Save the current state.
 		var oldID string
 		for _, row := range c.Rows {
@@ -174,10 +190,8 @@ func (c *Children) SetServers(servers []cchat.Server) {
 			}
 		}
 
-		// Update the server list.
-		for _, row := range c.Rows {
-			c.Main.Remove(row)
-		}
+		// Reset before inserting new servers.
+		c.Reset()
 
 		c.Rows = make([]*Row, len(servers))
 
