@@ -1,6 +1,8 @@
 package messages
 
 import (
+	"context"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/icons"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -80,8 +82,8 @@ func NewView() *View {
 	view := &View{}
 
 	// TODO: change
-	// view.Container = compact.NewContainer()
 	view.InputView = input.NewView(view)
+	// view.Container = compact.NewContainer(view)
 	view.Container = cozy.NewContainer(view)
 
 	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
@@ -98,14 +100,14 @@ func NewView() *View {
 }
 
 func (v *View) Reset() {
+	v.state.Reset()     // Reset the state variables.
 	v.FaceView.Reset()  // Switch back to the main screen.
 	v.Container.Reset() // Clean all messages.
 	v.InputView.Reset() // Reset the input.
-	v.state.Reset()     // Reset the state variables.
 }
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
+func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func()) {
 	// Reset before setting.
 	v.Reset()
 
@@ -116,21 +118,28 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
 	v.state.bind(session, server)
 
 	gts.Async(func() (func(), error) {
-		s, err := server.JoinServer(v.Container)
+		// We can use a background context here, as the user can't go anywhere
+		// that would require cancellation anyway. This is done in ui.go.
+		s, err := server.JoinServer(context.Background(), v.Container)
 		if err != nil {
 			err = errors.Wrap(err, "Failed to join server")
-			return func() { v.SetError(err) }, err
+			// Even if we're erroring out, we're running the done() callback
+			// anyway.
+			return func() { done(); v.SetError(err) }, err
 		}
 
 		return func() {
+			// Run the done() callback.
+			done()
+
 			// Set the screen to the main one.
 			v.FaceView.SetMain()
 
 			// Set the cancel handler.
 			v.state.setcurrent(s)
 
-			// Skipping ok check because sender can be nil. Without the empty check, Go
-			// will panic.
+			// Skipping ok check because sender can be nil. Without the empty
+			// check, Go will panic.
 			sender, _ := server.(cchat.ServerMessageSender)
 			v.InputView.SetSender(session, sender)
 		}, nil
@@ -196,7 +205,7 @@ func (v *View) menuItemActivate(msgID string) func(m *gtk.MenuItem) {
 		go func(action string) {
 			// Run, get the error, and try to log it. The logger will ignore nil
 			// errors.
-			err := v.state.actioner.DoMessageAction(v.Container, action, msgID)
+			err := v.state.actioner.DoMessageAction(action, msgID)
 			log.Error(errors.Wrap(err, "Failed to do action "+action))
 		}(m.GetLabel())
 	}

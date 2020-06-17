@@ -6,8 +6,11 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui"
 	"github.com/diamondburned/cchat/services"
 
+	_ "github.com/diamondburned/cchat-discord"
 	_ "github.com/diamondburned/cchat-mock"
 )
+
+var destructor = func() {}
 
 func main() {
 	gts.Main(func() gts.WindowHeaderer {
@@ -28,4 +31,6 @@ func main() {
 
 		return app
 	})
+
+	destructor()
 }

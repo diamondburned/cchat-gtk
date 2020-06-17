@@ -141,7 +141,7 @@ type Connector interface {
 }
 
 func BindMenu(connector Connector, menu *gtk.Menu) {
-	connector.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+	connector.Connect("button-press-event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			menu.PopupAtPointer(ev)
 		}
@@ -149,11 +149,16 @@ func BindMenu(connector Connector, menu *gtk.Menu) {
 }
 
 func BindDynamicMenu(connector Connector, constr func(menu *gtk.Menu)) {
-	connector.Connect("event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+	connector.Connect("button-press-event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			menu, _ := gtk.MenuNew()
 			constr(menu)
-			menu.PopupAtPointer(ev)
+
+			// Only show the menu if the callback added any children into the
+			// list.
+			if menu.GetChildren().Length() > 0 {
+				menu.PopupAtPointer(ev)
+			}
 		}
 	})
 }

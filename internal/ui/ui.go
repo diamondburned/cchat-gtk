@@ -40,7 +40,7 @@ type App struct {
 	header *header
 
 	// used to keep track of what row to disconnect before switching
-	lastDeactivator func()
+	lastSelector func(bool)
 }
 
 var (
@@ -85,18 +85,27 @@ func (app *App) OnSessionDisconnect(id string) {
 	app.OnSessionRemove(id)
 }
 
-func (app *App) MessageRowSelected(ses *session.Row, srv *server.Row, smsg cchat.ServerMessage) {
+func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
 	// Is there an old row that we should deactivate?
-	if app.lastDeactivator != nil {
-		app.lastDeactivator()
+	if app.lastSelector != nil {
+		app.lastSelector(false)
 	}
+
 	// Set the new row.
-	app.lastDeactivator = srv.Deactivate
+	app.lastSelector = srv.SetSelected
+	app.lastSelector(true)
 
 	app.header.SetBreadcrumb(srv.Breadcrumb())
 
+	// Disable the server list because we don't want the user to switch around
+	// while we're loading.
+	app.window.Services.SetSensitive(false)
+
 	// Assert that server is also a list, then join the server.
-	app.window.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage))
+	app.window.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage), func() {
+		// Re-enable the server list.
+		app.window.Services.SetSensitive(true)
+	})
 }
 
 func (app *App) AuthenticateSession(container *service.Container, svc cchat.Service) {

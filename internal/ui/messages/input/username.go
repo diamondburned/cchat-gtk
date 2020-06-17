@@ -13,9 +13,7 @@ const AvatarSize = 20
 
 type usernameContainer struct {
 	*gtk.Revealer
-
-	main *gtk.Box
-
+	main   *gtk.Box
 	avatar *rich.Icon
 	label  *rich.Label
 }
@@ -76,7 +74,7 @@ func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMes
 		u.label.AsyncSetLabel(nicknamer.Nickname, "Error fetching server nickname")
 	}
 
-	// Does session implement an icon? Update if so.
+	// Does session implement an icon? Update if yes.
 	if iconer, ok := session.(cchat.Icon); ok {
 		u.avatar.AsyncSetIcon(iconer.Icon, "Error fetching session icon URL")
 	}

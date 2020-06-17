@@ -50,8 +50,8 @@ func (v *View) AddService(svc cchat.Service, ctrl Controller) *Container {
 }
 
 type Controller interface {
-	// MessageRowSelected is wrapped around session's MessageRowSelected.
-	MessageRowSelected(*session.Row, *server.Row, cchat.ServerMessage)
+	// RowSelected is wrapped around session's MessageRowSelected.
+	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
 	// AuthenticateSession is called to spawn the authentication dialog.
 	AuthenticateSession(*Container, cchat.Service)
 	// OnSessionRemove is called to remove a session. This should also clear out

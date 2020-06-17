@@ -1,15 +1,15 @@
 package rich
 
 import (
+	"context"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 type Icon struct {
@@ -17,6 +17,9 @@ type Icon struct {
 	Image   *gtk.Image
 	resizer imgutil.Processor
 	procs   []imgutil.Processor
+	size    int
+
+	r gts.Reusable
 
 	// state
 	url string
@@ -41,12 +44,16 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
 	rev.SetTransitionDuration(50)
 
-	return &Icon{
+	i := &Icon{
 		Revealer: rev,
 		Image:    img,
-		resizer:  imgutil.Resize(sizepx, sizepx),
 		procs:    procs,
+
+		r: *gts.NewReusable(),
 	}
+	i.SetSize(sizepx)
+
+	return i
 }
 
 // Reset wipes the state to be just after construction.
@@ -59,6 +66,10 @@ func (i *Icon) Reset() {
 // URL is not thread-safe.
 func (i *Icon) URL() string {
 	return i.url
+}
+
+func (i *Icon) Size() int {
+	return i.size
 }
 
 func (i *Icon) CopyPixbuf(dst httputil.ImageContainer) {
@@ -84,6 +95,7 @@ func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
 
 // SetSize is not thread-safe.
 func (i *Icon) SetSize(szpx int) {
+	i.size = szpx
 	i.Image.SetSizeRequest(szpx, szpx)
 	i.resizer = imgutil.Resize(szpx, szpx)
 }
@@ -95,17 +107,25 @@ func (i *Icon) AddProcessors(procs ...imgutil.Processor) {
 
 // SetIcon is thread-safe.
 func (i *Icon) SetIcon(url string) {
-	gts.ExecAsync(func() {
-		i.SetIconUnsafe(url)
+	gts.ExecAsync(func() { i.SetIconUnsafe(url) })
+}
+
+func (i *Icon) swapResource(v interface{}) {
+	i.SetIconUnsafe(v.(*nullIcon).url)
+}
+
+func (i *Icon) AsyncSetIcon(fn func(context.Context, cchat.IconContainer) error, wrap string) {
+	gts.AsyncUse(&i.r, i.swapResource, func(ctx context.Context) (interface{}, error) {
+		var ni = &nullIcon{}
+		return ni, fn(ctx, ni)
 	})
 }
 
-func (i *Icon) AsyncSetIcon(fn func(cchat.IconContainer) error, wrap string) {
-	go func() {
-		if err := fn(i); err != nil {
-			log.Error(errors.Wrap(err, wrap))
-		}
-	}()
+func (i *Icon) AsyncSetIconer(iconer cchat.Icon, wrap string) {
+	gts.AsyncUse(&i.r, i.swapResource, func(ctx context.Context) (interface{}, error) {
+		var ni = &nullIcon{}
+		return ni, iconer.Icon(ctx, ni)
+	})
 }
 
 // SetIconUnsafe is not thread-safe.
@@ -159,4 +179,9 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 		Image: i,
 		Box:   box,
 	}
+}
+
+func (t *ToggleButtonImage) Reset() {
+	t.Labeler.Reset()
+	t.Image.Reset()
 }

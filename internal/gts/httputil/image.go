@@ -37,9 +37,17 @@ func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
 	ctx, cancel := context.WithCancel(context.Background())
 	connectDestroyer(img, cancel)
 
-	go syncImageFn(ctx, img, url, procs, func(l *gdk.PixbufLoader, gif bool) {
-		l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
-	})
+	gif := strings.Contains(url, ".gif")
+
+	l, err := gdk.PixbufLoaderNew()
+	if err != nil {
+		log.Error(errors.Wrap(err, "Failed to make pixbuf loader"))
+		return
+	}
+
+	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
+
+	go syncImage(ctx, l, url, procs, gif)
 }
 
 // AsyncImageSized resizes using GdkPixbuf. This method does not use the cache.
@@ -54,17 +62,25 @@ func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...img
 	ctx, cancel := context.WithCancel(context.Background())
 	connectDestroyer(img, cancel)
 
-	go syncImageFn(ctx, img, url, procs, func(l *gdk.PixbufLoader, gif bool) {
-		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
-			w, h = imgutil.MaxSize(imgW, imgH, w, h)
-			if w != imgW || h != imgH {
-				l.SetSize(w, h)
-				execIfCtx(ctx, func() { img.SetSizeRequest(w, h) })
-			}
-		})
+	gif := strings.Contains(url, ".gif")
 
-		l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
+	l, err := gdk.PixbufLoaderNew()
+	if err != nil {
+		log.Error(errors.Wrap(err, "Failed to make pixbuf loader"))
+		return
+	}
+
+	l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
+		w, h = imgutil.MaxSize(imgW, imgH, w, h)
+		if w != imgW || h != imgH {
+			l.SetSize(w, h)
+			execIfCtx(ctx, func() { img.SetSizeRequest(w, h) })
+		}
 	})
+
+	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
+
+	go syncImage(ctx, l, url, procs, gif)
 }
 
 type pbgetter interface {
@@ -110,13 +126,9 @@ func execIfCtx(ctx context.Context, fn func()) {
 	})
 }
 
-func syncImageFn(
-	ctx context.Context,
-	img ImageContainer,
-	url string,
-	procs []imgutil.Processor,
-	middle func(l *gdk.PixbufLoader, gif bool),
-) {
+func syncImage(ctx context.Context, l io.WriteCloser, url string, p []imgutil.Processor, gif bool) {
+	// Close at the end when done.
+	defer l.Close()
 
 	r, err := get(ctx, url, true)
 	if err != nil {
@@ -125,27 +137,12 @@ func syncImageFn(
 	}
 	defer r.Body.Close()
 
-	l, err := gdk.PixbufLoaderNew()
-	if err != nil {
-		log.Error(errors.Wrap(err, "Failed to make pixbuf loader"))
-		return
-	}
-
-	gif := strings.Contains(url, ".gif")
-
-	// This is a very important signal, so we must do it synchronously. Gotk3's
-	// callback implementation requires all connects to be synchronous to a
-	// certain thread.
-	<-gts.ExecSync(func() {
-		middle(l, gif)
-	})
-
 	// If we have processors, then write directly in there.
-	if len(procs) > 0 {
+	if len(p) > 0 {
 		if !gif {
-			err = imgutil.ProcessStream(l, r.Body, procs)
+			err = imgutil.ProcessStream(l, r.Body, p)
 		} else {
-			err = imgutil.ProcessAnimationStream(l, r.Body, procs)
+			err = imgutil.ProcessAnimationStream(l, r.Body, p)
 		}
 	} else {
 		// Else, directly copy the body over.
@@ -155,9 +152,5 @@ func syncImageFn(
 	if err != nil {
 		log.Error(errors.Wrap(err, "Error processing image"))
 		return
-	}
-
-	if err := l.Close(); err != nil {
-		log.Error(errors.Wrap(err, "Failed to close pixbuf"))
 	}
 }

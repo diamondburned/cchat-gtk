@@ -2,12 +2,10 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 const IconSize = 32
@@ -40,9 +38,7 @@ func newHeader(svc cchat.Service) *header {
 	box.Show()
 
 	if iconer, ok := svc.(cchat.Icon); ok {
-		if err := iconer.Icon(reveal); err != nil {
-			log.Error(errors.Wrap(err, "Error getting session logo"))
-		}
+		reveal.Image.AsyncSetIconer(iconer, "Error getting session logo")
 	}
 
 	// Spawn the menu on right click.

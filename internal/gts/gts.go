@@ -1,7 +1,9 @@
 package gts
 
 import (
+	"context"
 	"os"
+	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/gotk3/gotk3/gdk"
@@ -54,6 +56,7 @@ func Main(wfn func() WindowHeaderer) {
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
 		App.Window.SetDefaultSize(1000, 500)
 		App.Window.SetTitlebar(App.Header)
+		App.Window.Connect("destroy", App.Application.Quit)
 		App.Window.Show()
 
 		// Execute the function later, because we need it to run after
@@ -65,7 +68,9 @@ func Main(wfn func() WindowHeaderer) {
 
 	// Use a special function to run the application. Exit with the appropriate
 	// exit code.
-	os.Exit(App.Run(Args))
+	if code := App.Run(Args); code > 0 {
+		os.Exit(code)
+	}
 }
 
 // Async runs fn asynchronously, then runs the function it returns in the Gtk
@@ -79,7 +84,7 @@ func Async(fn func() (func(), error)) {
 
 		// Attempt to run the callback if it's there.
 		if f != nil {
-			glib.IdleAdd(f)
+			ExecAsync(f)
 		}
 	}()
 }
@@ -105,4 +110,88 @@ func ExecSync(fn func()) <-chan struct{} {
 func EventIsRightClick(ev *gdk.Event) bool {
 	keyev := gdk.EventButtonNewFromEvent(ev)
 	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_SECONDARY
+}
+
+// Reuser is an interface for structs that inherit Reusable.
+type Reuser interface {
+	Context() context.Context
+	Acquire() int64
+	Validate(int64) bool
+}
+
+// AsyncUse is a handler for structs that implement the Reuser primitive. The
+// passed in function will be called asynchronously, but swap will be called in
+// the Gtk main thread.
+func AsyncUse(r Reuser, swap func(interface{}), fn func(context.Context) (interface{}, error)) {
+	// Acquire an ID.
+	id := r.Acquire()
+	ctx := r.Context()
+
+	Async(func() (func(), error) {
+		// Run the callback asynchronously.
+		v, err := fn(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return func() {
+			// Validate the ID. Cancel if it's invalid.
+			if !r.Validate(id) {
+				log.Println("Async function value dropped for reusable primitive.")
+				return
+			}
+
+			// Update the resource.
+			swap(v)
+		}, nil
+	})
+}
+
+// Reusable is the synchronization primitive to provide a method for
+// asynchronous cancellation and reusability.
+//
+// It works by copying the ID (time) for each asynchronous operation. The
+// operation then completes, and the ID is then compared again before being
+// used. It provides a cancellation abstraction around the Gtk main thread.
+//
+// This struct is not thread-safe, as it relies on the Gtk main thread
+// synchronization.
+type Reusable struct {
+	time   int64 // creation time, used as ID
+	ctx    context.Context
+	cancel func()
+}
+
+func NewReusable() *Reusable {
+	r := &Reusable{}
+	r.Invalidate()
+	return r
+}
+
+// Invalidate generates a new ID for the primitive, which would render
+// asynchronously updating elements invalid.
+func (r *Reusable) Invalidate() {
+	// Cancel the old context.
+	if r.cancel != nil {
+		r.cancel()
+	}
+
+	// Reset.
+	r.time = time.Now().UnixNano()
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+}
+
+// Context returns the reusable's cancellable context. It never returns nil.
+func (r *Reusable) Context() context.Context {
+	return r.ctx
+}
+
+// Reusable checks the acquired ID against the current one.
+func (r *Reusable) Validate(acquired int64) (valid bool) {
+	return r.time == acquired
+}
+
+// Acquire lends the ID to be given to Reusable() after finishing.
+func (r *Reusable) Acquire() int64 {
+	return r.time
 }
