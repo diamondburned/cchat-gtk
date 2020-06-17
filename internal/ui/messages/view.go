@@ -11,7 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -154,15 +154,18 @@ func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
 		presend.SetSentError(err)
 		// Only attach the menu once. Further retries do not need to be
 		// reattached.
-		presend.AttachMenu(func() []gtk.IMenuItem {
-			return []gtk.IMenuItem{
-				primitives.MenuItem("Retry", func() {
-					presend.SetLoading()
-					v.retryMessage(msg, presend)
-				}),
-			}
+		presend.AttachMenu([]menu.Item{
+			menu.SimpleItem("Retry", func() {
+				presend.SetLoading()
+				v.retryMessage(msg, presend)
+			}),
 		})
 	}
+}
+
+// LatestMessageFrom returns the last message ID with that author.
+func (v *View) LatestMessageFrom(userID string) (msgID string, ok bool) {
+	return v.Container.LatestMessageFrom(userID)
 }
 
 // retryMessage sends the message.
@@ -184,29 +187,33 @@ func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendG
 // BindMenu attaches the menu constructor into the message with the needed
 // states and callbacks.
 func (v *View) BindMenu(msg container.GridMessage) {
-	// Don't bind anything if we don't have anything.
-	if !v.state.hasActions() {
-		return
+	// Add 1 for the edit menu item.
+	var mitems = make([]menu.Item, 0, len(v.state.actions)+1)
+
+	// Do we have editing capabilities? If yes, append a button to allow it.
+	if v.InputView.Editable() {
+		mitems = append(mitems, menu.SimpleItem(
+			"Edit", func() { v.InputView.StartEditing(msg.ID()) },
+		))
 	}
 
-	msg.AttachMenu(func() []gtk.IMenuItem {
-		var mitems = make([]gtk.IMenuItem, len(v.state.actions))
-		for i, action := range v.state.actions {
-			mitems[i] = primitives.MenuItem(action, v.menuItemActivate(msg.ID()))
-		}
-		return mitems
-	})
+	// Do we have any custom actions? If yes, append it.
+	for _, action := range v.state.actions {
+		mitems = append(mitems, v.makeActionItem(action, msg.ID()))
+	}
+
+	msg.AttachMenu(mitems)
 }
 
-// menuItemActivate creates a new callback that's called on menu item
+// makeActionItem creates a new menu callback that's called on menu item
 // activation.
-func (v *View) menuItemActivate(msgID string) func(m *gtk.MenuItem) {
-	return func(m *gtk.MenuItem) {
-		go func(action string) {
+func (v *View) makeActionItem(action, msgID string) menu.Item {
+	return menu.SimpleItem(action, func() {
+		go func() {
 			// Run, get the error, and try to log it. The logger will ignore nil
 			// errors.
 			err := v.state.actioner.DoMessageAction(action, msgID)
 			log.Error(errors.Wrap(err, "Failed to do action "+action))
-		}(m.GetLabel())
-	}
+		}()
+	})
 }

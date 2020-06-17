@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -18,7 +19,7 @@ type GridMessage interface {
 	// Attach should only be called once.
 	Attach(grid *gtk.Grid, row int)
 	// AttachMenu should override the stored constructor.
-	AttachMenu(constructor func() []gtk.IMenuItem) // save memory
+	AttachMenu(items []menu.Item) // save memory
 }
 
 func AttachRow(grid *gtk.Grid, row int, widgets ...gtk.IWidget) {
@@ -50,6 +51,8 @@ type Container interface {
 
 	// AddPresendMessage adds and displays an unsent message.
 	AddPresendMessage(msg input.PresendMessage) PresendGridMessage
+	// LatestMessageFrom returns the last message ID with that author.
+	LatestMessageFrom(authorID string) (msgID string, ok bool)
 }
 
 // Controller is for menu actions.

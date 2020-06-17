@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -54,7 +55,7 @@ type GenericContainer struct {
 	Username  *gtk.Label
 	Content   *gtk.Label
 
-	MenuItems func() []gtk.IMenuItem
+	MenuItems []menu.Item
 }
 
 var _ Container = (*GenericContainer)(nil)
@@ -109,19 +110,16 @@ func NewEmptyContainer() *GenericContainer {
 		Timestamp: ts,
 		Username:  user,
 		Content:   content,
-		MenuItems: func() []gtk.IMenuItem { return nil },
 	}
 
-	gc.Content.Connect("populate-popup", func(l *gtk.Label, menu *gtk.Menu) {
+	gc.Content.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
 		// Add a menu separator before we add our custom stuff.
 		sep, _ := gtk.SeparatorMenuItemNew()
 		sep.Show()
-		menu.Append(sep)
+		m.Append(sep)
 
 		// Append the new items after the separator.
-		for _, item := range gc.MenuItems() {
-			menu.Append(item)
-		}
+		menu.LoadItems(m, gc.MenuItems)
 	})
 
 	return gc
@@ -178,6 +176,6 @@ func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
 
 // AttachMenu connects signal handlers to handle a list of menu items from
 // the container.
-func (m *GenericContainer) AttachMenu(newItems func() []gtk.IMenuItem) {
+func (m *GenericContainer) AttachMenu(newItems []menu.Item) {
 	m.MenuItems = newItems
 }

@@ -2,13 +2,16 @@ package input
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 // Controller is an interface to control message containers.
 type Controller interface {
 	AddPresendMessage(msg PresendMessage) (onErr func(error))
+	LatestMessageFrom(userID string) (messageID string, ok bool)
 }
 
 type InputView struct {
@@ -68,8 +71,12 @@ type Field struct {
 
 	UserID string
 	Sender cchat.ServerMessageSender
+	editor cchat.ServerMessageEditor
 
 	ctrl Controller
+
+	// editing state
+	editingID string // never empty
 }
 
 const inputmargin = 4
@@ -115,6 +122,7 @@ func (f *Field) Reset() {
 
 	f.UserID = ""
 	f.Sender = nil
+	f.editor = nil
 	f.username.Reset()
 
 	// reset the input
@@ -126,12 +134,58 @@ func (f *Field) Reset() {
 func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
 	// Update the left username container in the input.
 	f.username.Update(session, sender)
+	f.UserID = session.ID()
 
 	// Set the sender.
 	if sender != nil {
 		f.Sender = sender
 		f.text.SetSensitive(true)
+
+		// Do we support message editing?
+		if editor, ok := sender.(cchat.ServerMessageEditor); ok {
+			f.editor = editor
+		}
 	}
+}
+
+// Editable returns whether or not the input field has editing capabilities.
+func (f *Field) Editable() bool {
+	return f.editor != nil
+}
+
+func (f *Field) StartEditing(msgID string) bool {
+	// Do we support message editing? If not, exit.
+	if !f.Editable() {
+		return false
+	}
+
+	// Try and request the old message content for editing.
+	content, err := f.editor.RawMessageContent(msgID)
+	if err != nil {
+		// TODO: show error
+		log.Error(errors.Wrap(err, "Failed to get message content"))
+		return false
+	}
+
+	// Set the current editing state and set the input after requesting the
+	// content.
+	f.editingID = msgID
+	f.buffer.SetText(content)
+
+	return true
+}
+
+// StopEditing cancels the current editing message. It returns a false and does
+// nothing if the editor is not editing anything.
+func (f *Field) StopEditing() bool {
+	if f.editingID == "" {
+		return false
+	}
+
+	f.editingID = ""
+	f.clearText()
+
+	return true
 }
 
 // yankText cuts the text from the input field and returns it.
@@ -144,4 +198,20 @@ func (f *Field) yankText() string {
 	}
 
 	return text
+}
+
+// clearText wipes the input field
+func (f *Field) clearText() {
+	f.buffer.Delete(f.buffer.GetBounds())
+}
+
+// getText returns the text from the input, but it doesn't cut it.
+func (f *Field) getText() string {
+	start, end := f.buffer.GetBounds()
+	text, _ := f.buffer.GetText(start, end, false)
+	return text
+}
+
+func (f *Field) textLen() int {
+	return f.buffer.GetCharCount()
 }

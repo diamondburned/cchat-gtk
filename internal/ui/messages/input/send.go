@@ -1,7 +1,7 @@
 package input
 
 import (
-	"strconv"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -14,9 +14,15 @@ import (
 
 var globalID uint64
 
-// SendInput yanks the text from the input field and sends it to the backend.
-// This function is not thread-safe.
-func (f *Field) SendInput() {
+// generateNonce creates a nonce that should prevent collision
+func (f *Field) generateNonce() string {
+	return fmt.Sprintf(
+		"cchat-gtk/%s/%X/%X",
+		f.UserID, time.Now().UnixNano(), atomic.AddUint64(&globalID, 1),
+	)
+}
+
+func (f *Field) sendInput() {
 	if f.Sender == nil {
 		return
 	}
@@ -26,13 +32,25 @@ func (f *Field) SendInput() {
 		return
 	}
 
+	// Are we editing anything?
+	if id := f.editingID; f.Editable() && id != "" {
+		go func() {
+			if err := f.editor.EditMessage(id, text); err != nil {
+				log.Error(errors.Wrap(err, "Failed to edit message"))
+			}
+		}()
+
+		f.StopEditing()
+		return
+	}
+
 	f.SendMessage(SendMessageData{
 		time:      time.Now(),
 		content:   text,
 		author:    f.username.GetLabel(),
 		authorID:  f.UserID,
 		authorURL: f.username.GetIconURL(),
-		nonce:     "__cchat-gtk_" + strconv.FormatUint(atomic.AddUint64(&globalID, 1), 10),
+		nonce:     f.generateNonce(),
 	})
 }
 

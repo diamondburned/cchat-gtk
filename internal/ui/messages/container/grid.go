@@ -115,11 +115,32 @@ func (c *GridStore) getOffsetted(id string, offset int) GridMessage {
 	return c.messages[c.messageIDs[ix]].GridMessage
 }
 
+// LatestMessageFrom returns the latest message with the given user ID. This is
+// used for the input prompt.
+func (c *GridStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
+	// FindMessage already looks from the latest messages.
+	var msg = c.FindMessage(func(msg GridMessage) bool {
+		return msg.AuthorID() == userID
+	})
+
+	if msg == nil {
+		return "", false
+	}
+
+	return msg.ID(), true
+}
+
 // FindMessage iterates backwards and returns the message if isMessage() returns
 // true on that message.
 func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessage {
 	for i := len(c.messageIDs) - 1; i >= 0; i-- {
-		if msg := c.messages[c.messageIDs[i]].GridMessage; isMessage(msg) {
+		msg := c.messages[c.messageIDs[i]]
+		// Ignore sending messages.
+		if msg.presend != nil {
+			continue
+		}
+		// Check.
+		if msg := msg.GridMessage; isMessage(msg) {
 			return msg
 		}
 	}

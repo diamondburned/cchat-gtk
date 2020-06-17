@@ -1,5 +1,7 @@
 package menu
 
+// TODO: move this package outside service
+
 import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -30,32 +32,28 @@ func (m *LazyMenu) Reset() {
 	m.items = nil
 }
 
-func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {
-	// Is this a right click? Exit if not.
-	if !gts.EventIsRightClick(ev) {
-		return
-	}
-
+func (m *LazyMenu) PopupAtPointer(ev *gdk.Event) {
 	// Do nothing if there are no menu items.
 	if len(m.items) == 0 {
 		return
 	}
 
-	var menu, _ = gtk.MenuNew()
-
-	for _, item := range m.items {
-		mb, _ := gtk.MenuItemNewWithLabel(item.Name)
-		mb.Connect("activate", item.Func)
-		mb.Show()
-
-		if item.Extra != nil {
-			item.Extra(mb)
-		}
-
-		menu.Append(mb)
-	}
-
+	menu, _ := gtk.MenuNew()
+	LoadItems(menu, m.items)
 	menu.PopupAtPointer(ev)
+}
+
+func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {
+	// Is this a right click? Run the menu if yes.
+	if gts.EventIsRightClick(ev) {
+		m.PopupAtPointer(ev)
+	}
+}
+
+func LoadItems(menu *gtk.Menu, items []Item) {
+	for _, item := range items {
+		menu.Append(item.ToMenuItem())
+	}
 }
 
 type Item struct {
@@ -66,4 +64,16 @@ type Item struct {
 
 func SimpleItem(name string, fn func()) Item {
 	return Item{Name: name, Func: fn}
+}
+
+func (item Item) ToMenuItem() *gtk.MenuItem {
+	mb, _ := gtk.MenuItemNewWithLabel(item.Name)
+	mb.Connect("activate", item.Func)
+	mb.Show()
+
+	if item.Extra != nil {
+		item.Extra(mb)
+	}
+
+	return mb
 }

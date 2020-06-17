@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -129,7 +130,7 @@ func (m *FullMessage) Attach(grid *gtk.Grid, row int) {
 	container.AttachRow(grid, row, m.Avatar, m.MainBox)
 }
 
-func (m *FullMessage) AttachMenu(items func() []gtk.IMenuItem) {
+func (m *FullMessage) AttachMenu(items []menu.Item) {
 	// Bind to parent's container as well.
 	m.GenericContainer.AttachMenu(items)
 
