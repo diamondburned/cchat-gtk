@@ -4,14 +4,10 @@ go 1.14
 
 replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200612012846-9df87fea4f6d
 
-replace github.com/diamondburned/cchat-mock => ../cchat-mock/
-
-replace github.com/diamondburned/cchat-discord => ../cchat-discord/
-
 require (
 	github.com/Xuanwo/go-locale v0.2.0
 	github.com/diamondburned/cchat v0.0.31
-	github.com/diamondburned/cchat-discord v0.0.0-00010101000000-000000000000
+	github.com/diamondburned/cchat-discord v0.0.0-20200619080941-dac771656ebf
 	github.com/diamondburned/cchat-mock v0.0.0-20200615015702-8cac8b16378d
 	github.com/diamondburned/imgutil v0.0.0-20200611215339-650ac7cfaf64
 	github.com/goodsign/monday v1.0.0
