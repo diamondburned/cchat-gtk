@@ -16,6 +16,12 @@ github.com/diamondburned/cchat v0.0.26 h1:QBt4d65uzUPJz3jF8b2pJ09Jz8LeBRyG2ol47F
 github.com/diamondburned/cchat v0.0.26/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
 github.com/diamondburned/cchat v0.0.28 h1:+1VnltW0rl8/NZTUP+x89jVhi3YTTR+e6iLprZ7HcwM=
 github.com/diamondburned/cchat v0.0.28/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
+github.com/diamondburned/cchat v0.0.29 h1:fEfmv2hYO7sK4wH9GAqf400XGJg6R4DBI8xvsljn5vk=
+github.com/diamondburned/cchat v0.0.29/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
+github.com/diamondburned/cchat v0.0.30 h1:rMACN56vBNG8L9VzY11kA0sA/mJO42JrNdUUnINZWto=
+github.com/diamondburned/cchat v0.0.30/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
+github.com/diamondburned/cchat v0.0.31 h1:yUgrh5xbGX0R55glyxYtVewIDL2eXLJ+okIEfVaVoFk=
+github.com/diamondburned/cchat v0.0.31/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
 github.com/diamondburned/cchat-mock v0.0.0-20200613003444-b36f8f47debe h1:OoTLxpryxB9iQyu3bjw5N9N/3Bvu6FwklJ85X9erCAY=
 github.com/diamondburned/cchat-mock v0.0.0-20200613003444-b36f8f47debe/go.mod h1:vitBma+rd/ah+ujQsp6lPm/AfS2KtLKEh+Owxbv5BQM=
 github.com/diamondburned/cchat-mock v0.0.0-20200613233949-1e7651c8dd84 h1:NSuksZ9HiLiau93qAz4yNba6Xd7ExOFc956dumONDQ0=
@@ -28,10 +34,13 @@ github.com/diamondburned/imgutil v0.0.0-20200611215339-650ac7cfaf64 h1:/ykUYHuYy
 github.com/diamondburned/imgutil v0.0.0-20200611215339-650ac7cfaf64/go.mod h1:kBQKaukR/LyCfhED99/T4/XxUMDNEEzf1Fx6vreD3RQ=
 github.com/diamondburned/ningen v0.0.0-20200610212436-159f7105a2be h1:mUw8X/YzJGFSdL8y3Q/XqyzqPyIMNVSDyZGOP3JXgJA=
 github.com/diamondburned/ningen v0.0.0-20200610212436-159f7105a2be/go.mod h1:B2hq2B4va1MlnMmXuv9vXmyu9gscxJLmwrmcSB1Les8=
+github.com/diamondburned/ningen v0.0.0-20200618230530-16d4d7fbc521 h1:hp4vdK6mARWbtU7A9UAz9zr7qe0z7ppoh9RGXymWDRE=
+github.com/diamondburned/ningen v0.0.0-20200618230530-16d4d7fbc521/go.mod h1:B2hq2B4va1MlnMmXuv9vXmyu9gscxJLmwrmcSB1Les8=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
 github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
 github.com/go-ole/go-ole v1.2.4 h1:nNBDSCOigTSiarFpYE9J/KtEA1IOW4CNeqT9TQDqCxI=
 github.com/go-ole/go-ole v1.2.4/go.mod h1:XCwSNxSkXRo4vlyPy93sltvi/qJq0jqQhjqQNIwKuxM=
+github.com/go-test/deep v1.0.6/go.mod h1:QV8Hv/iy04NyLBxAdO9njL0iVPN1S4d/A3NVv1V36o8=
 github.com/gobuffalo/here v0.6.0 h1:hYrd0a6gDmWxBM4TnrGw8mQg24iSVoIkHEk7FodQcBI=
 github.com/gobuffalo/here v0.6.0/go.mod h1:wAG085dHOYqUpf+Ap+WOdrPTp5IYcDAs/x7PLa8Y5fM=
 github.com/godbus/dbus v4.1.0+incompatible h1:WqqLRTsQic3apZUK9qC5sGNfXthmPXzUZ7nQPrNITa4=
@@ -75,6 +84,7 @@ github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJy
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/twmb/murmur3 v1.1.3 h1:D83U0XYKcHRYwYIpBKf3Pks91Z0Byda/9SJ8B6EMRcA=
 github.com/twmb/murmur3 v1.1.3/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
+github.com/yuin/goldmark v1.1.30 h1:j4d4Lw3zqZelDhBksEo3BnWg9xhXRQGJPPSL6OApZjI=
 github.com/yuin/goldmark v1.1.30/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/zalando/go-keyring v0.0.0-20200121091418-667557018717 h1:3M/uUZajYn/082wzUajekePxpUAZhMTfXvI9R+26SJ0=
 github.com/zalando/go-keyring v0.0.0-20200121091418-667557018717/go.mod h1:RaxNwUITJaHVdQ0VC7pELPZ3tOWn13nr0gZMZEhpVU0=
