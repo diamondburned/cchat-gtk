@@ -16,7 +16,7 @@ import (
 )
 
 const ChildrenMargin = 24
-const IconSize = 18
+const IconSize = 20
 
 type Controller interface {
 	RowSelected(*ServerRow, cchat.ServerMessage)

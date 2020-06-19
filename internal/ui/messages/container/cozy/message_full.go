@@ -17,7 +17,7 @@ import (
 )
 
 // TopFullMargin is the margin on top of every full message.
-const TopFullMargin = 12
+const TopFullMargin = 8
 
 type FullMessage struct {
 	*message.GenericContainer
@@ -87,7 +87,7 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	}
 }
 
-func (c *FullMessage) Collapsed() bool { return false }
+func (m *FullMessage) Collapsed() bool { return false }
 
 func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.

@@ -53,7 +53,8 @@ type GenericContainer struct {
 
 	Timestamp *gtk.Label
 	Username  *gtk.Label
-	Content   *gtk.Label
+	Content   *gtk.TextView
+	CBuffer   *gtk.TextBuffer
 
 	MenuItems []menu.Item
 }
@@ -92,14 +93,14 @@ func NewEmptyContainer() *GenericContainer {
 	user.SetSelectable(true)
 	user.Show()
 
-	content, _ := gtk.LabelNew("")
+	content, _ := gtk.TextViewNew()
 	content.SetHExpand(true)
-	content.SetXAlign(0) // left-align with size filled
-	content.SetVAlign(gtk.ALIGN_START)
-	content.SetLineWrap(true)
-	content.SetLineWrapMode(pango.WRAP_WORD_CHAR)
-	content.SetSelectable(true)
+	content.SetWrapMode(gtk.WRAP_WORD_CHAR)
+	content.SetCursorVisible(false)
+	content.SetEditable(false)
 	content.Show()
+
+	cbuffer, _ := content.GetBuffer()
 
 	// Add CSS classes.
 	primitives.AddClass(ts, "message-time")
@@ -110,6 +111,7 @@ func NewEmptyContainer() *GenericContainer {
 		Timestamp: ts,
 		Username:  user,
 		Content:   content,
+		CBuffer:   cbuffer,
 	}
 
 	gc.Content.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
@@ -166,12 +168,12 @@ func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
 }
 
 func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
-	var markup = parser.RenderMarkup(content)
-	if edited {
-		markup += " " + rich.Small("(edited)")
-	}
+	// Render the content.
+	parser.RenderTextBuffer(m.CBuffer, content)
 
-	m.Content.SetMarkup(markup)
+	if edited {
+		parser.AppendEditBadge(m.CBuffer, m.Time())
+	}
 }
 
 // AttachMenu connects signal handlers to handle a list of menu items from

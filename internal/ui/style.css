@@ -1,3 +1,9 @@
 headerbar { padding: 0; }
 
 .services button { border-radius: 0; }
+
+.message-content, .message-content text {
+	background: none;
+	box-shadow: none;
+	border: none;
+}

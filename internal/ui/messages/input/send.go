@@ -1,6 +1,8 @@
 package input
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -10,16 +12,25 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat/text"
 	"github.com/pkg/errors"
+	"github.com/twmb/murmur3"
 )
 
 var globalID uint64
 
-// generateNonce creates a nonce that should prevent collision
+// generateNonce creates a nonce that should prevent collision. This function
+// will always return a 24-byte long string.
 func (f *Field) generateNonce() string {
-	return fmt.Sprintf(
+	raw := fmt.Sprintf(
 		"cchat-gtk/%s/%X/%X",
 		f.UserID, time.Now().UnixNano(), atomic.AddUint64(&globalID, 1),
 	)
+
+	h1, h2 := murmur3.StringSum128(raw)
+	nonce := make([]byte, 8*2)
+	binary.LittleEndian.PutUint64(nonce[0:8], h1)
+	binary.LittleEndian.PutUint64(nonce[8:16], h2)
+
+	return base64.RawURLEncoding.EncodeToString(nonce)
 }
 
 func (f *Field) sendInput() {

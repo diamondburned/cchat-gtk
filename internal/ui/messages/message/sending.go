@@ -48,16 +48,17 @@ func (m *GenericPresendContainer) SetDone(id string) {
 	m.id = id
 	m.SetSensitive(true)
 	m.sendString = ""
+	m.Content.SetTooltipText("")
 }
 
 func (m *GenericPresendContainer) SetLoading() {
 	m.SetSensitive(false)
-	m.Content.SetText(m.sendString)
+	m.CBuffer.SetText(m.sendString)
 	m.Content.SetTooltipText("")
 }
 
 func (m *GenericPresendContainer) SetSentError(err error) {
 	m.SetSensitive(true) // allow events incl right clicks
-	m.Content.SetMarkup(`<span color="red">` + html.EscapeString(m.sendString) + `</span>`)
+	m.CBuffer.SetText(`<span color="red">` + html.EscapeString(m.sendString) + `</span>`)
 	m.Content.SetTooltipText(err.Error())
 }

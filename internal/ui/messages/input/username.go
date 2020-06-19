@@ -9,7 +9,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-const AvatarSize = 20
+const AvatarSize = 24
 
 type usernameContainer struct {
 	*gtk.Revealer
