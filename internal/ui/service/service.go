@@ -87,7 +87,7 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	chrev.Show()
 
 	header := newHeader(svc)
-	header.reveal.SetActive(chrev.GetRevealChild())
+	header.SetActive(chrev.GetRevealChild())
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.Show()
@@ -106,14 +106,14 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	}
 
 	// On click, toggle reveal.
-	header.reveal.Connect("clicked", func() {
+	header.Connect("clicked", func() {
 		revealed := !chrev.GetRevealChild()
 		chrev.SetRevealChild(revealed)
-		header.reveal.SetActive(revealed)
+		header.SetActive(revealed)
 	})
 
 	// On click, show the auth dialog.
-	header.add.Connect("clicked", func() {
+	header.Add.Connect("clicked", func() {
 		ctrl.AuthenticateSession(container, svc)
 	})
 
@@ -231,5 +231,5 @@ func (c *Container) SaveAllSessions() {
 }
 
 func (c *Container) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(nil, c.header.reveal.GetText())
+	return breadcrumb.Try(nil, c.header.GetText())
 }
