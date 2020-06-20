@@ -1,7 +1,11 @@
 // Package config provides the repository for configuration and preferences.
 package config
 
-import "sort"
+import (
+	"sort"
+)
+
+const ConfigFile = "config.json"
 
 // List of config sections.
 type Section uint8
@@ -40,4 +44,12 @@ func AppearanceAdd(name string, value EntryValue) {
 		Value: value,
 	})
 	sortSection(Appearance)
+}
+
+func Save() error {
+	return MarshalToFile(ConfigFile, Sections)
+}
+
+func Restore() error {
+	return UnmarshalFromFile(ConfigFile, &Sections)
 }

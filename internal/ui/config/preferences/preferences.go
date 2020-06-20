@@ -2,8 +2,10 @@ package preferences
 
 import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 type Dialog struct {
@@ -79,5 +81,12 @@ func NewPreferenceDialog() *Dialog {
 }
 
 func SpawnPreferenceDialog() {
-	NewPreferenceDialog().Show()
+	p := NewPreferenceDialog()
+	p.Connect("destroy", func() {
+		// On close, save the settings.
+		if err := config.Save(); err != nil {
+			log.Error(errors.Wrap(err, "Failed to save settings"))
+		}
+	})
+	p.Show()
 }
