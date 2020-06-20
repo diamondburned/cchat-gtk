@@ -76,3 +76,7 @@ func WriteEntry(entry Entry) {
 func Println(v ...interface{}) {
 	log.Println(v...)
 }
+
+func Printlnf(f string, v ...interface{}) {
+	log.Printf(f+"\n", v...)
+}

@@ -12,6 +12,7 @@ import (
 	_ "github.com/diamondburned/cchat-mock"
 )
 
+// destructor is used for debugging and profiling.
 var destructor = func() {}
 
 func main() {

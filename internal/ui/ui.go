@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
@@ -11,6 +12,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/markbates/pkger"
+	"github.com/pkg/errors"
 )
 
 func init() {
@@ -118,12 +120,22 @@ func (app *App) AuthenticateSession(container *service.Container, svc cchat.Serv
 	})
 }
 
-// Destroy is called when the main window is destroyed or closed.
-func (app *App) Destroy() {
-	// Disconnect everything.
-	for _, service := range app.window.Services.Services {
-		for _, session := range service.Sessions() {
-			session.DisconnectSession()
+// Close is called when the application finishes gracefully.
+func (app *App) Close() {
+	// Disconnect everything. This blocks the main thread, so by the time we're
+	// done, the application would exit immediately. There's no need to update
+	// the GUI.
+	for _, s := range app.window.Services.Services {
+		for _, session := range s.Sessions() {
+			if session.Session == nil {
+				continue
+			}
+
+			log.Printlnf("Disconnecting %s session %s", s.Service.Name(), session.ID())
+
+			if err := session.Session.Disconnect(); err != nil {
+				log.Error(errors.Wrap(err, "Failed to disconnect "+session.ID()))
+			}
 		}
 	}
 }

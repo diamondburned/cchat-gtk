@@ -53,7 +53,7 @@ func init() {
 type WindowHeaderer interface {
 	Window() gtk.IWidget
 	Header() gtk.IWidget
-	Destroy()
+	Close()
 }
 
 func Main(wfn func() WindowHeaderer) {
@@ -71,22 +71,37 @@ func Main(wfn func() WindowHeaderer) {
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
 		App.Window.SetDefaultSize(1000, 500)
 		App.Window.SetTitlebar(App.Header)
-		App.Window.Connect("destroy", App.Application.Quit)
+
 		App.Window.Show()
 
 		// Execute the function later, because we need it to run after
 		// initialization.
 		w := wfn()
-		App.Window.Connect("destroy", w.Destroy)
 		App.Window.Add(w.Window())
 		App.Header.Add(w.Header())
 
-		// Connect extra events.
+		// Connect extra actions.
 		AddAppAction("quit", App.Window.Destroy)
+
+		// Connect the destructor.
+		App.Window.Connect("destroy", func() {
+			// Hide the application window.
+			App.Window.Hide()
+
+			// Let the main loop run once by queueing the stop loop afterwards.
+			// This is to allow the main loop to properly hide the Gtk window
+			// before trying to disconnect.
+			ExecAsync(func() {
+				// Stop the application loop.
+				App.Application.Quit()
+				// Finalize the application by running the closer.
+				w.Close()
+			})
+		})
 	})
 
 	// Use a special function to run the application. Exit with the appropriate
-	// exit code.
+	// exit code if necessary.
 	if code := App.Run(Args); code > 0 {
 		os.Exit(code)
 	}
