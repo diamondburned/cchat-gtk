@@ -7,3 +7,7 @@ headerbar { padding: 0; }
 	box-shadow: none;
 	border: none;
 }
+
+popover > box {
+	margin: 6px;
+}

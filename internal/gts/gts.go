@@ -21,24 +21,39 @@ var App struct {
 	Header *gtk.HeaderBar
 }
 
+// NewModalDialog returns a new modal dialog that's transient for the main
+// window.
+func NewModalDialog() (*gtk.Dialog, error) {
+	d, err := gtk.DialogNew()
+	if err != nil {
+		return nil, err
+	}
+	d.SetModal(true)
+	d.SetTransientFor(App.Window)
+	return d, nil
+}
+
+func AddAppAction(name string, call func()) {
+	action := glib.SimpleActionNew(name, nil)
+	action.Connect("activate", call)
+	App.AddAction(action)
+}
+
+func AddWindowAction(name string, call func()) {
+	action := glib.SimpleActionNew(name, nil)
+	action.Connect("activate", call)
+	App.Window.AddAction(action)
+}
+
 func init() {
 	gtk.Init(&Args)
 	App.Application, _ = gtk.ApplicationNew(AppID, 0)
 }
 
-type Windower interface {
-	Window() gtk.IWidget
-}
-
-type Headerer interface {
-	Header() gtk.IWidget
-}
-
-// Above interfaces should be kept for modularity, but since this is an internal
-// abstraction, we already know our application will implement both.
 type WindowHeaderer interface {
-	Windower
-	Headerer
+	Window() gtk.IWidget
+	Header() gtk.IWidget
+	Destroy()
 }
 
 func Main(wfn func() WindowHeaderer) {
@@ -62,8 +77,12 @@ func Main(wfn func() WindowHeaderer) {
 		// Execute the function later, because we need it to run after
 		// initialization.
 		w := wfn()
+		App.Window.Connect("destroy", w.Destroy)
 		App.Window.Add(w.Window())
 		App.Header.Add(w.Header())
+
+		// Connect extra events.
+		AddAppAction("quit", App.Window.Destroy)
 	})
 
 	// Use a special function to run the application. Exit with the appropriate

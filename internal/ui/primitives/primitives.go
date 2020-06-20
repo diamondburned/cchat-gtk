@@ -168,4 +168,60 @@ func NewTargetEntry(target string) gtk.TargetEntry {
 	return *e
 }
 
-// func 
+// NewMenuActionButton is the same as NewActionButton, but it uses the
+// open-menu-symbolic icon.
+func NewMenuActionButton(actions [][2]string) *gtk.MenuButton {
+	return NewActionButton("open-menu-symbolic", actions)
+}
+
+// NewActionButton creates a new menu button that spawns a popover with the
+// listed actions.
+func NewActionButton(iconName string, actions [][2]string) *gtk.MenuButton {
+	p, _ := gtk.PopoverNew(nil)
+	p.SetSizeRequest(200, -1) // wide enough width
+	ActionPopover(p, actions)
+
+	i, _ := gtk.ImageNew()
+	i.SetProperty("icon-name", iconName)
+	i.SetProperty("icon-size", gtk.ICON_SIZE_SMALL_TOOLBAR)
+	i.Show()
+
+	b, _ := gtk.MenuButtonNew()
+	b.SetHAlign(gtk.ALIGN_CENTER)
+	b.SetPopover(p)
+	b.Add(i)
+
+	return b
+}
+
+// LabelTweaker is used for ActionPopover and other functions that may need to
+// change the alignment of children widgets.
+type LabelTweaker interface {
+	SetUseMarkup(bool)
+	SetHAlign(gtk.Align)
+	SetXAlign(float64)
+}
+
+var _ LabelTweaker = (*gtk.Label)(nil)
+
+func ActionPopover(p *gtk.Popover, actions [][2]string) {
+	var box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
+
+	for _, action := range actions {
+		b, _ := gtk.ModelButtonNew()
+		b.SetLabel(action[0])
+		b.SetActionName(action[1])
+		b.Show()
+
+		// Set the label's alignment in a hacky way.
+		c, _ := b.GetChild()
+		l := c.(LabelTweaker)
+		l.SetUseMarkup(true)
+		l.SetHAlign(gtk.ALIGN_START)
+
+		box.PackStart(b, false, true, 0)
+	}
+
+	box.Show()
+	p.Add(box)
+}

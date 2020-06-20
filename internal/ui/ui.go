@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
@@ -44,8 +45,7 @@ type App struct {
 }
 
 var (
-	_ gts.Windower       = (*App)(nil)
-	_ gts.Headerer       = (*App)(nil)
+	_ gts.WindowHeaderer = (*App)(nil)
 	_ service.Controller = (*App)(nil)
 )
 
@@ -62,6 +62,10 @@ func NewApplication() *App {
 		// Set the left-side header's size.
 		app.header.left.SetSizeRequest(width, -1)
 	})
+
+	// Bind the preferences action for our GAction button in the header popover.
+	// The action name for this is "app.preferences".
+	gts.AddAppAction("preferences", preferences.SpawnPreferenceDialog)
 
 	return app
 }
@@ -112,6 +116,16 @@ func (app *App) AuthenticateSession(container *service.Container, svc cchat.Serv
 	auth.NewDialog(svc.Name(), svc.Authenticate(), func(ses cchat.Session) {
 		container.AddSession(ses)
 	})
+}
+
+// Destroy is called when the main window is destroyed or closed.
+func (app *App) Destroy() {
+	// Disconnect everything.
+	for _, service := range app.window.Services.Services {
+		for _, session := range service.Sessions() {
+			session.DisconnectSession()
+		}
+	}
 }
 
 func (app *App) Header() gtk.IWidget {

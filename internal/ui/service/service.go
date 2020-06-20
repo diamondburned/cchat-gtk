@@ -127,6 +127,10 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	return container
 }
 
+func (c *Container) Sessions() []*session.Row {
+	return c.children.Sessions()
+}
+
 func (c *Container) AddSession(ses cchat.Session) *session.Row {
 	srow := session.New(c, ses, c)
 	c.children.AddSessionRow(ses.ID(), srow)

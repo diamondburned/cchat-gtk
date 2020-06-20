@@ -3,6 +3,7 @@ package input
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
@@ -10,6 +11,17 @@ import (
 )
 
 const AvatarSize = 24
+
+var showUser = true
+var currentRevealer = func(bool) {} // noop by default
+
+func init() {
+	// Bind this revealer in settings.
+	config.AppearanceAdd("Show Username in Input", config.Switch(
+		&showUser,
+		func(b bool) { currentRevealer(b) },
+	))
+}
 
 type usernameContainer struct {
 	*gtk.Revealer
@@ -48,12 +60,27 @@ func newUsernameContainer() *usernameContainer {
 	rev.SetTransitionDuration(50)
 	rev.Add(box)
 
+	// Bind the current global revealer to this revealer for settings. This
+	// operation should be thread-safe, as everything is being done in the main
+	// thread.
+	currentRevealer = rev.SetRevealChild
+
 	return &usernameContainer{
 		Revealer: rev,
 		main:     box,
 		avatar:   avatar,
 		label:    label,
 	}
+}
+
+func (u *usernameContainer) SetRevealChild(reveal bool) {
+	// Only reveal if showUser is true.
+	u.Revealer.SetRevealChild(reveal && showUser)
+}
+
+// shouldReveal returns whether or not the container should reveal.
+func (u *usernameContainer) shouldReveal() bool {
+	return !u.label.GetLabel().Empty() && showUser
 }
 
 func (u *usernameContainer) Reset() {
@@ -67,7 +94,7 @@ func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMes
 	// Set the fallback username.
 	u.label.SetLabelUnsafe(session.Name())
 	// Reveal the name if it's not empty.
-	u.SetRevealChild(!u.label.GetLabel().Empty())
+	u.SetRevealChild(u.shouldReveal())
 
 	// Does sender (aka Server) implement ServerNickname? If yes, use it.
 	if nicknamer, ok := sender.(cchat.ServerNickname); ok {
@@ -91,7 +118,7 @@ func (u *usernameContainer) SetLabel(content text.Rich) {
 		u.label.SetLabelUnsafe(content)
 
 		// Reveal if the name is not empty.
-		u.SetRevealChild(!u.label.GetLabel().Empty())
+		u.SetRevealChild(u.shouldReveal())
 	})
 }
 

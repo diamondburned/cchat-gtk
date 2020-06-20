@@ -4,19 +4,19 @@ import (
 	"html"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type header struct {
 	*gtk.Box
-	left  *gtk.Box // TODO
+	left  *headerLeft // TODO
 	right *headerRight
 }
 
 func newHeader() *header {
-	left, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	left.SetSizeRequest(leftMinWidth, -1)
+	left := newHeaderLeft()
 	left.Show()
 
 	right := newHeaderRight()
@@ -49,6 +49,27 @@ func (h *header) SetBreadcrumb(b breadcrumb.Breadcrumb) {
 	h.right.breadcrumb.SetMarkup(
 		BreadcrumbSlash + " " + strings.Join(b, " "+BreadcrumbSlash+" "),
 	)
+}
+
+type headerLeft struct {
+	*gtk.Box
+	openmenu *gtk.MenuButton
+}
+
+func newHeaderLeft() *headerLeft {
+	openmenu := primitives.NewMenuActionButton([][2]string{
+		{"Preferences", "app.preferences"},
+		{"Quit", "app.quit"},
+	})
+	openmenu.Show()
+
+	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	box.PackStart(openmenu, false, false, 5)
+
+	return &headerLeft{
+		Box:      box,
+		openmenu: openmenu,
+	}
 }
 
 type headerRight struct {

@@ -7,7 +7,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/icons"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/compact"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
@@ -16,55 +18,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ServerMessage combines Server and ServerMessage from cchat.
-type ServerMessage interface {
-	cchat.Server
-	cchat.ServerMessage
-}
+const (
+	cozyMessage int = iota
+	compactMessage
+)
 
-type state struct {
-	session cchat.Session
-	server  cchat.Server
+var msgIndex = cozyMessage
 
-	actioner cchat.ServerMessageActioner
-	actions  []string
-
-	current func() // stop callback
-	author  string
-}
-
-func (s *state) Reset() {
-	// If we still have the last server to leave, then leave it.
-	if s.current != nil {
-		s.current()
-	}
-
-	// Lazy way to reset the state.
-	*s = state{}
-}
-
-func (s *state) hasActions() bool {
-	return s.actioner != nil && len(s.actions) > 0
-}
-
-// SessionID returns the session ID, or an empty string if there's no session.
-func (s *state) SessionID() string {
-	if s.session != nil {
-		return s.session.ID()
-	}
-	return ""
-}
-
-func (s *state) bind(session cchat.Session, server ServerMessage) {
-	s.session = session
-	s.server = server
-	if s.actioner, _ = server.(cchat.ServerMessageActioner); s.actioner != nil {
-		s.actions = s.actioner.MessageActions()
-	}
-}
-
-func (s *state) setcurrent(fn func()) {
-	s.current = fn
+func init() {
+	config.AppearanceAdd("Message Display", config.Combo(
+		&msgIndex, // 0 or 1
+		[]string{"Cozy", "Compact"},
+		nil,
+	))
 }
 
 type View struct {
@@ -73,6 +39,7 @@ type View struct {
 
 	InputView *input.InputView
 	Container container.Container
+	contType  int // msgIndex
 
 	// Inherit some useful methods.
 	state
@@ -80,16 +47,15 @@ type View struct {
 
 func NewView() *View {
 	view := &View{}
-
-	// TODO: change
 	view.InputView = input.NewView(view)
-	// view.Container = compact.NewContainer(view)
-	view.Container = cozy.NewContainer(view)
 
 	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	view.Box.PackStart(view.Container, true, true, 0)
-	view.Box.PackStart(view.InputView, false, false, 0)
+	view.Box.PackEnd(view.InputView, false, false, 0)
 	view.Box.Show()
+
+	// Create the message container, which will use PackEnd to add the widget on
+	// TOP of the input view.
+	view.createMessageContainer()
 
 	// placeholder logo
 	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256())
@@ -99,11 +65,34 @@ func NewView() *View {
 	return view
 }
 
+func (v *View) createMessageContainer() {
+	// Remove the old message container.
+	if v.Container != nil {
+		v.Box.Remove(v.Container)
+	}
+
+	// Update the container type.
+	switch v.contType = msgIndex; msgIndex {
+	case cozyMessage:
+		v.Container = cozy.NewContainer(v)
+	case compactMessage:
+		v.Container = compact.NewContainer(v)
+	}
+
+	// Add the new message container.
+	v.Box.PackEnd(v.Container, true, true, 0)
+}
+
 func (v *View) Reset() {
 	v.state.Reset()     // Reset the state variables.
 	v.FaceView.Reset()  // Switch back to the main screen.
-	v.Container.Reset() // Clean all messages.
 	v.InputView.Reset() // Reset the input.
+	v.Container.Reset() // Clean all messages.
+
+	// Recreate the message container if the type is different.
+	if v.contType != msgIndex {
+		v.createMessageContainer()
+	}
 }
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
@@ -216,4 +205,55 @@ func (v *View) makeActionItem(action, msgID string) menu.Item {
 			log.Error(errors.Wrap(err, "Failed to do action "+action))
 		}()
 	})
+}
+
+// ServerMessage combines Server and ServerMessage from cchat.
+type ServerMessage interface {
+	cchat.Server
+	cchat.ServerMessage
+}
+
+type state struct {
+	session cchat.Session
+	server  cchat.Server
+
+	actioner cchat.ServerMessageActioner
+	actions  []string
+
+	current func() // stop callback
+	author  string
+}
+
+func (s *state) Reset() {
+	// If we still have the last server to leave, then leave it.
+	if s.current != nil {
+		s.current()
+	}
+
+	// Lazy way to reset the state.
+	*s = state{}
+}
+
+func (s *state) hasActions() bool {
+	return s.actioner != nil && len(s.actions) > 0
+}
+
+// SessionID returns the session ID, or an empty string if there's no session.
+func (s *state) SessionID() string {
+	if s.session != nil {
+		return s.session.ID()
+	}
+	return ""
+}
+
+func (s *state) bind(session cchat.Session, server ServerMessage) {
+	s.session = session
+	s.server = server
+	if s.actioner, _ = server.(cchat.ServerMessageActioner); s.actioner != nil {
+		s.actions = s.actioner.MessageActions()
+	}
+}
+
+func (s *state) setcurrent(fn func()) {
+	s.current = fn
 }

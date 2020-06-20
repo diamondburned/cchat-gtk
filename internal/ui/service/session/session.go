@@ -96,8 +96,14 @@ func (r *Row) ReconnectSession() {
 	r.ctrl.RestoreSession(r, r.sessionID)
 }
 
-// DisconnectSession disconnects the current session.
+// DisconnectSession disconnects the current session. It does nothing if the row
+// does not have a session active.
 func (r *Row) DisconnectSession() {
+	// No-op if no session.
+	if r.Session == nil {
+		return
+	}
+
 	// Call the disconnect function from the controller first.
 	r.ctrl.OnSessionDisconnect(r)
 
