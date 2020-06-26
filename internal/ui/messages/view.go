@@ -177,7 +177,7 @@ func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendG
 // states and callbacks.
 func (v *View) BindMenu(msg container.GridMessage) {
 	// Add 1 for the edit menu item.
-	var mitems = make([]menu.Item, 0, len(v.state.actions)+1)
+	var mitems []menu.Item
 
 	// Do we have editing capabilities? If yes, append a button to allow it.
 	if v.InputView.Editable() {
@@ -187,8 +187,15 @@ func (v *View) BindMenu(msg container.GridMessage) {
 	}
 
 	// Do we have any custom actions? If yes, append it.
-	for _, action := range v.state.actions {
-		mitems = append(mitems, v.makeActionItem(action, msg.ID()))
+	if v.hasActions() {
+		var actions = v.actioner.MessageActions(msg.ID())
+		var items = make([]menu.Item, len(actions))
+
+		for i, action := range actions {
+			items[i] = v.makeActionItem(action, msg.ID())
+		}
+
+		mitems = append(mitems, items...)
 	}
 
 	msg.AttachMenu(mitems)
@@ -218,7 +225,6 @@ type state struct {
 	server  cchat.Server
 
 	actioner cchat.ServerMessageActioner
-	actions  []string
 
 	current func() // stop callback
 	author  string
@@ -235,7 +241,7 @@ func (s *state) Reset() {
 }
 
 func (s *state) hasActions() bool {
-	return s.actioner != nil && len(s.actions) > 0
+	return s.actioner != nil
 }
 
 // SessionID returns the session ID, or an empty string if there's no session.
@@ -249,9 +255,7 @@ func (s *state) SessionID() string {
 func (s *state) bind(session cchat.Session, server ServerMessage) {
 	s.session = session
 	s.server = server
-	if s.actioner, _ = server.(cchat.ServerMessageActioner); s.actioner != nil {
-		s.actions = s.actioner.MessageActions()
-	}
+	s.actioner, _ = server.(cchat.ServerMessageActioner)
 }
 
 func (s *state) setcurrent(fn func()) {

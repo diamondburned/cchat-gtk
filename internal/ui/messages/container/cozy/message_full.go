@@ -17,7 +17,7 @@ import (
 )
 
 // TopFullMargin is the margin on top of every full message.
-const TopFullMargin = 8
+const TopFullMargin = 4
 
 type FullMessage struct {
 	*message.GenericContainer
@@ -57,6 +57,7 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	// We don't call avatar.Show(). That's called in Attach.
 
 	// Style the timestamp accordingly.
+	gc.Timestamp.SetProperty("ypad", 1)   // trivial detail
 	gc.Timestamp.SetXAlign(0.0)           // left-align
 	gc.Timestamp.SetVAlign(gtk.ALIGN_END) // bottom-align
 	gc.Timestamp.SetMarginStart(0)        // clear margins
@@ -71,7 +72,7 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.PackStart(header, false, false, 0)
-	main.PackStart(gc.Content, false, false, 2)
+	main.PackStart(gc.Content, false, false, 0)
 	main.SetMarginTop(TopFullMargin)
 	main.SetMarginEnd(container.ColumnSpacing * 2)
 	main.Show()

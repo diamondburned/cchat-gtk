@@ -39,7 +39,7 @@ func (m *LazyMenu) PopupAtPointer(ev *gdk.Event) {
 	}
 
 	menu, _ := gtk.MenuNew()
-	LoadItems(menu, m.items)
+	MenuItems(menu, m.items)
 	menu.PopupAtPointer(ev)
 }
 
@@ -50,9 +50,40 @@ func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {
 	}
 }
 
-func LoadItems(menu *gtk.Menu, items []Item) {
+type MenuAppender interface {
+	Append(gtk.IMenuItem)
+}
+
+var _ MenuAppender = (*gtk.Menu)(nil)
+
+func MenuSeparator(menu MenuAppender) {
+	s, _ := gtk.SeparatorMenuItemNew()
+	s.Show()
+	menu.Append(s)
+}
+
+func MenuItems(menu MenuAppender, items []Item) {
 	for _, item := range items {
 		menu.Append(item.ToMenuItem())
+	}
+}
+
+type ToolbarInserter interface {
+	Insert(gtk.IToolItem, int)
+}
+
+var _ ToolbarInserter = (*gtk.Toolbar)(nil)
+
+func ToolbarSeparator(toolbar ToolbarInserter) {
+	s, _ := gtk.SeparatorToolItemNew()
+	s.Show()
+	toolbar.Insert(s, -1)
+}
+
+// ToolbarItems insert the given items into the toolbar.
+func ToolbarItems(toolbar ToolbarInserter, items []Item) {
+	for _, item := range items {
+		toolbar.Insert(item.ToToolButton(), -1)
 	}
 }
 
@@ -76,4 +107,12 @@ func (item Item) ToMenuItem() *gtk.MenuItem {
 	}
 
 	return mb
+}
+
+func (item Item) ToToolButton() *gtk.ToolButton {
+	tb, _ := gtk.ToolButtonNew(nil, item.Name)
+	tb.Connect("clicked", item.Func)
+	tb.Show()
+
+	return tb
 }

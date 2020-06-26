@@ -5,6 +5,7 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
@@ -12,6 +13,7 @@ import (
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
+	"github.com/pkg/errors"
 )
 
 type Container interface {
@@ -114,14 +116,26 @@ func NewEmptyContainer() *GenericContainer {
 		CBuffer:   cbuffer,
 	}
 
-	gc.Content.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
-		// Add a menu separator before we add our custom stuff.
-		sep, _ := gtk.SeparatorMenuItemNew()
-		sep.Show()
-		m.Append(sep)
+	gc.Content.SetProperty("populate-all", true)
+	gc.Content.Connect("populate-popup", func(tv *gtk.TextView, popup *gtk.Widget) {
+		v, err := popup.Cast()
+		if err != nil {
+			log.Error(errors.Wrap(err, "Failed to cast popup to IWidget"))
+			return
+		}
 
-		// Append the new items after the separator.
-		menu.LoadItems(m, gc.MenuItems)
+		switch popup := v.(type) {
+		case menu.MenuAppender:
+			menu.MenuSeparator(popup)
+			menu.MenuItems(popup, gc.MenuItems)
+
+		case menu.ToolbarInserter:
+			menu.ToolbarSeparator(popup)
+			menu.ToolbarItems(popup, gc.MenuItems)
+
+		default:
+			log.Printlnf("Debug: typeOf(popup) = %T", popup)
+		}
 	})
 
 	return gc
