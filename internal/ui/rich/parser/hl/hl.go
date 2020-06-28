@@ -3,8 +3,6 @@ package hl
 import (
 	"errors"
 	"fmt"
-	"html"
-	"io"
 	"strings"
 
 	"github.com/alecthomas/chroma"
@@ -40,21 +38,6 @@ func Tokenize(language, source string) chroma.Iterator {
 
 	i, _ := lexer.Tokenise(nil, source)
 	return i
-}
-
-func Render(w io.Writer, language, source string) {
-	if i := Tokenize(language, source); i != nil {
-		fmtter.Format(w, i)
-	} else {
-		// Fallback.
-		w.Write([]byte(source))
-	}
-}
-
-func RenderString(language, source string) string {
-	var buf strings.Builder
-	Render(&buf, language, source)
-	return buf.String()
 }
 
 func Segments(appendmap *attrmap.AppendMap, src string, seg text.Codeblocker) {
@@ -118,38 +101,6 @@ func (f *formatter) segments(appendmap *attrmap.AppendMap, offset int, iter chro
 			appendmap.Add(offset, "</span>")
 		}
 	}
-}
-
-func (f *formatter) Format(w io.Writer, iterator chroma.Iterator) {
-	f.reset()
-
-	for _, token := range iterator.Tokens() {
-		var code = strings.Replace(html.EscapeString(token.String()), "\t", "    ", -1)
-		if attr := f.styleAttr(token.Type); attr != "" {
-			code = fmt.Sprintf(`<span font_family="monospace" %s>%s</span>`, attr, code)
-		}
-
-		w.Write([]byte(code))
-	}
-}
-
-func (f *formatter) shouldHighlight(highlightIndex, line int) (bool, bool) {
-	var next = false
-
-	for highlightIndex < len(f.highlightRanges) && line > f.highlightRanges[highlightIndex][1] {
-		highlightIndex++
-		next = true
-	}
-
-	if highlightIndex < len(f.highlightRanges) {
-		hrange := f.highlightRanges[highlightIndex]
-
-		if line >= hrange[0] && line <= hrange[1] {
-			return true, next
-		}
-	}
-
-	return false, next
 }
 
 func (f *formatter) styleAttr(tt chroma.TokenType) string {
