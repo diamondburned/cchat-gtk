@@ -50,7 +50,7 @@ func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
 	go syncImage(ctx, l, url, procs, gif)
 }
 
-// AsyncImageSized resizes using GdkPixbuf. This method does not use the cache.
+// AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
 func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...imgutil.Processor) {
 	if url == "" {
 		return

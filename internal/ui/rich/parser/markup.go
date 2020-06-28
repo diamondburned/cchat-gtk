@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"net/url"
 	"sort"
 	"strings"
 
 	"github.com/diamondburned/cchat/text"
+	"github.com/diamondburned/imgutil"
 )
 
 type attrAppendMap struct {
@@ -120,10 +122,7 @@ func RenderMarkup(content text.Rich) string {
 
 		case text.Imager:
 			// Ends don't matter with images.
-			appended.addf(start,
-				`<a href="%s">%s</a>`,
-				html.EscapeString(segment.Image()), html.EscapeString(segment.ImageText()),
-			)
+			appended.add(start, composeImageMarkup(segment))
 
 		case text.Colorer:
 			appended.span(start, end, fmt.Sprintf(`color="#%06X"`, segment.Color()))
@@ -154,6 +153,47 @@ func RenderMarkup(content text.Rich) string {
 	}
 
 	return buf.String()
+}
+
+// string constant for formatting width and height in URL fragments
+const f_FragmentSize = "w=%d;h=%d"
+
+func composeImageMarkup(imager text.Imager) string {
+	u, err := url.Parse(imager.Image())
+	if err != nil {
+		// If the URL is invalid, then just write a normal text.
+		return html.EscapeString(imager.ImageText())
+	}
+
+	// Override the URL fragment with our own.
+	if w, h := imager.ImageSize(); w > 0 && h > 0 {
+		u.Fragment = fmt.Sprintf(f_FragmentSize, w, h)
+	}
+
+	return fmt.Sprintf(
+		`<a href="%s">%s</a>`,
+		html.EscapeString(u.String()), html.EscapeString(imager.ImageText()),
+	)
+}
+
+// FragmentImageSize tries to parse the width and height encoded in the URL
+// fragment, which is inserted by the markup renderer. A pair of zero values are
+// returned if there is none. The returned width and height will be the minimum
+// of the given maxes and the encoded sizes.
+func FragmentImageSize(URL string, maxw, maxh int) (w, h int) {
+	u, err := url.Parse(URL)
+	if err != nil {
+		return
+	}
+
+	// Ignore the error, as we can check for the integers.
+	fmt.Sscanf(u.Fragment, f_FragmentSize, &w, &h)
+
+	if w > 0 && h > 0 {
+		return imgutil.MaxSize(w, h, maxw, maxh)
+	}
+
+	return maxw, maxh
 }
 
 func span(key, value string) string {

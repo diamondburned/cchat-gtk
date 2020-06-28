@@ -24,7 +24,6 @@ func NewCollapsedMessage(msg cchat.MessageCreate) *CollapsedMessage {
 
 func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	// Set Timestamp's padding accordingly to Avatar's.
-	gc.Timestamp.SetProperty("ypad", 1) // trivial detail
 	gc.Timestamp.SetSizeRequest(AvatarSize, -1)
 	gc.Timestamp.SetVAlign(gtk.ALIGN_START)
 	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)

@@ -57,7 +57,6 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	// We don't call avatar.Show(). That's called in Attach.
 
 	// Style the timestamp accordingly.
-	gc.Timestamp.SetProperty("ypad", 1)   // trivial detail
 	gc.Timestamp.SetXAlign(0.0)           // left-align
 	gc.Timestamp.SetVAlign(gtk.ALIGN_END) // bottom-align
 	gc.Timestamp.SetMarginStart(0)        // clear margins
