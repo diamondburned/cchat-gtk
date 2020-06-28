@@ -5,7 +5,6 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
-	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/imgview"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
@@ -165,8 +164,6 @@ func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
 }
 
 func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
-	log.Println("Rendering", m.id, content)
-
 	var markup = parser.RenderMarkup(content)
 	if edited {
 		markup += " " + rich.Small("(edited)")
