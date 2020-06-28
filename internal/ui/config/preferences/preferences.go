@@ -70,7 +70,7 @@ func Section(entries []config.Entry) *gtk.Grid {
 func NewPreferenceDialog() *Dialog {
 	var dialog = NewDialog()
 
-	for i, section := range config.Sections {
+	for i, section := range config.Sections() {
 		grid := Section(section)
 		name := config.Section(i).String()
 

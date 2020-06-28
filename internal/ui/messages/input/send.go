@@ -44,7 +44,7 @@ func (f *Field) sendInput() {
 	}
 
 	// Are we editing anything?
-	if id := f.editingID; f.Editable() && id != "" {
+	if id := f.editingID; f.Editable(id) && id != "" {
 		go func() {
 			if err := f.editor.EditMessage(id, text); err != nil {
 				log.Error(errors.Wrap(err, "Failed to edit message"))

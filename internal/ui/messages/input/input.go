@@ -141,21 +141,23 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 		f.Sender = sender
 		f.text.SetSensitive(true)
 
-		// Do we support message editing?
-		if editor, ok := sender.(cchat.ServerMessageEditor); ok {
-			f.editor = editor
+		// Allow editor to be nil.
+		ed, ok := sender.(cchat.ServerMessageEditor)
+		if !ok {
+			log.Printlnf("Editor is not implemented for %T", sender)
 		}
+		f.editor = ed
 	}
 }
 
-// Editable returns whether or not the input field has editing capabilities.
-func (f *Field) Editable() bool {
-	return f.editor != nil
+// Editable returns whether or not the input field can be edited.
+func (f *Field) Editable(msgID string) bool {
+	return f.editor != nil && f.editor.MessageEditable(msgID)
 }
 
 func (f *Field) StartEditing(msgID string) bool {
 	// Do we support message editing? If not, exit.
-	if !f.Editable() {
+	if !f.Editable(msgID) {
 		return false
 	}
 

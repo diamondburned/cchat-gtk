@@ -97,7 +97,7 @@ func NewEmptyContainer() *GenericContainer {
 	content.SetLineWrap(true)
 	content.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	content.SetXAlign(0) // left align
-	// content.SetSelectable(true)
+	content.SetSelectable(true)
 	content.Show()
 
 	// Add CSS classes.

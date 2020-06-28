@@ -5,64 +5,13 @@ import (
 	"fmt"
 	"html"
 	"net/url"
-	"sort"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/hl"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 )
-
-type attrAppendMap struct {
-	appended map[int]string
-	indices  []int
-}
-
-func newAttrAppendedMap() attrAppendMap {
-	return attrAppendMap{
-		appended: make(map[int]string),
-		indices:  []int{},
-	}
-}
-
-func (a *attrAppendMap) span(start, end int, attr string) {
-	a.add(start, `<span `+attr+`>`)
-	a.add(end, "</span>")
-}
-
-func (a *attrAppendMap) pair(start, end int, open, close string) {
-	a.add(start, open)
-	a.add(end, close)
-}
-
-func (a *attrAppendMap) addf(ind int, f string, argv ...interface{}) {
-	a.add(ind, fmt.Sprintf(f, argv...))
-}
-
-func (a *attrAppendMap) pad(ind int) {
-	a.add(ind, "\n")
-}
-
-func (a *attrAppendMap) add(ind int, attr string) {
-	if _, ok := a.appended[ind]; ok {
-		a.appended[ind] += attr
-		return
-	}
-
-	a.appended[ind] = attr
-	a.indices = append(a.indices, ind)
-}
-
-func (a attrAppendMap) get(ind int) string {
-	return a.appended[ind]
-}
-
-func (a *attrAppendMap) finalize(strlen int) []int {
-	// make sure there's always a closing tag at the end so the entire string
-	// gets flushed.
-	a.add(strlen, "")
-	sort.Ints(a.indices)
-	return a.indices
-}
 
 func markupAttr(attr text.Attribute) string {
 	// meme fast path
@@ -109,7 +58,7 @@ func RenderMarkup(content text.Rich) string {
 	// })
 
 	// map to append strings to indices
-	var appended = newAttrAppendedMap()
+	var appended = attrmap.NewAppendedMap()
 
 	// Parse all segments.
 	for _, segment := range content.Segments {
@@ -117,37 +66,36 @@ func RenderMarkup(content text.Rich) string {
 
 		switch segment := segment.(type) {
 		case text.Linker:
-			appended.addf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
-			appended.add(end, "</a>")
+			appended.Addf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
+			appended.Add(end, "</a>")
 
 		case text.Imager:
 			// Ends don't matter with images.
-			appended.add(start, composeImageMarkup(segment))
+			appended.Add(start, composeImageMarkup(segment))
 
 		case text.Colorer:
-			appended.span(start, end, fmt.Sprintf(`color="#%06X"`, segment.Color()))
+			appended.Span(start, end, fmt.Sprintf(`color="#%06X"`, segment.Color()))
 
 		case text.Attributor:
-			appended.span(start, end, markupAttr(segment.Attribute()))
+			appended.Span(start, end, markupAttr(segment.Attribute()))
 
 		case text.Codeblocker:
-			// Treat codeblocks the same as a monospace tag.
-			// TODO: add highlighting
-			appended.span(start, end, `font_family="monospace"`)
+			// Syntax highlight the codeblock.
+			hl.Segments(&appended, content.Content, segment)
 
 		case text.Quoteblocker:
 			// TODO: pls.
-			appended.span(start, end, `color="#789922"`)
+			appended.Span(start, end, `color="#789922"`)
 		}
 	}
 
 	var lastIndex = 0
 
-	for _, index := range appended.finalize(len(content.Content)) {
+	for _, index := range appended.Finalize(len(content.Content)) {
 		// Write the content.
 		buf.WriteString(html.EscapeString(content.Content[lastIndex:index]))
 		// Write the tags.
-		buf.WriteString(appended.get(index))
+		buf.WriteString(appended.Get(index))
 		// Set the last index.
 		lastIndex = index
 	}

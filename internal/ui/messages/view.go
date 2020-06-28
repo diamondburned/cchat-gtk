@@ -106,6 +106,14 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 	// Bind the state.
 	v.state.bind(session, server)
 
+	// Skipping ok check because sender can be nil. Without the empty
+	// check, Go will panic.
+	sender, _ := server.(cchat.ServerMessageSender)
+	// We're setting this variable before actually calling JoinServer. This is
+	// because new messages created by JoinServer will use this state for things
+	// such as determinining if it's deletable or not.
+	v.InputView.SetSender(session, sender)
+
 	gts.Async(func() (func(), error) {
 		// We can use a background context here, as the user can't go anywhere
 		// that would require cancellation anyway. This is done in ui.go.
@@ -127,10 +135,6 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 			// Set the cancel handler.
 			v.state.setcurrent(s)
 
-			// Skipping ok check because sender can be nil. Without the empty
-			// check, Go will panic.
-			sender, _ := server.(cchat.ServerMessageSender)
-			v.InputView.SetSender(session, sender)
 		}, nil
 	})
 }
@@ -180,7 +184,7 @@ func (v *View) BindMenu(msg container.GridMessage) {
 	var mitems []menu.Item
 
 	// Do we have editing capabilities? If yes, append a button to allow it.
-	if v.InputView.Editable() {
+	if v.InputView.Editable(msg.ID()) {
 		mitems = append(mitems, menu.SimpleItem(
 			"Edit", func() { v.InputView.StartEditing(msg.ID()) },
 		))

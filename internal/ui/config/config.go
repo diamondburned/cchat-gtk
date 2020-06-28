@@ -2,7 +2,11 @@
 package config
 
 import (
+	"encoding/json"
 	"sort"
+
+	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/pkg/errors"
 )
 
 const ConfigFile = "config.json"
@@ -24,13 +28,38 @@ func (s Section) String() string {
 	}
 }
 
-var Sections = [sectionLen][]Entry{}
+type SectionEntries map[string]EntryValue
 
-func sortSection(section Section) {
-	// TODO: remove the sorting and allow for declarative ordering
-	sort.Slice(Sections[section], func(i, j int) bool {
-		return Sections[section][i].Name < Sections[section][j].Name
-	})
+// UnmarshalJSON ignores all JSON entries with unknown keys.
+func (s SectionEntries) UnmarshalJSON(b []byte) error {
+	var entries map[string]json.RawMessage
+	if err := json.Unmarshal(b, &entries); err != nil {
+		return err
+	}
+
+	for k, entry := range s {
+		v, ok := entries[k]
+		if ok {
+			if err := entry.UnmarshalJSON(v); err != nil {
+				// Non-fatal error.
+				log.Error(errors.Wrapf(err, "Failed to unmarshal key %q", k))
+			}
+		}
+	}
+
+	return nil
+}
+
+var sections = [sectionLen]SectionEntries{}
+
+func AppearanceAdd(name string, value EntryValue) {
+	sc := sections[Appearance]
+	if sc == nil {
+		sc = make(SectionEntries, 1)
+		sections[Appearance] = sc
+	}
+
+	sc[name] = value
 }
 
 type Entry struct {
@@ -38,18 +67,27 @@ type Entry struct {
 	Value EntryValue
 }
 
-func AppearanceAdd(name string, value EntryValue) {
-	Sections[Appearance] = append(Sections[Appearance], Entry{
-		Name:  name,
-		Value: value,
-	})
-	sortSection(Appearance)
+func Sections() (sects [sectionLen][]Entry) {
+	for i, section := range sections {
+		var sect = make([]Entry, 0, len(section))
+		for k, v := range section {
+			sect = append(sect, Entry{k, v})
+		}
+
+		sort.Slice(sect, func(i, j int) bool {
+			return sect[i].Name < sect[j].Name
+		})
+
+		sects[i] = sect
+	}
+
+	return
 }
 
 func Save() error {
-	return MarshalToFile(ConfigFile, Sections)
+	return MarshalToFile(ConfigFile, sections)
 }
 
 func Restore() error {
-	return UnmarshalFromFile(ConfigFile, &Sections)
+	return UnmarshalFromFile(ConfigFile, &sections)
 }

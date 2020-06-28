@@ -98,3 +98,52 @@ func (s *_switch) UnmarshalJSON(b []byte) error {
 	*s.value = value
 	return nil
 }
+
+type _inputentry struct {
+	value  *string
+	change func(string) error
+}
+
+func InputEntry(value *string, change func(string) error) EntryValue {
+	return &_inputentry{value, change}
+}
+
+func (e *_inputentry) Construct() gtk.IWidget {
+	entry, _ := gtk.EntryNew()
+	entry.SetHExpand(true)
+	entry.SetText(*e.value)
+
+	entry.Connect("changed", func() {
+		v, err := entry.GetText()
+		if err != nil {
+			return
+		}
+
+		*e.value = v
+		if e.change != nil {
+			if err := e.change(v); err != nil {
+				entry.SetIconFromIconName(gtk.ENTRY_ICON_SECONDARY, "dialog-error")
+				entry.SetIconTooltipText(gtk.ENTRY_ICON_SECONDARY, err.Error())
+			} else {
+				entry.RemoveIcon(gtk.ENTRY_ICON_SECONDARY)
+			}
+		}
+	})
+
+	entry.Show()
+
+	return entry
+}
+
+func (e *_inputentry) MarshalJSON() ([]byte, error) {
+	return json.Marshal(*e.value)
+}
+
+func (e *_inputentry) UnmarshalJSON(b []byte) error {
+	var value string
+	if err := json.Unmarshal(b, &value); err != nil {
+		return err
+	}
+	*e.value = value
+	return nil
+}

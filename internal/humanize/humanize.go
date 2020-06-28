@@ -25,21 +25,7 @@ var shortTruncators = []truncator{
 }
 
 func TimeAgo(t time.Time) string {
-	ensureLocale()
-
-	trunc := t
-	now := time.Now()
-
-	for _, truncator := range shortTruncators {
-		trunc = trunc.Truncate(truncator.d)
-		now = now.Truncate(truncator.d)
-
-		if trunc.Equal(now) || truncator.d == -1 {
-			return monday.Format(t, truncator.s, Locale)
-		}
-	}
-
-	return ""
+	return timeAgo(t, shortTruncators)
 }
 
 var longTruncators = []truncator{
@@ -49,12 +35,20 @@ var longTruncators = []truncator{
 }
 
 func TimeAgoLong(t time.Time) string {
+	return timeAgo(t, longTruncators)
+}
+
+func TimeAgoShort(t time.Time) string {
+	return monday.Format(t, "15:04", Locale)
+}
+
+func timeAgo(t time.Time, truncs []truncator) string {
 	ensureLocale()
 
 	trunc := t
 	now := time.Now()
 
-	for _, truncator := range longTruncators {
+	for _, truncator := range truncs {
 		trunc = trunc.Truncate(truncator.d)
 		now = now.Truncate(truncator.d)
 
