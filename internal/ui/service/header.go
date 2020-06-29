@@ -2,8 +2,9 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -18,7 +19,7 @@ type header struct {
 	icon  *rich.Icon
 	Add   *gtk.Button
 
-	Menu *gtk.Menu
+	Menu *menu.LazyMenu
 }
 
 func newHeader(svc cchat.Service) *header {
@@ -58,9 +59,11 @@ func newHeader(svc cchat.Service) *header {
 	reveal.SetMode(true)
 	reveal.Show()
 
-	// Spawn the menu on right click.
-	menu, _ := gtk.MenuNew()
-	primitives.BindMenu(reveal, menu)
+	// Construct a menu and its items.
+	var menu = menu.NewLazyMenu(reveal)
+	if configurator, ok := svc.(config.Configurator); ok {
+		menu.AddItems(config.MenuItem(configurator))
+	}
 
 	return &header{reveal, box, l, i, add, menu}
 }

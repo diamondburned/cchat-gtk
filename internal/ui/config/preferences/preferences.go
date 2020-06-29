@@ -62,7 +62,7 @@ func Section(entries []config.Entry) *gtk.Grid {
 	}
 
 	grid.SetRowSpacing(4)
-	grid.SetColumnSpacing(4)
+	grid.SetColumnSpacing(8)
 	grid.Show()
 	return grid
 }

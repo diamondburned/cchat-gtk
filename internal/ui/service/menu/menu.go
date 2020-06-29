@@ -28,6 +28,10 @@ func (m *LazyMenu) AddItems(items ...Item) {
 	m.items = append(m.items, items...)
 }
 
+func (m *LazyMenu) AddSimpleItem(name string, fn func()) {
+	m.AddItems(SimpleItem(name, fn))
+}
+
 func (m *LazyMenu) Reset() {
 	m.items = nil
 }

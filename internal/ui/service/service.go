@@ -117,12 +117,8 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 		ctrl.AuthenticateSession(container, svc)
 	})
 
-	// Make menu items.
-	primitives.AppendMenuItems(header.Menu, []gtk.IMenuItem{
-		primitives.MenuItem("Save Sessions", func() {
-			container.SaveAllSessions()
-		}),
-	})
+	// Add more menu item(s).
+	header.Menu.AddSimpleItem("Save Sessions", container.SaveAllSessions)
 
 	return container
 }

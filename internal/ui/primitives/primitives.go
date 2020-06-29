@@ -1,10 +1,15 @@
 package primitives
 
 import (
+	"path/filepath"
+	"runtime"
+
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 type Namer interface {
@@ -224,4 +229,23 @@ func ActionPopover(p *gtk.Popover, actions [][2]string) {
 
 	box.Show()
 	p.Add(box)
+}
+
+func PrepareCSS(css string) *gtk.CssProvider {
+	p, _ := gtk.CssProviderNew()
+	if err := p.LoadFromData(css); err != nil {
+		_, fn, caller, _ := runtime.Caller(1)
+		fn = filepath.Base(fn)
+		log.Error(errors.Wrapf(err, "CSS fail at %s:%d", fn, caller))
+	}
+	return p
+}
+
+type StyleContextGetter interface {
+	GetStyleContext() (*gtk.StyleContext, error)
+}
+
+func AttachCSS(ctx StyleContextGetter, prov *gtk.CssProvider) {
+	s, _ := ctx.GetStyleContext()
+	s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }

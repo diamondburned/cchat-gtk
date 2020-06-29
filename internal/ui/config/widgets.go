@@ -23,21 +23,20 @@ func Combo(selected *int, options []string, change func(int)) EntryValue {
 	return &_combo{selected, options, change}
 }
 
+func (c *_combo) set(v int) {
+	*c.selected = v
+	if c.change != nil {
+		c.change(v)
+	}
+}
+
 func (c *_combo) Construct() gtk.IWidget {
 	var combo, _ = gtk.ComboBoxTextNew()
 	for _, opt := range c.options {
 		combo.Append(opt, opt)
 	}
 
-	combo.Connect("changed", func() {
-		active := combo.GetActive()
-		*c.selected = active
-
-		if c.change != nil {
-			c.change(active)
-		}
-	})
-
+	combo.Connect("changed", func() { c.set(combo.GetActive()) })
 	combo.SetActive(*c.selected)
 	combo.SetHAlign(gtk.ALIGN_END)
 	combo.Show()
@@ -67,19 +66,17 @@ func Switch(value *bool, change func(bool)) EntryValue {
 	return &_switch{value, change}
 }
 
+func (s *_switch) set(v bool) {
+	*s.value = v
+	if s.change != nil {
+		s.change(v)
+	}
+}
+
 func (s *_switch) Construct() gtk.IWidget {
 	sw, _ := gtk.SwitchNew()
 	sw.SetActive(*s.value)
-
-	sw.Connect("notify::active", func() {
-		v := sw.GetActive()
-		*s.value = v
-
-		if s.change != nil {
-			s.change(v)
-		}
-	})
-
+	sw.Connect("notify::active", func() { s.set(sw.GetActive()) })
 	sw.SetHAlign(gtk.ALIGN_END)
 	sw.Show()
 
@@ -95,7 +92,7 @@ func (s *_switch) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &value); err != nil {
 		return err
 	}
-	*s.value = value
+	s.set(value)
 	return nil
 }
 
@@ -106,6 +103,14 @@ type _inputentry struct {
 
 func InputEntry(value *string, change func(string) error) EntryValue {
 	return &_inputentry{value, change}
+}
+
+func (e *_inputentry) set(v string) error {
+	*e.value = v
+	if e.change != nil {
+		return e.change(v)
+	}
+	return nil
 }
 
 func (e *_inputentry) Construct() gtk.IWidget {
@@ -119,14 +124,11 @@ func (e *_inputentry) Construct() gtk.IWidget {
 			return
 		}
 
-		*e.value = v
-		if e.change != nil {
-			if err := e.change(v); err != nil {
-				entry.SetIconFromIconName(gtk.ENTRY_ICON_SECONDARY, "dialog-error")
-				entry.SetIconTooltipText(gtk.ENTRY_ICON_SECONDARY, err.Error())
-			} else {
-				entry.RemoveIcon(gtk.ENTRY_ICON_SECONDARY)
-			}
+		if err := e.set(v); err != nil {
+			entry.SetIconFromIconName(gtk.ENTRY_ICON_SECONDARY, "dialog-error")
+			entry.SetIconTooltipText(gtk.ENTRY_ICON_SECONDARY, err.Error())
+		} else {
+			entry.RemoveIcon(gtk.ENTRY_ICON_SECONDARY)
 		}
 	})
 
@@ -144,6 +146,6 @@ func (e *_inputentry) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &value); err != nil {
 		return err
 	}
-	*e.value = value
+	e.set(value)
 	return nil
 }

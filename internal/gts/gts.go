@@ -9,6 +9,7 @@ import (
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 const AppID = "com.github.diamondburned.cchat-gtk"
@@ -30,6 +31,23 @@ func NewModalDialog() (*gtk.Dialog, error) {
 	}
 	d.SetModal(true)
 	d.SetTransientFor(App.Window)
+
+	return d, nil
+}
+
+func NewEmptyModalDialog() (*gtk.Dialog, error) {
+	d, err := NewModalDialog()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := d.GetContentArea()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get content area")
+	}
+
+	d.Remove(b)
+
 	return d, nil
 }
 
