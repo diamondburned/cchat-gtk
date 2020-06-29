@@ -39,14 +39,16 @@ func TimeAgoLong(t time.Time) string {
 }
 
 func TimeAgoShort(t time.Time) string {
+	t = t.Local()
 	return monday.Format(t, "15:04", Locale)
 }
 
 func timeAgo(t time.Time, truncs []truncator) string {
+	t = t.Local()
 	ensureLocale()
 
 	trunc := t
-	now := time.Now()
+	now := time.Now().Local()
 
 	for _, truncator := range truncs {
 		trunc = trunc.Truncate(truncator.d)

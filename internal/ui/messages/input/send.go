@@ -56,7 +56,7 @@ func (f *Field) sendInput() {
 	}
 
 	f.SendMessage(SendMessageData{
-		time:      time.Now(),
+		time:      time.Now().UTC(),
 		content:   text,
 		author:    f.username.GetLabel(),
 		authorID:  f.UserID,

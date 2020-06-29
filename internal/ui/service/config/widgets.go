@@ -75,6 +75,8 @@ func newContainer(conf map[string]string, apply func() error) *container {
 	grid.SetColumnSpacing(8)
 	grid.Show()
 
+	primitives.AddClass(grid, "config")
+
 	return cc
 }
 

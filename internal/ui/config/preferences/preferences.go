@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -64,6 +65,9 @@ func Section(entries []config.Entry) *gtk.Grid {
 	grid.SetRowSpacing(4)
 	grid.SetColumnSpacing(8)
 	grid.Show()
+
+	primitives.AddClass(grid, "config")
+
 	return grid
 }
 

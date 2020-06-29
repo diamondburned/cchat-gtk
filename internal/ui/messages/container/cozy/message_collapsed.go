@@ -21,7 +21,6 @@ type CollapsedMessage struct {
 
 func NewCollapsedMessage(msg cchat.MessageCreate) *CollapsedMessage {
 	msgc := WrapCollapsedMessage(message.NewContainer(msg))
-	msgc.Timestamp.SetXAlign(0.5) // middle align
 	message.FillContainer(msgc, msg)
 	return msgc
 }
@@ -30,6 +29,7 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	// Set Timestamp's padding accordingly to Avatar's.
 	gc.Timestamp.SetSizeRequest(AvatarSize, -1)
 	gc.Timestamp.SetVAlign(gtk.ALIGN_START)
+	gc.Timestamp.SetXAlign(0.5) // middle align
 	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)
 
 	// Set Content's padding accordingly to FullMessage's main box.
@@ -61,15 +61,15 @@ func (c *CollapsedMessage) Attach(grid *gtk.Grid, row int) {
 }
 
 type CollapsedSendingMessage struct {
+	*CollapsedMessage
 	message.PresendContainer
-	CollapsedMessage
 }
 
 func NewCollapsedSendingMessage(msg input.PresendMessage) *CollapsedSendingMessage {
 	var msgc = message.NewPresendContainer(msg)
 
 	return &CollapsedSendingMessage{
+		CollapsedMessage: WrapCollapsedMessage(msgc.GenericContainer),
 		PresendContainer: msgc,
-		CollapsedMessage: *WrapCollapsedMessage(msgc.GenericContainer),
 	}
 }
