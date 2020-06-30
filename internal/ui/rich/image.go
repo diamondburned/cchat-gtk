@@ -12,6 +12,8 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
+type IconerFn = func(context.Context, cchat.IconContainer) (func(), error)
+
 type Icon struct {
 	*gtk.Revealer
 	Image   *gtk.Image
@@ -114,17 +116,12 @@ func (i *Icon) swapResource(v interface{}) {
 	i.SetIconUnsafe(v.(*nullIcon).url)
 }
 
-func (i *Icon) AsyncSetIcon(fn func(context.Context, cchat.IconContainer) error, wrap string) {
-	gts.AsyncUse(&i.r, i.swapResource, func(ctx context.Context) (interface{}, error) {
-		var ni = &nullIcon{}
-		return ni, fn(ctx, ni)
-	})
-}
-
 func (i *Icon) AsyncSetIconer(iconer cchat.Icon, wrap string) {
 	gts.AsyncUse(&i.r, i.swapResource, func(ctx context.Context) (interface{}, error) {
-		var ni = &nullIcon{}
-		return ni, iconer.Icon(ctx, ni)
+		ni := &nullIcon{}
+		f, err := iconer.Icon(ctx, ni)
+		ni.cancel = f
+		return ni, err
 	})
 }
 

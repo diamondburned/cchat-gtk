@@ -171,10 +171,12 @@ type Reuser interface {
 	Validate(int64) bool
 }
 
+type AsyncUser = func(context.Context) (interface{}, error)
+
 // AsyncUse is a handler for structs that implement the Reuser primitive. The
 // passed in function will be called asynchronously, but swap will be called in
 // the Gtk main thread.
-func AsyncUse(r Reuser, swap func(interface{}), fn func(context.Context) (interface{}, error)) {
+func AsyncUse(r Reuser, swap func(interface{}), fn AsyncUser) {
 	// Acquire an ID.
 	id := r.Acquire()
 	ctx := r.Context()

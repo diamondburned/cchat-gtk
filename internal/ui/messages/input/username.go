@@ -103,7 +103,7 @@ func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMes
 
 	// Does session implement an icon? Update if yes.
 	if iconer, ok := session.(cchat.Icon); ok {
-		u.avatar.AsyncSetIcon(iconer.Icon, "Error fetching session icon URL")
+		u.avatar.AsyncSetIconer(iconer, "Error fetching session icon URL")
 	}
 }
 

@@ -23,6 +23,8 @@ type Labeler interface {
 	Reset()
 }
 
+type LabelerFn = func(context.Context, cchat.LabelContainer) (func(), error)
+
 type Label struct {
 	gtk.Label
 	current text.Rich
@@ -62,10 +64,12 @@ func (l *Label) swapResource(v interface{}) {
 	l.SetLabelUnsafe(v.(*nullLabel).Rich)
 }
 
-func (l *Label) AsyncSetLabel(fn func(context.Context, cchat.LabelContainer) error, info string) {
+func (l *Label) AsyncSetLabel(fn LabelerFn, info string) {
 	gts.AsyncUse(&l.r, l.swapResource, func(ctx context.Context) (interface{}, error) {
-		var nl = &nullLabel{}
-		return nl, fn(ctx, nl)
+		nl := &nullLabel{}
+		f, err := fn(ctx, nl)
+		nl.cancel = f
+		return nl, err
 	})
 }
 
