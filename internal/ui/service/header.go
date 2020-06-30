@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/buttonoverlay"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
@@ -12,62 +13,35 @@ import (
 const IconSize = 32
 
 type header struct {
-	*gtk.ToggleButton // no rich text here but it's left aligned
-
-	box   *gtk.Box
-	label *rich.Label
-	icon  *rich.Icon
-	Add   *gtk.Button
+	*rich.ToggleButtonImage
+	Add *gtk.Button
 
 	Menu *menu.LazyMenu
 }
 
 func newHeader(svc cchat.Service) *header {
-	i := rich.NewIcon(0)
-	i.AddProcessors(imgutil.Round(true))
-	i.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
-	i.Show()
+	b := rich.NewToggleButtonImage(svc.Name())
+	b.Image.AddProcessors(imgutil.Round(true))
+	b.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
+	b.SetRelief(gtk.RELIEF_NONE)
+	b.SetMode(true)
+	b.Show()
 
 	if iconer, ok := svc.(cchat.Icon); ok {
-		i.AsyncSetIconer(iconer, "Error getting session logo")
+		b.Image.AsyncSetIconer(iconer, "Error getting session logo")
 	}
 
-	l := rich.NewLabel(svc.Name())
-	l.Show()
-
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(i, false, false, 0)
-	box.PackStart(l, true, true, 5)
-	box.SetMarginEnd(IconSize) // spare space for the add button
-	box.Show()
-
 	add, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
-	add.SetRelief(gtk.RELIEF_NONE)
-	add.SetSizeRequest(IconSize, IconSize)
-	add.SetHAlign(gtk.ALIGN_END)
 	add.Show()
 
-	// Do jank stuff to overlay the add button on top of our button.
-	overlay, _ := gtk.OverlayNew()
-	overlay.Add(box)
-	overlay.AddOverlay(add)
-	overlay.Show()
-
-	reveal, _ := gtk.ToggleButtonNew()
-	reveal.Add(overlay)
-	reveal.SetRelief(gtk.RELIEF_NONE)
-	reveal.SetMode(true)
-	reveal.Show()
+	// Add the button overlay into the main button.
+	buttonoverlay.Take(b, add, IconSize)
 
 	// Construct a menu and its items.
-	var menu = menu.NewLazyMenu(reveal)
+	var menu = menu.NewLazyMenu(b)
 	if configurator, ok := svc.(config.Configurator); ok {
 		menu.AddItems(config.MenuItem(configurator))
 	}
 
-	return &header{reveal, box, l, i, add, menu}
-}
-
-func (h *header) GetText() string {
-	return h.label.GetText()
+	return &header{b, add, menu}
 }

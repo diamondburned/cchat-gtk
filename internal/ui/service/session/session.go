@@ -6,10 +6,13 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/buttonoverlay"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat/text"
+	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
@@ -17,6 +20,8 @@ const IconSize = 32
 
 // Controller extends server.RowController to add session.
 type Controller interface {
+	// GetService asks the controller for its service.
+	GetService() cchat.Service
 	// OnSessionDisconnect is called before a session is disconnected. This
 	// function is used for cleanups.
 	OnSessionDisconnect(*Row)
@@ -42,6 +47,9 @@ type Row struct {
 	sessionID string // used for reconnection
 
 	ctrl Controller
+
+	cmder  *commander.Buffer
+	cmdbtn *gtk.Button
 }
 
 func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Controller) *Row {
@@ -58,14 +66,36 @@ func NewLoading(parent breadcrumb.Breadcrumber, id, name string, ctrl Controller
 }
 
 func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Controller) *Row {
-	// Bind the row to .session in CSS.
-	row := server.NewRow(parent, name)
-	row.Button.SetPlaceholderIcon("user-invisible-symbolic", IconSize)
-	row.Show()
-	primitives.AddClass(row, "session")
-	primitives.AddClass(row, "server-list")
+	srow := server.NewRow(parent, name)
+	srow.Button.SetPlaceholderIcon("user-invisible-symbolic", IconSize)
+	srow.Show()
 
-	return &Row{Row: row, ctrl: ctrl}
+	// Bind the row to .session in CSS.
+	primitives.AddClass(srow, "session")
+	primitives.AddClass(srow, "server-list")
+
+	// Make a commander button that's hidden by default in case.
+	cmdbtn, _ := gtk.ButtonNewFromIconName("utilities-terminal-symbolic", gtk.ICON_SIZE_BUTTON)
+	buttonoverlay.Take(srow.Button, cmdbtn, server.IconSize)
+
+	row := &Row{
+		Row:    srow,
+		ctrl:   ctrl,
+		cmdbtn: cmdbtn,
+	}
+
+	cmdbtn.Connect("clicked", row.ShowCommander)
+
+	return row
+}
+
+// Reset extends the server row's Reset function and resets additional states.
+// It resets all states back to nil, but the session ID stays.
+func (r *Row) Reset() {
+	r.Row.Reset()
+	r.Session = nil
+	r.cmder = nil
+	r.cmdbtn.Hide()
 }
 
 // RemoveSession removes itself from the session list.
@@ -162,6 +192,16 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.SetLabelUnsafe(ses.Name())
 	r.SetIconer(ses)
 
+	// Set the commander, if any. The function will return nil if the assertion
+	// returns nil. As such, we assert with an ignored ok bool, allowing cmd to
+	// be nil.
+	cmd, _ := ses.(commander.SessionCommander)
+	r.cmder = commander.NewBuffer(r.ctrl.GetService(), cmd)
+	// Show the command button if the session actually supports the commander.
+	if r.cmder != nil {
+		r.cmdbtn.Show()
+	}
+
 	// Bind extra menu items before loading. These items won't be clickable
 	// during loading.
 	r.SetNormalExtraMenu([]menu.Item{
@@ -182,4 +222,13 @@ func (r *Row) RowSelected(server *server.ServerRow, smsg cchat.ServerMessage) {
 // method itself. The ID may or may not have to do with session.
 func (r *Row) BindMover(id string) {
 	primitives.BindDragSortable(r.Button, "GTK_TOGGLE_BUTTON", id, r.ctrl.MoveSession)
+}
+
+// ShowCommander shows the commander dialog, or it does nothing if session does
+// not implement commander.
+func (r *Row) ShowCommander() {
+	if r.cmder == nil {
+		return
+	}
+	r.cmder.ShowDialog()
 }

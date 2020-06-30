@@ -3,7 +3,7 @@ package container
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/autoscroll"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"

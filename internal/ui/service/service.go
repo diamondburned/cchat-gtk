@@ -123,6 +123,10 @@ func NewContainer(svc cchat.Service, ctrl Controller) *Container {
 	return container
 }
 
+func (c *Container) GetService() cchat.Service {
+	return c.Service
+}
+
 func (c *Container) Sessions() []*session.Row {
 	return c.children.Sessions()
 }

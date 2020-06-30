@@ -89,12 +89,12 @@ func (r *Row) Reset() {
 
 		// Remove the children container itself.
 		r.Box.Remove(r.children)
-
-		// Reset the state.
-		r.loaded = false
-		r.serverList = nil
-		r.children = nil
 	}
+
+	// Reset the state.
+	r.loaded = false
+	r.serverList = nil
+	r.children = nil
 }
 
 // SetLoading is called by the parent struct.
