@@ -33,8 +33,7 @@ func BindTooltip(connector WidgetConnector) {
 
 	var x, y float64
 	connector.Connect("motion-notify-event", func(w gtk.IWidget, ev *gdk.Event) {
-		mev := gdk.EventMotionNewFromEvent(ev)
-		x, y = mev.MotionVal()
+		x, y = gdk.EventMotionNewFromEvent(ev).MotionVal()
 	})
 
 	connector.Connect("activate-link", func(c WidgetConnector, uri string) bool {

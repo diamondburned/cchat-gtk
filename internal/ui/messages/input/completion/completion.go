@@ -14,6 +14,8 @@ const (
 	ImagePadding = 6
 )
 
+var ppIcon = []imgutil.Processor{imgutil.Round(true)}
+
 type View struct {
 	*completion.Completer
 	entries   []cchat.CompletionEntry
@@ -56,14 +58,21 @@ func (v *View) Update(words []string, i int) []gtk.IWidget {
 
 		// Do we have an icon?
 		if entry.IconURL != "" {
+			img.SetMarginStart(ImagePadding)
 			img.SetSizeRequest(ImageSize, ImageSize)
 			img.Show()
-			httputil.AsyncImageSized(img, entry.IconURL, ImageSize, ImageSize, imgutil.Round(true))
+
+			var pps []imgutil.Processor
+			if !entry.Image {
+				pps = ppIcon
+			}
+
+			httputil.AsyncImageSized(img, entry.IconURL, ImageSize, ImageSize, pps...)
 		}
 
 		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-		b.PackStart(img, false, false, ImagePadding)
-		b.PackStart(l, true, true, 0)
+		b.PackStart(img, false, false, 0) // image has pad left
+		b.PackStart(l, true, true, ImagePadding)
 		b.Show()
 
 		widgets[i] = b
