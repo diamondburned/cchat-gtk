@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/diamondburned/cchat/utils/split"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -30,8 +31,12 @@ func NewCompleter(input *gtk.TextView, ctrl Completeable) *Completer {
 	l, _ := gtk.ListBoxNew()
 	l.Show()
 
+	s := scrollinput.NewVScroll(150)
+	s.Add(l)
+	s.Show()
+
 	p := NewPopover(input)
-	p.Add(l)
+	p.Add(s)
 
 	c := &Completer{
 		Input:   input,
@@ -52,15 +57,19 @@ func NewCompleter(input *gtk.TextView, ctrl Completeable) *Completer {
 
 	l.Connect("row-activated", func(l *gtk.ListBox, r *gtk.ListBoxRow) {
 		SwapWord(ibuf, ctrl.Word(r.GetIndex()), c.Cursor)
-		c.clear()
-		c.Popover.Popdown()
+		c.Clear()
+		c.Hide()
 		input.GrabFocus()
 	})
 
 	return c
 }
 
-func (c *Completer) clear() {
+func (c *Completer) Hide() {
+	c.Popover.Popdown()
+}
+
+func (c *Completer) Clear() {
 	var children = c.List.GetChildren()
 	if children.Length() == 0 {
 		return
@@ -74,7 +83,7 @@ func (c *Completer) clear() {
 }
 
 func (c *Completer) complete() {
-	c.clear()
+	c.Clear()
 
 	var widgets []gtk.IWidget
 	if len(c.Words) > 0 {
@@ -85,7 +94,7 @@ func (c *Completer) complete() {
 		c.Popover.SetPointingTo(CursorRect(c.Input))
 		c.Popover.Popup()
 	} else {
-		c.Popover.Popdown()
+		c.Hide()
 	}
 
 	for i, widget := range widgets {

@@ -16,7 +16,6 @@ type Controller interface {
 }
 
 type InputView struct {
-	*gtk.Box
 	*Field
 	Completer *completion.View
 }
@@ -33,25 +32,19 @@ func NewView(ctrl Controller) *InputView {
 
 	// Bind the text event handler to text first.
 	c := completion.New(text)
-	c.Show()
 
 	// Bind the input callback later.
 	f := NewField(text, ctrl)
 	f.Show()
 
-	b, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	b.PackStart(c, false, true, 0)
-	b.PackStart(f, false, false, 0)
-	b.Show()
+	// // Connect to the field's revealer. On resize, we want the autocompleter to
+	// // have the right padding too.
+	// f.username.Connect("size-allocate", func(w gtk.IWidget) {
+	// 	// Set the autocompleter's left margin to be the same.
+	// 	c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
+	// })
 
-	// Connect to the field's revealer. On resize, we want the autocompleter to
-	// have the right padding too.
-	f.username.Connect("size-allocate", func(w gtk.IWidget) {
-		// Set the autocompleter's left margin to be the same.
-		c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
-	})
-
-	return &InputView{b, f, c}
+	return &InputView{f, c}
 }
 
 func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {

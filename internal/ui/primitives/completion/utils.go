@@ -13,7 +13,7 @@ var popoverCSS = primitives.PrepareCSS(`
 `)
 
 const (
-	MinPopoverWidth = 250
+	MinPopoverWidth = 300
 )
 
 func NewPopover(relto gtk.IWidget) *gtk.Popover {
