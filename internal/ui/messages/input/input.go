@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -57,7 +58,7 @@ func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageS
 
 type Field struct {
 	*gtk.Box
-	username *usernameContainer
+	username *username.Container
 
 	TextScroll *gtk.ScrolledWindow
 	text       *gtk.TextView
@@ -73,10 +74,10 @@ type Field struct {
 	editingID string // never empty
 }
 
-const inputmargin = 4
+const inputmargin = username.VMargin
 
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
-	username := newUsernameContainer()
+	username := username.NewContainer()
 	username.Show()
 
 	buf, _ := text.GetBuffer()
