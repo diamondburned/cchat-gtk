@@ -4,10 +4,10 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/utils/split"
 	"github.com/diamondburned/imgutil"
-	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -77,7 +77,7 @@ func New(text *gtk.TextView) *View {
 		buffer:   buffer,
 	}
 
-	text.Connect("key-press-event", v.inputKeyDown)
+	text.Connect("key-press-event", completion.KeyDownHandler(list, text.GrabFocus))
 	buffer.Connect("changed", func() {
 		// Clear the list first.
 		v.Clear()
@@ -86,22 +86,9 @@ func New(text *gtk.TextView) *View {
 	})
 
 	list.Connect("row-activated", func(l *gtk.ListBox, r *gtk.ListBoxRow) {
-		// Get iter for word replacing.
-		start, end := getWordIters(v.buffer, v.offset)
-
-		// Get the selected word.
-		i := r.GetIndex()
-		entry := v.entries[i]
-
-		// Replace the word.
-		v.buffer.Delete(start, end)
-		v.buffer.Insert(start, entry.Raw+" ")
-
-		// Clear the list.
+		completion.SwapWord(v.buffer, v.entries[r.GetIndex()].Raw, v.offset)
 		v.Clear()
-
-		// Reset the focus.
-		v.text.GrabFocus()
+		v.text.GrabFocus() // TODO: remove, maybe not needed
 	})
 
 	return v
@@ -207,81 +194,5 @@ func (v *View) Run() {
 }
 
 func (v *View) getInputState() (string, int) {
-	// obtain current state
-	mark := v.buffer.GetInsert()
-	iter := v.buffer.GetIterAtMark(mark)
-
-	// obtain the input string and the current cursor position
-	start, end := v.buffer.GetBounds()
-	text, _ := v.buffer.GetText(start, end, true)
-	offset := iter.GetOffset()
-
-	return text, offset
-}
-
-// inputKeyDown handles keypresses such as Enter and movements.
-func (v *View) inputKeyDown(_ *gtk.TextView, ev *gdk.Event) (stop bool) {
-	// Do we have any entries? If not, don't bother.
-	if len(v.entries) == 0 {
-		// passthrough.
-		return false
-	}
-
-	var evKey = gdk.EventKeyNewFromEvent(ev)
-	var key = evKey.KeyVal()
-
-	switch key {
-	// Did we press an arrow key?
-	case gdk.KEY_Up, gdk.KEY_Down:
-		// Yes, start moving the list up and down.
-		i := v.List.GetSelectedRow().GetIndex()
-
-		switch key {
-		case gdk.KEY_Up:
-			if i--; i < 0 {
-				i = len(v.entries) - 1
-			}
-		case gdk.KEY_Down:
-			if i++; i >= len(v.entries) {
-				i = 0
-			}
-		}
-
-		row := v.List.GetRowAtIndex(i)
-		row.GrabFocus()       // scroll
-		v.List.SelectRow(row) // select
-		v.text.GrabFocus()    // unfocus
-
-	// Did we press the Enter or Tab key?
-	case gdk.KEY_Return, gdk.KEY_Tab:
-		// Activate the current row.
-		row := v.List.GetSelectedRow()
-		row.Activate()
-
-	default:
-		// don't passthrough events if none matches.
-		return false
-	}
-
-	return true
-}
-
-func getWordIters(buf *gtk.TextBuffer, offset int) (start, end *gtk.TextIter) {
-	iter := buf.GetIterAtOffset(offset)
-
-	var ok bool
-
-	// Seek backwards for space or start-of-line:
-	_, start, ok = iter.BackwardSearch(" ", gtk.TEXT_SEARCH_TEXT_ONLY, nil)
-	if !ok {
-		start = buf.GetStartIter()
-	}
-
-	// Seek forwards for space or end-of-line:
-	_, end, ok = iter.ForwardSearch(" ", gtk.TEXT_SEARCH_TEXT_ONLY, nil)
-	if !ok {
-		end = buf.GetEndIter()
-	}
-
-	return
+	return completion.State(v.buffer)
 }

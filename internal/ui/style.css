@@ -11,3 +11,7 @@ headerbar { padding: 0; }
 popover > box {
 	margin: 6px;
 }
+
+.command-buffer, .command-input {
+	padding: 8px 12px;
+}

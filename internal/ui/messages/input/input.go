@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -87,11 +88,7 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 
 	buf, _ := text.GetBuffer()
 
-	sw, _ := gtk.ScrolledWindowNew(nil, nil)
-	sw.Add(text)
-	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-	sw.SetProperty("propagate-natural-height", true)
-	sw.SetProperty("max-content-height", 150)
+	sw := scrollinput.NewV(text, 150)
 	sw.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
