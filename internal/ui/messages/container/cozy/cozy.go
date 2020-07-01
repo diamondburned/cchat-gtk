@@ -128,7 +128,7 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
-		if !c.ScrolledWindow.Bottomed {
+		if !c.Bottomed() {
 			// If we're not at the bottom, then we exit.
 			return
 		}

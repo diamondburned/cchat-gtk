@@ -58,9 +58,9 @@ func (f *Field) sendInput() {
 	f.SendMessage(SendMessageData{
 		time:      time.Now().UTC(),
 		content:   text,
-		author:    f.username.GetLabel(),
+		author:    f.Username.GetLabel(),
 		authorID:  f.UserID,
-		authorURL: f.username.GetIconURL(),
+		authorURL: f.Username.GetIconURL(),
 		nonce:     f.generateNonce(),
 	})
 }
