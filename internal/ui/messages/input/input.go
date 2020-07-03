@@ -5,6 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -21,6 +22,12 @@ type InputView struct {
 	Completer *completion.View
 }
 
+var textCSS = primitives.PrepareCSS(`
+	textview, textview * {
+		background-color: transparent;
+	}
+`)
+
 func NewView(ctrl Controller) *InputView {
 	text, _ := gtk.TextViewNew()
 	text.SetSensitive(false)
@@ -31,6 +38,9 @@ func NewView(ctrl Controller) *InputView {
 	text.SetProperty("bottom-margin", inputmargin)
 	text.Show()
 
+	primitives.AddClass(text, "message-input")
+	primitives.AttachCSS(text, textCSS)
+
 	// Bind the text event handler to text first.
 	c := completion.New(text)
 
@@ -38,12 +48,7 @@ func NewView(ctrl Controller) *InputView {
 	f := NewField(text, ctrl)
 	f.Show()
 
-	// // Connect to the field's revealer. On resize, we want the autocompleter to
-	// // have the right padding too.
-	// f.username.Connect("size-allocate", func(w gtk.IWidget) {
-	// 	// Set the autocompleter's left margin to be the same.
-	// 	c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
-	// })
+	primitives.AddClass(f, "input-field")
 
 	return &InputView{f, c}
 }
@@ -58,7 +63,7 @@ func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageS
 
 type Field struct {
 	*gtk.Box
-	username *username.Container
+	Username *username.Container
 
 	TextScroll *gtk.ScrolledWindow
 	text       *gtk.TextView
@@ -78,6 +83,7 @@ const inputmargin = username.VMargin
 
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	username := username.NewContainer()
+	username.SetVAlign(gtk.ALIGN_END)
 	username.Show()
 
 	buf, _ := text.GetBuffer()
@@ -91,8 +97,9 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	box.Show()
 
 	field := &Field{
-		Box:        box,
-		username:   username,
+		Box:      box,
+		Username: username,
+		// typing:     typing,
 		TextScroll: sw,
 		text:       text,
 		buffer:     buf,
@@ -102,6 +109,13 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	text.SetFocusHAdjustment(sw.GetHAdjustment())
 	text.SetFocusVAdjustment(sw.GetVAdjustment())
 	text.Connect("key-press-event", field.keyDown)
+
+	// // Connect to the field's revealer. On resize, we want the autocompleter to
+	// // have the right padding too.
+	// f.username.Connect("size-allocate", func(w gtk.IWidget) {
+	// 	// Set the autocompleter's left margin to be the same.
+	// 	c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
+	// })
 
 	return field
 }
@@ -114,7 +128,7 @@ func (f *Field) Reset() {
 	f.UserID = ""
 	f.Sender = nil
 	f.editor = nil
-	f.username.Reset()
+	f.Username.Reset()
 
 	// reset the input
 	f.buffer.Delete(f.buffer.GetBounds())
@@ -124,7 +138,7 @@ func (f *Field) Reset() {
 // disabled. Reset() should be called first.
 func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
 	// Update the left username container in the input.
-	f.username.Update(session, sender)
+	f.Username.Update(session, sender)
 	f.UserID = session.ID()
 
 	// Set the sender.

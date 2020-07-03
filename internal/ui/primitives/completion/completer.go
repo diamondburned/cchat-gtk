@@ -48,7 +48,7 @@ func NewCompleter(input *gtk.TextView, ctrl Completeable) *Completer {
 	input.Connect("key-press-event", KeyDownHandler(l, input.GrabFocus))
 
 	ibuf, _ := input.GetBuffer()
-	ibuf.Connect("changed", func() {
+	ibuf.Connect("end-user-action", func() {
 		t, v := State(ibuf)
 		c.Cursor = v
 		c.Words, c.Index = split.SpaceIndexed(t, v)

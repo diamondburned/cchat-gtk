@@ -11,7 +11,7 @@ import (
 )
 
 type GridStore struct {
-	Grid *gtk.Grid
+	*gtk.Grid
 
 	Construct  Constructor
 	Controller Controller

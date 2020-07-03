@@ -13,6 +13,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/typing"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -37,7 +39,11 @@ type View struct {
 	*sadface.FaceView
 	Box *gtk.Box
 
+	Scroller  *autoscroll.ScrolledWindow
 	InputView *input.InputView
+
+	MsgBox    *gtk.Box
+	Typing    *typing.Container
 	Container container.Container
 	contType  int // msgIndex
 
@@ -47,15 +53,33 @@ type View struct {
 
 func NewView() *View {
 	view := &View{}
-	view.InputView = input.NewView(view)
+	view.Typing = typing.New()
+	view.Typing.Show()
 
-	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	view.Box.PackEnd(view.InputView, false, false, 0)
-	view.Box.Show()
+	view.MsgBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
+	view.MsgBox.PackEnd(view.Typing, false, false, 0)
+	view.MsgBox.Show()
 
 	// Create the message container, which will use PackEnd to add the widget on
-	// TOP of the input view.
+	// TOP of the typing indicator.
 	view.createMessageContainer()
+
+	view.Scroller = autoscroll.NewScrolledWindow()
+	view.Scroller.Add(view.MsgBox)
+	view.Scroller.Show()
+
+	// A separator to go inbetween.
+	sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_HORIZONTAL)
+	sep.Show()
+
+	view.InputView = input.NewView(view)
+	view.InputView.Show()
+
+	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	view.Box.PackStart(view.Scroller, true, true, 0)
+	view.Box.PackStart(sep, false, false, 0)
+	view.Box.PackStart(view.InputView, false, false, 0)
+	view.Box.Show()
 
 	// placeholder logo
 	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256())
@@ -68,7 +92,7 @@ func NewView() *View {
 func (v *View) createMessageContainer() {
 	// Remove the old message container.
 	if v.Container != nil {
-		v.Box.Remove(v.Container)
+		v.MsgBox.Remove(v.Container)
 	}
 
 	// Update the container type.
@@ -80,14 +104,19 @@ func (v *View) createMessageContainer() {
 	}
 
 	// Add the new message container.
-	v.Box.PackEnd(v.Container, true, true, 0)
+	v.MsgBox.PackEnd(v.Container, true, true, 0)
 }
+
+func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 
 func (v *View) Reset() {
 	v.state.Reset()     // Reset the state variables.
 	v.FaceView.Reset()  // Switch back to the main screen.
 	v.InputView.Reset() // Reset the input.
 	v.Container.Reset() // Clean all messages.
+
+	// Keep the scroller at the bottom.
+	v.Scroller.Bottomed = true
 
 	// Recreate the message container if the type is different.
 	if v.contType != msgIndex {
