@@ -30,7 +30,7 @@ type Label struct {
 	current text.Rich
 
 	// Reusable primitive.
-	r gts.Reusable
+	r *Reusable
 }
 
 var (
@@ -44,12 +44,17 @@ func NewLabel(content text.Rich) *Label {
 	label.SetXAlign(0) // left align
 	label.SetEllipsize(pango.ELLIPSIZE_END)
 
-	return &Label{
+	l := &Label{
 		Label:   *label,
 		current: content,
-		// reusable primitive, take reference
-		r: *gts.NewReusable(),
 	}
+
+	// reusable primitive
+	l.r = NewReusable(func(nl *nullLabel) {
+		l.SetLabelUnsafe(nl.Rich)
+	})
+
+	return l
 }
 
 // Reset wipes the state to be just after construction.
@@ -59,17 +64,11 @@ func (l *Label) Reset() {
 	l.Label.SetText("")
 }
 
-// swapResource is reserved for internal use only.
-func (l *Label) swapResource(v interface{}) {
-	l.SetLabelUnsafe(v.(*nullLabel).Rich)
-}
-
 func (l *Label) AsyncSetLabel(fn LabelerFn, info string) {
-	gts.AsyncUse(&l.r, l.swapResource, func(ctx context.Context) (interface{}, error) {
+	AsyncUse(l.r, func(ctx context.Context) (interface{}, func(), error) {
 		nl := &nullLabel{}
 		f, err := fn(ctx, nl)
-		nl.cancel = f
-		return nl, err
+		return nl, f, err
 	})
 }
 

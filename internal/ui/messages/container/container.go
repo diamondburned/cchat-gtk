@@ -3,7 +3,6 @@ package container
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
@@ -47,7 +46,6 @@ type Container interface {
 	DeleteMessageUnsafe(cchat.MessageDelete)
 
 	Reset()
-	ScrollToBottom()
 
 	// AddPresendMessage adds and displays an unsent message.
 	AddPresendMessage(msg input.PresendMessage) PresendGridMessage
@@ -59,6 +57,11 @@ type Container interface {
 type Controller interface {
 	// BindMenu expects the controller to add actioner into the message.
 	BindMenu(GridMessage)
+	// Bottomed returns whether or not the message scroller is at the bottom.
+	Bottomed() bool
+	// AuthorEvent is called on message create/update. This is used to update
+	// the typer state.
+	AuthorEvent(a cchat.MessageAuthor)
 }
 
 // Constructor is an interface for making custom message implementations which
@@ -73,8 +76,8 @@ const ColumnSpacing = 10
 // GridContainer is an implementation of Container, which allows flexible
 // message grids.
 type GridContainer struct {
-	*autoscroll.ScrolledWindow
 	*GridStore
+	Controller
 }
 
 // gridMessage w/ required internals
@@ -86,16 +89,9 @@ type gridMessage struct {
 var _ Container = (*GridContainer)(nil)
 
 func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
-	store := NewGridStore(constr, ctrl)
-
-	sw := autoscroll.NewScrolledWindow()
-	sw.Add(store.Grid)
-	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
-	sw.Show()
-
 	return &GridContainer{
-		ScrolledWindow: sw,
-		GridStore:      store,
+		GridStore:  NewGridStore(constr, ctrl),
+		Controller: ctrl,
 	}
 }
 
@@ -106,7 +102,7 @@ func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	c.GridStore.CreateMessageUnsafe(msg)
 
 	// Determine if the user is scrolled to the bottom for cleaning up.
-	if !c.ScrolledWindow.Bottomed {
+	if !c.Bottomed() {
 		return
 	}
 
@@ -135,10 +131,4 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
-}
-
-// Reset is not thread-safe.
-func (c *GridContainer) Reset() {
-	c.GridStore.Reset()
-	c.ScrolledWindow.Bottomed = true
 }

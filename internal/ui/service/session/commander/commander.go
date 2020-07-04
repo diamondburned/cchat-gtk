@@ -24,6 +24,10 @@ var monospace = primitives.PrepareCSS(`
 	}
 `)
 
+var commandPadding = primitives.PrepareCSS(`
+	* { padding: 8px 12px; }
+`)
+
 type Session struct {
 	*gtk.Box
 
@@ -101,6 +105,8 @@ func NewSession(cmder cchat.Commander, buf *Buffer) *Session {
 	primitives.AddClass(b, "commander")
 	primitives.AddClass(view, "command-buffer")
 	primitives.AddClass(input, "command-input")
+	primitives.AttachCSS(view, commandPadding)
+	primitives.AttachCSS(input, commandPadding)
 
 	return session
 }

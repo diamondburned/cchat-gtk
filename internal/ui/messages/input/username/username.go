@@ -1,9 +1,10 @@
-package input
+package username
 
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
@@ -23,7 +24,7 @@ func init() {
 	))
 }
 
-type usernameContainer struct {
+type Container struct {
 	*gtk.Revealer
 	main   *gtk.Box
 	avatar *rich.Icon
@@ -31,11 +32,17 @@ type usernameContainer struct {
 }
 
 var (
-	_ cchat.LabelContainer = (*usernameContainer)(nil)
-	_ cchat.IconContainer  = (*usernameContainer)(nil)
+	_ cchat.LabelContainer = (*Container)(nil)
+	_ cchat.IconContainer  = (*Container)(nil)
 )
 
-func newUsernameContainer() *usernameContainer {
+var usernameCSS = primitives.PrepareCSS(`
+	.username-view {
+		margin: 8px 10px;
+	}
+`)
+
+func NewContainer() *Container {
 	avatar := rich.NewIcon(AvatarSize, imgutil.Round(true))
 	avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
 	avatar.Show()
@@ -47,12 +54,11 @@ func newUsernameContainer() *usernameContainer {
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
 	box.PackStart(avatar, false, false, 0)
 	box.PackStart(label, false, false, 0)
-	box.SetMarginStart(10)
-	box.SetMarginEnd(10)
-	box.SetMarginTop(inputmargin)
-	box.SetMarginBottom(inputmargin)
 	box.SetVAlign(gtk.ALIGN_START)
 	box.Show()
+
+	primitives.AddClass(box, "username-view")
+	primitives.AttachCSS(box, usernameCSS)
 
 	rev, _ := gtk.RevealerNew()
 	rev.SetRevealChild(false)
@@ -65,7 +71,7 @@ func newUsernameContainer() *usernameContainer {
 	// thread.
 	currentRevealer = rev.SetRevealChild
 
-	return &usernameContainer{
+	return &Container{
 		Revealer: rev,
 		main:     box,
 		avatar:   avatar,
@@ -73,24 +79,24 @@ func newUsernameContainer() *usernameContainer {
 	}
 }
 
-func (u *usernameContainer) SetRevealChild(reveal bool) {
+func (u *Container) SetRevealChild(reveal bool) {
 	// Only reveal if showUser is true.
 	u.Revealer.SetRevealChild(reveal && showUser)
 }
 
 // shouldReveal returns whether or not the container should reveal.
-func (u *usernameContainer) shouldReveal() bool {
+func (u *Container) shouldReveal() bool {
 	return !u.label.GetLabel().Empty() && showUser
 }
 
-func (u *usernameContainer) Reset() {
+func (u *Container) Reset() {
 	u.SetRevealChild(false)
 	u.avatar.Reset()
 	u.label.Reset()
 }
 
 // Update is not thread-safe.
-func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMessageSender) {
+func (u *Container) Update(session cchat.Session, sender cchat.ServerMessageSender) {
 	// Set the fallback username.
 	u.label.SetLabelUnsafe(session.Name())
 	// Reveal the name if it's not empty.
@@ -108,12 +114,12 @@ func (u *usernameContainer) Update(session cchat.Session, sender cchat.ServerMes
 }
 
 // GetLabel is not thread-safe.
-func (u *usernameContainer) GetLabel() text.Rich {
+func (u *Container) GetLabel() text.Rich {
 	return u.label.GetLabel()
 }
 
 // SetLabel is thread-safe.
-func (u *usernameContainer) SetLabel(content text.Rich) {
+func (u *Container) SetLabel(content text.Rich) {
 	gts.ExecAsync(func() {
 		u.label.SetLabelUnsafe(content)
 
@@ -123,7 +129,7 @@ func (u *usernameContainer) SetLabel(content text.Rich) {
 }
 
 // SetIcon is thread-safe.
-func (u *usernameContainer) SetIcon(url string) {
+func (u *Container) SetIcon(url string) {
 	gts.ExecAsync(func() {
 		u.avatar.SetIconUnsafe(url)
 
@@ -136,6 +142,6 @@ func (u *usernameContainer) SetIcon(url string) {
 }
 
 // GetIconURL is not thread-safe.
-func (u *usernameContainer) GetIconURL() string {
+func (u *Container) GetIconURL() string {
 	return u.avatar.URL()
 }

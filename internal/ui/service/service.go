@@ -21,11 +21,18 @@ type View struct {
 	Services []*Container
 }
 
+var servicesCSS = primitives.PrepareCSS(`
+	.services {
+		background-color: @theme_base_color;
+	}
+`)
+
 func NewView() *View {
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	box.Show()
 
 	primitives.AddClass(box, "services")
+	primitives.AttachCSS(box, servicesCSS)
 
 	sw, _ := gtk.ScrolledWindowNew(nil, nil)
 	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)

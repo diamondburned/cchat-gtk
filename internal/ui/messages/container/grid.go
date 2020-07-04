@@ -11,7 +11,7 @@ import (
 )
 
 type GridStore struct {
-	Grid *gtk.Grid
+	*gtk.Grid
 
 	Construct  Constructor
 	Controller Controller
@@ -26,7 +26,6 @@ func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
 	grid.SetRowSpacing(5)
 	grid.SetMarginStart(5)
 	grid.SetMarginEnd(5)
-	grid.SetMarginBottom(5)
 	grid.Show()
 
 	primitives.AddClass(grid, "message-grid")
@@ -230,6 +229,9 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 }
 
 func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
+	// Call the event handler last.
+	defer c.Controller.AuthorEvent(msg.Author())
+
 	// Attempt to update before insertion (aka upsert).
 	if msgc := c.Message(msg); msgc != nil {
 		msgc.UpdateAuthor(msg.Author())
@@ -253,6 +255,9 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 }
 
 func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
+	// Call the event handler last.
+	defer c.Controller.AuthorEvent(msg.Author())
+
 	if msgc := c.Message(msg); msgc != nil {
 		if author := msg.Author(); author != nil {
 			msgc.UpdateAuthor(author)
