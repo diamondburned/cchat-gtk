@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
@@ -11,7 +12,6 @@ import (
 )
 
 const AvatarSize = 24
-const VMargin = 4
 
 var showUser = true
 var currentRevealer = func(bool) {} // noop by default
@@ -36,6 +36,12 @@ var (
 	_ cchat.IconContainer  = (*Container)(nil)
 )
 
+var usernameCSS = primitives.PrepareCSS(`
+	.username-view {
+		margin: 8px 10px;
+	}
+`)
+
 func NewContainer() *Container {
 	avatar := rich.NewIcon(AvatarSize, imgutil.Round(true))
 	avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
@@ -48,12 +54,11 @@ func NewContainer() *Container {
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
 	box.PackStart(avatar, false, false, 0)
 	box.PackStart(label, false, false, 0)
-	box.SetMarginStart(10)
-	box.SetMarginEnd(10)
-	box.SetMarginTop(VMargin)
-	box.SetMarginBottom(VMargin)
 	box.SetVAlign(gtk.ALIGN_START)
 	box.Show()
+
+	primitives.AddClass(box, "username-view")
+	primitives.AttachCSS(box, usernameCSS)
 
 	rev, _ := gtk.RevealerNew()
 	rev.SetRevealChild(false)

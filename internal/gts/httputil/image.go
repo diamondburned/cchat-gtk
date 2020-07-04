@@ -57,7 +57,7 @@ func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...img
 	}
 
 	// Add a processor to resize.
-	procs = imgutil.Prepend(imgutil.Resize(w, h), procs)
+	procs = append(procs, imgutil.Resize(w, h))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	connectDestroyer(img, cancel)

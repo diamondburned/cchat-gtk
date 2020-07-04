@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/typing"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/gotk3/gotk3/gtk"
@@ -81,6 +82,8 @@ func NewView() *View {
 	view.Box.PackStart(view.InputView, false, false, 0)
 	view.Box.Show()
 
+	primitives.AddClass(view.Box, "message-view")
+
 	// placeholder logo
 	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256())
 	logo.Show()
@@ -111,6 +114,7 @@ func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 
 func (v *View) Reset() {
 	v.state.Reset()     // Reset the state variables.
+	v.Typing.Reset()    // Reset the typing state.
 	v.FaceView.Reset()  // Switch back to the main screen.
 	v.InputView.Reset() // Reset the input.
 	v.Container.Reset() // Clean all messages.
@@ -164,6 +168,8 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 			// Set the cancel handler.
 			v.state.setcurrent(s)
 
+			// Try setting the typing indicator if available.
+			v.Typing.TrySubscribe(server)
 		}, nil
 	})
 }
@@ -183,6 +189,11 @@ func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
 			}),
 		})
 	}
+}
+
+// AuthorEvent should be called on message create/update/delete.
+func (v *View) AuthorEvent(author cchat.MessageAuthor) {
+	v.Typing.RemoveAuthor(author)
 }
 
 // LatestMessageFrom returns the last message ID with that author.

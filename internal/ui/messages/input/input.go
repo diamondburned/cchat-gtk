@@ -23,8 +23,19 @@ type InputView struct {
 }
 
 var textCSS = primitives.PrepareCSS(`
-	textview, textview * {
+	.message-input, .message-input * {
 		background-color: transparent;
+	}
+
+	.message-input * {
+	    background-color: @theme_base_color;
+	    border: 1px solid alpha(@theme_fg_color, 0.2);
+	    border-radius: 4px;
+	    transition: linear 50ms border-color;
+	}
+
+	.message-input:focus * {
+	    border-color: @theme_selected_bg_color;
 	}
 `)
 
@@ -32,10 +43,11 @@ func NewView(ctrl Controller) *InputView {
 	text, _ := gtk.TextViewNew()
 	text.SetSensitive(false)
 	text.SetWrapMode(gtk.WRAP_WORD_CHAR)
-	text.SetProperty("top-margin", inputmargin)
-	text.SetProperty("left-margin", inputmargin)
-	text.SetProperty("right-margin", inputmargin)
-	text.SetProperty("bottom-margin", inputmargin)
+	text.SetVAlign(gtk.ALIGN_START)
+	text.SetProperty("top-margin", 4)
+	text.SetProperty("bottom-margin", 4)
+	text.SetProperty("left-margin", 8)
+	text.SetProperty("right-margin", 8)
 	text.Show()
 
 	primitives.AddClass(text, "message-input")
@@ -79,17 +91,23 @@ type Field struct {
 	editingID string // never empty
 }
 
-const inputmargin = username.VMargin
+var scrollinputCSS = primitives.PrepareCSS(`
+	.scrolled-input {
+		margin: 5px;
+	}
+`)
 
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	username := username.NewContainer()
-	username.SetVAlign(gtk.ALIGN_END)
 	username.Show()
 
 	buf, _ := text.GetBuffer()
 
 	sw := scrollinput.NewV(text, 150)
 	sw.Show()
+
+	primitives.AddClass(sw, "scrolled-input")
+	primitives.AttachCSS(sw, scrollinputCSS)
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	box.PackStart(username, false, false, 0)

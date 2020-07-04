@@ -59,8 +59,9 @@ type Controller interface {
 	BindMenu(GridMessage)
 	// Bottomed returns whether or not the message scroller is at the bottom.
 	Bottomed() bool
-	// ScrollToBottom scrolls the message view to the bottom.
-	// ScrollToBottom()
+	// AuthorEvent is called on message create/update. This is used to update
+	// the typer state.
+	AuthorEvent(a cchat.MessageAuthor)
 }
 
 // Constructor is an interface for making custom message implementations which
