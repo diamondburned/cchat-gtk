@@ -17,15 +17,13 @@ func MakeRed(content text.Rich) string {
 // used for grabbing text without changing state
 type nullLabel struct {
 	text.Rich
-	cancel func()
 }
 
 func (n *nullLabel) SetLabel(t text.Rich) { n.Rich = t }
 
 // used for grabbing url without changing state
 type nullIcon struct {
-	url    string
-	cancel func()
+	url string
 }
 
 func (i *nullIcon) SetIcon(url string) { i.url = url }
