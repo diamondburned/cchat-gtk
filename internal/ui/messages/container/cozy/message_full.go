@@ -10,7 +10,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
@@ -40,6 +39,10 @@ var (
 	_ container.GridMessage = (*FullMessage)(nil)
 )
 
+var boldCSS = primitives.PrepareCSS(`
+	* { font-weight: 600; }
+`)
+
 func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
 	msgc := WrapFullMessage(message.NewContainer(msg))
 	// Don't update the avatar. NewMessage in controller will try and reuse the
@@ -63,6 +66,9 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 
 	// Attach the class for the left avatar.
 	primitives.AddClass(avatar, "cozy-avatar")
+
+	// Attach the username style provider.
+	primitives.AttachCSS(gc.Username, boldCSS)
 
 	header, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	header.PackStart(gc.Username, false, false, 0)
@@ -101,7 +107,7 @@ func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 
 func (m *FullMessage) UpdateTimestamp(t time.Time) {
 	m.GenericContainer.UpdateTimestamp(t)
-	m.Timestamp.SetMarkup(rich.Small(humanize.TimeAgoLong(t)))
+	m.Timestamp.SetText(humanize.TimeAgoLong(t))
 }
 
 func (m *FullMessage) UpdateAuthor(author cchat.MessageAuthor) {

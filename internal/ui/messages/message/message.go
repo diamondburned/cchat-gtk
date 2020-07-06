@@ -61,6 +61,15 @@ type GenericContainer struct {
 
 var _ Container = (*GenericContainer)(nil)
 
+var timestampCSS = primitives.PrepareCSS(`
+	.message-time {
+		opacity: 0.3;
+		font-size: 0.8em;
+		margin-top: 0.2em;
+		margin-bottom: 0.2em;
+	}
+`)
+
 // NewContainer creates a new message container with the given ID and nonce. It
 // does not update the widgets, so FillContainer should be called afterwards.
 func NewContainer(msg cchat.MessageCreate) *GenericContainer {
@@ -105,6 +114,9 @@ func NewEmptyContainer() *GenericContainer {
 	primitives.AddClass(user, "message-author")
 	primitives.AddClass(content, "message-content")
 
+	// Attach the timestamp CSS.
+	primitives.AttachCSS(ts, timestampCSS)
+
 	gc := &GenericContainer{
 		Timestamp: ts,
 		Username:  user,
@@ -145,7 +157,7 @@ func (m *GenericContainer) Nonce() string {
 
 func (m *GenericContainer) UpdateTimestamp(t time.Time) {
 	m.time = t
-	m.Timestamp.SetMarkup(rich.Small(humanize.TimeAgo(t)))
+	m.Timestamp.SetText(humanize.TimeAgo(t))
 	m.Timestamp.SetTooltipText(t.Format(time.Stamp))
 }
 
@@ -170,13 +182,6 @@ func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
 	}
 
 	m.Content.SetMarkup(markup)
-
-	// // Render the content.
-	// parser.RenderTextBuffer(m.CBuffer, content)
-
-	// if edited {
-	// 	parser.AppendEditBadge(m.CBuffer, m.Time())
-	// }
 }
 
 // AttachMenu connects signal handlers to handle a list of menu items from

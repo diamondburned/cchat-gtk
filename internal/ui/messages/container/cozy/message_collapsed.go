@@ -8,7 +8,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -44,7 +43,7 @@ func (c *CollapsedMessage) Collapsed() bool { return true }
 
 func (c *CollapsedMessage) UpdateTimestamp(t time.Time) {
 	c.GenericContainer.UpdateTimestamp(t)
-	c.Timestamp.SetMarkup(rich.Small(humanize.TimeAgoShort(t)))
+	c.Timestamp.SetText(humanize.TimeAgoShort(t))
 }
 
 func (c *CollapsedMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {

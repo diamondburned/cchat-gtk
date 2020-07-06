@@ -109,9 +109,9 @@ func render(typers []cchat.Typer) string {
 	}
 
 	if len(typers) == 1 {
-		builder.WriteString(" is typing.")
+		builder.WriteString(" is typing...")
 	} else {
-		builder.WriteString(" are typing.")
+		builder.WriteString(" are typing...")
 	}
 
 	return builder.String()
