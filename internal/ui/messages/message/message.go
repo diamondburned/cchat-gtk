@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/c/labelutils"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/imgview"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -108,6 +109,9 @@ func NewEmptyContainer() *GenericContainer {
 	content.SetXAlign(0) // left align
 	content.SetSelectable(true)
 	content.Show()
+
+	// Never insert hyphens on line breaks in the message content.
+	labelutils.AddAttr(content, labelutils.InsertHyphens(false))
 
 	// Add CSS classes.
 	primitives.AddClass(ts, "message-time")

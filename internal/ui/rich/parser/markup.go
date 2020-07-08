@@ -64,27 +64,32 @@ func RenderMarkup(content text.Rich) string {
 	for _, segment := range content.Segments {
 		start, end := segment.Bounds()
 
-		switch segment := segment.(type) {
-		case text.Linker:
+		if segment, ok := segment.(text.Linker); ok {
 			appended.Addf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
 			appended.Add(end, "</a>")
+		}
 
-		case text.Imager:
+		if segment, ok := segment.(text.Imager); ok {
 			// Ends don't matter with images.
 			appended.Add(start, composeImageMarkup(segment))
+		}
 
-		case text.Colorer:
+		if segment, ok := segment.(text.Colorer); ok {
 			appended.Span(start, end, fmt.Sprintf(`color="#%06X"`, segment.Color()))
+		}
 
-		case text.Attributor:
+		if segment, ok := segment.(text.Attributor); ok {
 			appended.Span(start, end, markupAttr(segment.Attribute()))
+		}
 
-		case text.Codeblocker:
+		if segment, ok := segment.(text.Codeblocker); ok {
 			// Syntax highlight the codeblock.
 			hl.Segments(&appended, content.Content, segment)
+		}
 
-		case text.Quoteblocker:
-			// TODO: pls.
+		// TODO: make this not shit. Maybe make it somehow not rely on green
+		// arrows. Or maybe.
+		if _, ok := segment.(text.Quoteblocker); ok {
 			appended.Span(start, end, `color="#789922"`)
 		}
 	}

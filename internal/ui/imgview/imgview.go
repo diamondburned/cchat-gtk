@@ -1,15 +1,23 @@
 package imgview
 
 import (
+	"fmt"
+	"html"
 	"net/url"
 	"path"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/internal/c/labelutils"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
+	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
+	"github.com/pkg/errors"
+	"github.com/skratchdot/open-golang/open"
 )
 
 const (
@@ -44,7 +52,8 @@ func BindTooltip(connector WidgetConnector) {
 			r.SetX(int(x))
 			r.SetY(int(y))
 
-			// Make a new image that's asynchronously fetched.
+			// Make a new image that's asynchronously fetched inside a button.
+			// This allows us to make it clickable.
 			img, _ := gtk.ImageNewFromIconName("image-loading", gtk.ICON_SIZE_BUTTON)
 			img.SetMarginStart(5)
 			img.SetMarginEnd(5)
@@ -56,18 +65,78 @@ func BindTooltip(connector WidgetConnector) {
 			var w, h = parser.FragmentImageSize(uri, MaxWidth, MaxHeight)
 			httputil.AsyncImageSized(img, uri, w, h)
 
+			btn, _ := gtk.ButtonNew()
+			btn.Add(img)
+			btn.SetRelief(gtk.RELIEF_NONE)
+			btn.Connect("clicked", func() { PromptOpen(uri) })
+			btn.Show()
+
 			p, _ := gtk.PopoverNew(c)
 			p.SetPointingTo(r)
 			p.Connect("closed", img.Destroy) // on close, destroy image
-			p.Add(img)
+			p.Add(btn)
 			p.Popup()
 
-			return true
-
 		default:
-			return false
+			PromptOpen(uri)
 		}
+
+		// Never let Gtk open the dialog.
+		return true
 	})
+}
+
+const urlPrompt = `This link leads to the following URL:
+<span weight="bold"><a href="%[1]s">%[1]s</a></span>
+Click <b>Open</b> to proceed.`
+
+var warnLabelCSS = primitives.PrepareCSS(`
+	label {
+		padding: 4px 8px;
+	}
+`)
+
+// PromptOpen shows a dialog asking if the URL should be opened.
+func PromptOpen(uri string) {
+	// Format the prompt body.
+	l, _ := gtk.LabelNew("")
+	l.SetJustify(gtk.JUSTIFY_CENTER)
+	l.SetLineWrap(true)
+	l.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	l.Show()
+	l.SetMarkup(fmt.Sprintf(urlPrompt, html.EscapeString(uri)))
+
+	// Style the label.
+	primitives.AttachCSS(l, warnLabelCSS)
+
+	// Disable hyphens on line wraps.
+	labelutils.AddAttr(l, labelutils.InsertHyphens(false))
+
+	open := func() {
+		if err := open.Start(uri); err != nil {
+			log.Error(errors.Wrap(err, "Failed to open URL after confirm"))
+		}
+	}
+
+	// Prompt the user if they want to open the URL.
+	dlg := dialog.NewModal(l, "Caution", "Open", open)
+	dlg.SetSizeRequest(350, 100)
+
+	// Add a class to the dialog to allow theming.
+	primitives.AddClass(dlg, "url-warning")
+
+	// On link click, close the dialog.
+	l.Connect("activate-link", func(l *gtk.Label, uri string) bool {
+		// Close the dialog.
+		dlg.Destroy()
+		// Open the link anyway.
+		open()
+		// Return true since we handled the event.
+		return true
+	})
+
+	// Show the dialog.
+	dlg.Show()
 }
 
 // ext parses and sanitizes the extension to something comparable.

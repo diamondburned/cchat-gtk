@@ -6,7 +6,11 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-func NewModal(body gtk.IWidget, title, label string, callback func()) *gtk.Dialog {
+func ShowModal(body gtk.IWidget, title, button string, callback func()) {
+	NewModal(body, title, title, callback).Show()
+}
+
+func NewModal(body gtk.IWidget, title, button string, callback func()) *gtk.Dialog {
 	cancel, _ := gtk.ButtonNew()
 	cancel.Show()
 	cancel.SetHAlign(gtk.ALIGN_START)
@@ -17,10 +21,12 @@ func NewModal(body gtk.IWidget, title, label string, callback func()) *gtk.Dialo
 	action.Show()
 	action.SetHAlign(gtk.ALIGN_END)
 	action.SetRelief(gtk.RELIEF_NONE)
-	action.SetLabel(label)
+	action.SetLabel(button)
 
 	header, _ := gtk.HeaderBarNew()
 	header.Show()
+	header.SetMarginStart(5)
+	header.SetMarginEnd(5)
 	header.SetTitle(title)
 	header.PackStart(cancel)
 	header.PackEnd(action)
@@ -44,20 +50,13 @@ func NewCSD(body, header gtk.IWidget) *gtk.Dialog {
 }
 
 func newCSD(body, header gtk.IWidget) *gtk.Dialog {
-	dialog, _ := gtk.DialogNew()
-	dialog.SetModal(true)
-	dialog.SetTransientFor(gts.App.Window)
-
-	if area, _ := dialog.GetContentArea(); area != nil {
-		dialog.Remove(area)
-	}
+	dialog, _ := gts.NewEmptyModalDialog()
+	dialog.SetDefaultSize(450, 300)
+	dialog.Add(body)
 
 	if oldh, _ := dialog.GetHeaderBar(); oldh != nil {
 		dialog.Remove(oldh)
 	}
-
-	dialog.Add(body)
-
 	dialog.SetTitlebar(header)
 
 	return dialog
