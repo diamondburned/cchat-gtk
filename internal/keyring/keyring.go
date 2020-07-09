@@ -1,37 +1,21 @@
 package keyring
 
 import (
-	"bytes"
-	"encoding/gob"
-	"strings"
-
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/keyring/driver"
+	"github.com/diamondburned/cchat-gtk/internal/keyring/driver/json"
+	"github.com/diamondburned/cchat-gtk/internal/keyring/driver/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat/text"
 	"github.com/pkg/errors"
-	"github.com/zalando/go-keyring"
 )
 
-func get(service string, v interface{}) error {
-	s, err := keyring.Get("cchat-gtk", service)
-	if err != nil {
-		return err
-	}
-
-	// Deleting immediately does not work on a successful start-up.
-	// keyring.Delete("cchat-gtk", service)
-
-	return gob.NewDecoder(strings.NewReader(s)).Decode(v)
-}
-
-func set(service string, v interface{}) error {
-	var b bytes.Buffer
-	if err := gob.NewEncoder(&b).Encode(v); err != nil {
-		return err
-	}
-
-	return keyring.Set("cchat-gtk", service, b.String())
-}
+// Declare a keyring store with fallbacks.
+var store = driver.NewStore(
+	keyring.NewProvider(),
+	json.NewProvider(config.DirPath()), // fallback
+)
 
 type Session struct {
 	ID   string
@@ -65,7 +49,7 @@ func ConvertSession(ses cchat.Session, name string) *Session {
 }
 
 func SaveSessions(serviceName text.Rich, sessions []Session) {
-	if err := set(serviceName.Content, sessions); err != nil {
+	if err := store.Set(serviceName.Content, sessions); err != nil {
 		log.Warn(errors.Wrap(err, "Error saving session"))
 	}
 }
@@ -74,7 +58,7 @@ func SaveSessions(serviceName text.Rich, sessions []Session) {
 // calls the auth callback inside the Gtk main thread.
 func RestoreSessions(serviceName text.Rich) (sessions []Session) {
 	// Ignore the error, it's not important.
-	if err := get(serviceName.Content, &sessions); err != nil {
+	if err := store.Get(serviceName.Content, &sessions); err != nil {
 		log.Warn(err)
 	}
 	return

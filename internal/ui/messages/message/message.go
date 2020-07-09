@@ -107,6 +107,8 @@ func NewEmptyContainer() *GenericContainer {
 	content.SetSelectable(true)
 	content.Show()
 
+	// Causes bugs with selections.
+
 	// content.Connect("grab-notify", func(l *gtk.Label, grabbed bool) {
 	// 	if grabbed {
 	// 		// Hack to stop the label from selecting everything after being

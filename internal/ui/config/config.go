@@ -84,10 +84,13 @@ func Sections() (sects [sectionLen][]Entry) {
 	return
 }
 
+// Save the global config.
 func Save() error {
 	return MarshalToFile(ConfigFile, sections)
 }
 
+// Restore the global config. IsNotExist is not an error and will not be
+// returned.
 func Restore() error {
 	return UnmarshalFromFile(ConfigFile, &sections)
 }

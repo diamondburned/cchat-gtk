@@ -50,8 +50,13 @@ func Error(err error) {
 	Write("Error: " + err.Error())
 }
 
+// Warn calls Info().
 func Warn(err error) {
-	Write("Warn: " + err.Error())
+	Info(err)
+}
+
+func Info(err error) {
+	Write("Info: " + err.Error())
 }
 
 func Write(msg string) {
