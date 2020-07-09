@@ -47,7 +47,7 @@ func (p Provider) open(service string, write bool) (*os.File, error) {
 		return nil, errors.Wrap(err, "Failed to stat file")
 	}
 	if m := s.Mode(); m != 0600 {
-		return nil, fmt.Errorf("secrets.json file has unsafe permission %04o", m)
+		return nil, fmt.Errorf("%s file has unsafe permission %04o", filename, m)
 	}
 
 	return f, nil
