@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/c/labelutils"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/imgview"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -91,7 +90,6 @@ func NewEmptyContainer() *GenericContainer {
 	ts.SetEllipsize(pango.ELLIPSIZE_MIDDLE)
 	ts.SetXAlign(1) // right align
 	ts.SetVAlign(gtk.ALIGN_END)
-	// ts.SetSelectable(true)
 	ts.Show()
 
 	user, _ := gtk.LabelNew("")
@@ -100,7 +98,6 @@ func NewEmptyContainer() *GenericContainer {
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	user.SetXAlign(1) // right align
 	user.SetVAlign(gtk.ALIGN_START)
-	// user.SetSelectable(true)
 	user.Show()
 
 	content, _ := gtk.LabelNew("")
@@ -110,8 +107,14 @@ func NewEmptyContainer() *GenericContainer {
 	content.SetSelectable(true)
 	content.Show()
 
-	// Never insert hyphens on line breaks in the message content.
-	labelutils.AddAttr(content, labelutils.InsertHyphens(false))
+	// content.Connect("grab-notify", func(l *gtk.Label, grabbed bool) {
+	// 	if grabbed {
+	// 		// Hack to stop the label from selecting everything after being
+	// 		// refocused.
+	// 		content.SetSelectable(false)
+	// 		gts.ExecAsync(func() { content.SetSelectable(true) })
+	// 	}
+	// })
 
 	// Add CSS classes.
 	primitives.AddClass(ts, "message-time")

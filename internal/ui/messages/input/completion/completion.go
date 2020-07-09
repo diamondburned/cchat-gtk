@@ -1,16 +1,21 @@
 package completion
 
 import (
+	"fmt"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 const (
-	ImageSize    = 25
+	ImageSmall   = 25
+	ImageLarge   = 40
 	ImagePadding = 6
 )
 
@@ -51,29 +56,52 @@ func (v *View) Update(words []string, i int) []gtk.IWidget {
 	var widgets = make([]gtk.IWidget, len(v.entries))
 
 	for i, entry := range v.entries {
+		// Container that holds the label.
+		lbox, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+		lbox.SetVAlign(gtk.ALIGN_CENTER)
+		lbox.Show()
+
+		// Label for the primary text.
 		l := rich.NewLabel(entry.Text)
 		l.Show()
+		lbox.PackStart(l, false, false, 0)
 
-		img, _ := gtk.ImageNew()
+		// Get the iamge size so we can change and use if needed. The default
+		var size = ImageSmall
+		if !entry.Secondary.Empty() {
+			size = ImageLarge
+
+			s := rich.NewLabel(text.Rich{})
+			s.SetMarkup(fmt.Sprintf(
+				`<span alpha="50%%" size="small">%s</span>`,
+				parser.RenderMarkup(entry.Secondary),
+			))
+			s.Show()
+
+			lbox.PackStart(s, false, false, 0)
+		}
+
+		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+		b.PackEnd(lbox, true, true, ImagePadding)
+		b.Show()
 
 		// Do we have an icon?
 		if entry.IconURL != "" {
+			img, _ := gtk.ImageNew()
 			img.SetMarginStart(ImagePadding)
-			img.SetSizeRequest(ImageSize, ImageSize)
+			img.SetSizeRequest(size, size)
 			img.Show()
+
+			// Prepend the image into the box.
+			b.PackEnd(img, false, false, 0)
 
 			var pps []imgutil.Processor
 			if !entry.Image {
 				pps = ppIcon
 			}
 
-			httputil.AsyncImageSized(img, entry.IconURL, ImageSize, ImageSize, pps...)
+			httputil.AsyncImageSized(img, entry.IconURL, size, size, pps...)
 		}
-
-		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-		b.PackStart(img, false, false, 0) // image has pad left
-		b.PackStart(l, true, true, ImagePadding)
-		b.Show()
 
 		widgets[i] = b
 	}

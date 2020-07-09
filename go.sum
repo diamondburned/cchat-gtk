@@ -60,6 +60,10 @@ github.com/diamondburned/cchat-discord v0.0.0-20200708083530-d0e43cc63b03 h1:Xx4
 github.com/diamondburned/cchat-discord v0.0.0-20200708083530-d0e43cc63b03/go.mod h1:hjaCeQfhSqANH+ZtxXPMWzpgobb4syy2VcqDK4PXcPU=
 github.com/diamondburned/cchat-discord v0.0.0-20200708091545-601e8abeb23b h1:c01OHXPE/HXcZdaPDgNNzmz3xN7MC0yIyL5i+6qILAc=
 github.com/diamondburned/cchat-discord v0.0.0-20200708091545-601e8abeb23b/go.mod h1:IDBm0RqdQUASjPGP/RQkhmC1nGhGTTFoaHn9NbD/l7I=
+github.com/diamondburned/cchat-discord v0.0.0-20200708212314-e08c31b895a6 h1:Nc9B6i7siInzh/uu3bTu7mcw7ckcFDTu4TtSNoxUMis=
+github.com/diamondburned/cchat-discord v0.0.0-20200708212314-e08c31b895a6/go.mod h1:QHPtnxNrnMFCYB/b9kUP93D30Kf3AuGmkM91tScIpB8=
+github.com/diamondburned/cchat-discord v0.0.0-20200709041349-1e137df6de2c h1:4F7IJqMfpF02/j6ZbVO9x29rWExQncLHFbxZrsAhhvM=
+github.com/diamondburned/cchat-discord v0.0.0-20200709041349-1e137df6de2c/go.mod h1:QHPtnxNrnMFCYB/b9kUP93D30Kf3AuGmkM91tScIpB8=
 github.com/diamondburned/cchat-mock v0.0.0-20200704044009-f587c4904aa3 h1:xr07/2cwINyrMqh92pQQJVDfQqG0u6gHAK+ZcGfpSew=
 github.com/diamondburned/cchat-mock v0.0.0-20200704044009-f587c4904aa3/go.mod h1:SRu3OOeggELFr2Wd3/+SpYV1eNcvSk2LBhM70NOZSG8=
 github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d h1:Ha/I6PMKi+B4hpWclwlXj0tUMehR7Q0TNxPczzBwzPI=
@@ -72,6 +76,8 @@ github.com/diamondburned/ningen v0.1.1-0.20200621014632-6babb812b249 h1:yP7kJ+xC
 github.com/diamondburned/ningen v0.1.1-0.20200621014632-6babb812b249/go.mod h1:xW9hpBZsGi8KpAh10TyP+YQlYBo+Xc+2w4TR6N0951A=
 github.com/diamondburned/ningen v0.1.1-0.20200708090333-227e90d19851 h1:xf1aLPnwK/Yn2z7dBIgQROSVOEc2wtivgnnwBItdEVM=
 github.com/diamondburned/ningen v0.1.1-0.20200708090333-227e90d19851/go.mod h1:FNezDLQIhoDS+RkXLSQ7dJNrt6BW/nVl1krzDgWMQwg=
+github.com/diamondburned/ningen v0.1.1-0.20200708211706-57c712372ede h1:qRmfQCOS+ZnH4G0+8O09PUx3HQTdQwzsDoo1ucTgm2E=
+github.com/diamondburned/ningen v0.1.1-0.20200708211706-57c712372ede/go.mod h1:FNezDLQIhoDS+RkXLSQ7dJNrt6BW/nVl1krzDgWMQwg=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
 github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
 github.com/dlclark/regexp2 v1.2.0 h1:8sAhBGEM0dRWogWqWyQeIJnxjWO6oIjl8FKqREDsGfk=

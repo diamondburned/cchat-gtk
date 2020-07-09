@@ -193,7 +193,10 @@ func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
 
 // AuthorEvent should be called on message create/update/delete.
 func (v *View) AuthorEvent(author cchat.MessageAuthor) {
-	v.Typing.RemoveAuthor(author)
+	// Remove the author from the typing list if it's not nil.
+	if author != nil {
+		v.Typing.RemoveAuthor(author)
+	}
 }
 
 // LatestMessageFrom returns the last message ID with that author.

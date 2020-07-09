@@ -7,7 +7,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/diamondburned/cchat-gtk/internal/c/labelutils"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
@@ -87,7 +86,7 @@ func BindTooltip(connector WidgetConnector) {
 }
 
 const urlPrompt = `This link leads to the following URL:
-<span weight="bold"><a href="%[1]s">%[1]s</a></span>
+<span weight="bold" insert_hyphens="false"><a href="%[1]s">%[1]s</a></span>
 Click <b>Open</b> to proceed.`
 
 var warnLabelCSS = primitives.PrepareCSS(`
@@ -108,9 +107,6 @@ func PromptOpen(uri string) {
 
 	// Style the label.
 	primitives.AttachCSS(l, warnLabelCSS)
-
-	// Disable hyphens on line wraps.
-	labelutils.AddAttr(l, labelutils.InsertHyphens(false))
 
 	open := func() {
 		if err := open.Start(uri); err != nil {

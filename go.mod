@@ -8,7 +8,7 @@ require (
 	github.com/Xuanwo/go-locale v0.2.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.0.42
-	github.com/diamondburned/cchat-discord v0.0.0-20200708091545-601e8abeb23b
+	github.com/diamondburned/cchat-discord v0.0.0-20200709041349-1e137df6de2c
 	github.com/diamondburned/cchat-mock v0.0.0-20200704044009-f587c4904aa3
 	github.com/diamondburned/imgutil v0.0.0-20200708012333-53c9e45dd28b
 	github.com/goodsign/monday v1.0.0

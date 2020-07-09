@@ -65,17 +65,26 @@ func RenderMarkup(content text.Rich) string {
 		start, end := segment.Bounds()
 
 		if segment, ok := segment.(text.Linker); ok {
-			appended.Addf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
-			appended.Add(end, "</a>")
+			appended.Openf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
+			appended.Close(end, "</a>")
 		}
 
 		if segment, ok := segment.(text.Imager); ok {
 			// Ends don't matter with images.
-			appended.Add(start, composeImageMarkup(segment))
+			appended.Open(start, composeImageMarkup(segment))
 		}
 
 		if segment, ok := segment.(text.Colorer); ok {
-			appended.Span(start, end, fmt.Sprintf(`color="#%06X"`, segment.Color()))
+			var attrs = []string{fmt.Sprintf(`color="#%06X"`, segment.Color())}
+			// If the color segment only covers a segment, then add some more
+			// formatting.
+			if start > 0 && end < len(content.Content) {
+				attrs = append(attrs,
+					`bgalpha="10%"`,
+					fmt.Sprintf(`bgcolor="#%06X"`, segment.Color()),
+				)
+			}
+			appended.Span(start, end, attrs...)
 		}
 
 		if segment, ok := segment.(text.Attributor); ok {

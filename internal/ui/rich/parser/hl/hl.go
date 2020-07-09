@@ -42,7 +42,11 @@ func Tokenize(language, source string) chroma.Iterator {
 
 func Segments(appendmap *attrmap.AppendMap, src string, seg text.Codeblocker) {
 	var start, end = seg.Bounds()
-	appendmap.Span(start, end, `font_family="monospace"`)
+	appendmap.Span(
+		start, end,
+		`font_family="monospace"`,
+		`insert_hyphens="false"`, // all my homies hate hyphens
+	)
 
 	if i := Tokenize(seg.CodeblockLanguage(), src[start:end]); i != nil {
 		fmtter.segments(appendmap, start, i)
@@ -92,13 +96,13 @@ func (f *formatter) segments(appendmap *attrmap.AppendMap, offset int, iter chro
 		attr := f.styleAttr(token.Type)
 
 		if attr != "" {
-			appendmap.Addf(offset, `<span %s>`, attr)
+			appendmap.Openf(offset, `<span %s>`, attr)
 		}
 
 		offset += len(token.Value)
 
 		if attr != "" {
-			appendmap.Add(offset, "</span>")
+			appendmap.Close(offset, "</span>")
 		}
 	}
 }
