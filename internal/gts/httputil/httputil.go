@@ -15,15 +15,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-var dskcached *http.Client
+var basePath = filepath.Join(os.TempDir(), "cchat-gtk-sabotaging-the-desktop-experience")
 
-func init() {
-	var basePath = filepath.Join(os.TempDir(), "cchat-gtk-pridemonth")
-
-	http.DefaultClient.Timeout = 15 * time.Second
-
-	dskcached = &(*http.DefaultClient)
-	dskcached.Transport = httpcache.NewTransport(
+var dskcached = http.Client{
+	Timeout: 15 * time.Second,
+	Transport: httpcache.NewTransport(
 		diskcache.NewWithDiskv(diskv.New(diskv.Options{
 			BasePath:     basePath,
 			TempDir:      filepath.Join(basePath, "tmp"),
@@ -32,11 +28,7 @@ func init() {
 			Compression:  diskv.NewZlibCompressionLevel(2),
 			CacheSizeMax: 25 * 1024 * 1024, // 25 MiB in memory
 		})),
-	)
-}
-
-func secs(dura time.Duration) int64 {
-	return int64(dura / time.Second)
+	),
 }
 
 func AsyncStreamUncached(url string, fn func(r io.Reader)) {

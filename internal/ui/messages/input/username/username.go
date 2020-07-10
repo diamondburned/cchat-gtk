@@ -37,9 +37,7 @@ var (
 )
 
 var usernameCSS = primitives.PrepareCSS(`
-	.username-view {
-		margin: 8px 10px;
-	}
+	.username-view { margin: 0 5px }
 `)
 
 func NewContainer() *Container {
@@ -54,7 +52,6 @@ func NewContainer() *Container {
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
 	box.PackStart(avatar, false, false, 0)
 	box.PackStart(label, false, false, 0)
-	box.SetVAlign(gtk.ALIGN_START)
 	box.Show()
 
 	primitives.AddClass(box, "username-view")

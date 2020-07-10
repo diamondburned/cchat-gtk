@@ -2,7 +2,9 @@ package input
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -23,19 +25,35 @@ type InputView struct {
 }
 
 var textCSS = primitives.PrepareCSS(`
+	.message-input {
+		padding-top: 2px;
+		padding-bottom: 2px;
+	}
+
 	.message-input, .message-input * {
 		background-color: transparent;
 	}
 
 	.message-input * {
 	    background-color: @theme_base_color;
+	    transition: linear 50ms background-color;
+
+		/* Legacy styling
 	    border: 1px solid alpha(@theme_fg_color, 0.2);
 	    border-radius: 4px;
-	    transition: linear 50ms border-color;
+		*/
 	}
 
 	.message-input:focus * {
+		background-color: mix(
+			@theme_base_color,
+			@theme_selected_bg_color,
+			0.15
+		);
+
+		/* Legacy styling
 	    border-color: @theme_selected_bg_color;
+		*/
 	}
 `)
 
@@ -74,12 +92,18 @@ func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageS
 }
 
 type Field struct {
+	// Box contains the field box and the attachment container.
 	*gtk.Box
+	Attachments *attachment.Container
+
+	// FieldBox contains the username container and the input field. It spans
+	// horizontally.
+	FieldBox *gtk.Box
 	Username *username.Container
 
 	TextScroll *gtk.ScrolledWindow
-	text       *gtk.TextView
-	buffer     *gtk.TextBuffer
+	text       *gtk.TextView   // const
+	buffer     *gtk.TextBuffer // const
 
 	UserID string
 	Sender cchat.ServerMessageSender
@@ -87,60 +111,80 @@ type Field struct {
 
 	ctrl Controller
 
-	// editing state
+	// states
 	editingID string // never empty
+	sendings  []PresendMessage
 }
 
-var scrollinputCSS = primitives.PrepareCSS(`
-	.scrolled-input {
-		margin: 5px;
-	}
+var inputFieldCSS = primitives.PrepareCSS(`
+	.input-field { margin: 3px 5px }
 `)
 
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
-	username := username.NewContainer()
-	username.Show()
+	field := &Field{text: text, ctrl: ctrl}
+	field.buffer, _ = text.GetBuffer()
 
-	buf, _ := text.GetBuffer()
+	field.Username = username.NewContainer()
+	field.Username.Show()
 
-	sw := scrollinput.NewV(text, 150)
-	sw.Show()
+	field.TextScroll = scrollinput.NewV(text, 150)
+	field.TextScroll.Show()
+	primitives.AddClass(field.TextScroll, "scrolled-input")
 
-	primitives.AddClass(sw, "scrolled-input")
-	primitives.AttachCSS(sw, scrollinputCSS)
+	attach, _ := gtk.ButtonNewFromIconName("mail-attachment-symbolic", gtk.ICON_SIZE_BUTTON)
+	attach.SetRelief(gtk.RELIEF_NONE)
+	attach.Show()
+	primitives.AddClass(attach, "attach-button")
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(username, false, false, 0)
-	box.PackStart(sw, true, true, 0)
-	box.Show()
+	send, _ := gtk.ButtonNewFromIconName("mail-send-symbolic", gtk.ICON_SIZE_BUTTON)
+	send.SetRelief(gtk.RELIEF_NONE)
+	send.Show()
+	primitives.AddClass(send, "send-button")
 
-	field := &Field{
-		Box:      box,
-		Username: username,
-		// typing:     typing,
-		TextScroll: sw,
-		text:       text,
-		buffer:     buf,
-		ctrl:       ctrl,
-	}
+	// Keep this number the same as size-allocate below -------v
+	field.FieldBox, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
+	field.FieldBox.PackStart(field.Username, false, false, 0)
+	field.FieldBox.PackStart(attach, false, false, 0)
+	field.FieldBox.PackStart(field.TextScroll, true, true, 0)
+	field.FieldBox.PackStart(send, false, false, 0)
+	field.FieldBox.Show()
+	primitives.AddClass(field.FieldBox, "input-field")
+	primitives.AttachCSS(field.FieldBox, inputFieldCSS)
 
-	text.SetFocusHAdjustment(sw.GetHAdjustment())
-	text.SetFocusVAdjustment(sw.GetVAdjustment())
+	field.Attachments = attachment.New()
+	field.Attachments.Show()
+
+	field.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
+	field.Box.PackStart(field.Attachments, false, false, 0)
+	field.Box.PackStart(field.FieldBox, false, false, 0)
+	field.Box.Show()
+
+	text.SetFocusHAdjustment(field.TextScroll.GetHAdjustment())
+	text.SetFocusVAdjustment(field.TextScroll.GetVAdjustment())
+	// Bind text events.
 	text.Connect("key-press-event", field.keyDown)
+	// Bind the send button.
+	send.Connect("clicked", field.sendInput)
+	// Bind the attach button.
+	attach.Connect("clicked", func() { gts.SpawnUploader("", field.Attachments.AddFiles) })
 
-	// // Connect to the field's revealer. On resize, we want the autocompleter to
-	// // have the right padding too.
-	// f.username.Connect("size-allocate", func(w gtk.IWidget) {
-	// 	// Set the autocompleter's left margin to be the same.
-	// 	c.SetMarginStart(w.ToWidget().GetAllocatedWidth())
-	// })
+	// Connect to the field's revealer. On resize, we want the attachments
+	// carousel to have the same padding too.
+	field.Username.Connect("size-allocate", func(w gtk.IWidget) {
+		// Calculate the left width: from the left of the message box to the
+		// right of the attach button, covering the username container.
+		var leftWidth = 5*2 + attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
+		// Set the autocompleter's left margin to be the same.
+		field.Attachments.SetMarginStart(leftWidth)
+	})
 
 	return field
 }
 
 // Reset prepares the field before SetSender() is called.
 func (f *Field) Reset() {
-	// Paranoia.
+	// Paranoia. The View should already change to a different stack, but we're
+	// doing this just in case.
 	f.text.SetSensitive(false)
 
 	f.UserID = ""
@@ -149,7 +193,7 @@ func (f *Field) Reset() {
 	f.Username.Reset()
 
 	// reset the input
-	f.buffer.Delete(f.buffer.GetBounds())
+	f.clearText()
 }
 
 // SetSender changes the sender of the input field. If nil, the input will be
@@ -213,21 +257,10 @@ func (f *Field) StopEditing() bool {
 	return true
 }
 
-// yankText cuts the text from the input field and returns it.
-func (f *Field) yankText() string {
-	start, end := f.buffer.GetBounds()
-
-	text, _ := f.buffer.GetText(start, end, false)
-	if text != "" {
-		f.buffer.Delete(start, end)
-	}
-
-	return text
-}
-
-// clearText wipes the input field
+// clearText resets the input field
 func (f *Field) clearText() {
 	f.buffer.Delete(f.buffer.GetBounds())
+	f.Attachments.Reset()
 }
 
 // getText returns the text from the input, but it doesn't cut it.

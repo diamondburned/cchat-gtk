@@ -1,10 +1,13 @@
 package gts
 
 import (
+	"fmt"
+	"image"
 	"os"
 	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/disintegration/imaging"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -20,6 +23,9 @@ var App struct {
 	Window *gtk.ApplicationWindow
 	Header *gtk.HeaderBar
 }
+
+// Clipboard is initialized on init().
+var Clipboard *gtk.Clipboard
 
 // NewModalDialog returns a new modal dialog that's transient for the main
 // window.
@@ -56,15 +62,19 @@ func AddAppAction(name string, call func()) {
 	App.AddAction(action)
 }
 
-func AddWindowAction(name string, call func()) {
-	action := glib.SimpleActionNew(name, nil)
-	action.Connect("activate", call)
-	App.Window.AddAction(action)
-}
+// Commented because this is not a good function to use. Components should use
+// AddAppAction instead.
+
+// func AddWindowAction(name string, call func()) {
+// 	action := glib.SimpleActionNew(name, nil)
+// 	action.Connect("activate", call)
+// 	App.Window.AddAction(action)
+// }
 
 func init() {
 	gtk.Init(&Args)
 	App.Application, _ = gtk.ApplicationNew(AppID, 0)
+	Clipboard, _ = gtk.ClipboardGet(gdk.SELECTION_CLIPBOARD)
 }
 
 type WindowHeaderer interface {
@@ -175,4 +185,82 @@ func AfterFunc(d time.Duration, f func()) (stop func()) {
 func EventIsRightClick(ev *gdk.Event) bool {
 	keyev := gdk.EventButtonNewFromEvent(ev)
 	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_SECONDARY
+}
+
+func RenderPixbuf(img image.Image) *gdk.Pixbuf {
+	var nrgba *image.NRGBA
+	if n, ok := img.(*image.NRGBA); ok {
+		nrgba = n
+	} else {
+		nrgba = imaging.Clone(img)
+	}
+
+	pix, err := gdk.PixbufNewFromData(
+		nrgba.Pix, gdk.COLORSPACE_RGB,
+		true, // NRGBA has alpha.
+		8,    // 8-bit aka 1-byte per sample.
+		nrgba.Rect.Dx(),
+		nrgba.Rect.Dy(), // We already know the image size.
+		nrgba.Stride,
+	)
+
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create pixbuf from *NRGBA: %v", err))
+	}
+
+	return pix
+}
+
+func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
+	dialog, _ := gtk.FileChooserDialogNewWith2Buttons(
+		"Upload File", App.Window,
+		gtk.FILE_CHOOSER_ACTION_OPEN,
+		"Cancel", gtk.RESPONSE_CANCEL,
+		"Upload", gtk.RESPONSE_ACCEPT,
+	)
+
+	BindPreviewer(dialog)
+
+	if dirpath == "" {
+		p, err := os.Getwd()
+		if err != nil {
+			p = glib.GetUserDataDir()
+		}
+		dirpath = p
+	}
+
+	dialog.SetLocalOnly(false)
+	dialog.SetCurrentFolder(dirpath)
+	dialog.SetSelectMultiple(true)
+
+	defer dialog.Close()
+
+	if res := dialog.Run(); res != gtk.RESPONSE_ACCEPT {
+		return
+	}
+
+	names, _ := dialog.GetFilenames()
+	callback(names)
+}
+
+// BindPreviewer binds the file chooser dialog with a previewer.
+func BindPreviewer(fc *gtk.FileChooserDialog) {
+	img, _ := gtk.ImageNew()
+
+	fc.SetPreviewWidget(img)
+	fc.Connect("update-preview",
+		func(fc *gtk.FileChooserDialog, img *gtk.Image) {
+			file := fc.GetPreviewFilename()
+
+			b, err := gdk.PixbufNewFromFileAtScale(file, 256, 256, true)
+			if err != nil {
+				fc.SetPreviewWidgetActive(false)
+				return
+			}
+
+			img.SetFromPixbuf(b)
+			fc.SetPreviewWidgetActive(true)
+		},
+		img,
+	)
 }

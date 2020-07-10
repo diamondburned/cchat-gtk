@@ -10,11 +10,13 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
 	"github.com/diamondburned/cchat/text"
 	"github.com/pkg/errors"
 	"github.com/twmb/murmur3"
 )
 
+// globalID used for atomically generating nonces.
 var globalID uint64
 
 // generateNonce creates a nonce that should prevent collision. This function
@@ -38,10 +40,8 @@ func (f *Field) sendInput() {
 		return
 	}
 
-	var text = f.yankText()
-	if text == "" {
-		return
-	}
+	// Get the input text.
+	var text = f.getText()
 
 	// Are we editing anything?
 	if id := f.editingID; f.Editable(id) && id != "" {
@@ -55,6 +55,14 @@ func (f *Field) sendInput() {
 		return
 	}
 
+	// Get the attachments.
+	var attachments = f.Attachments.Files()
+
+	// Don't send if the message is empty.
+	if text == "" && len(attachments) == 0 {
+		return
+	}
+
 	f.SendMessage(SendMessageData{
 		time:      time.Now().UTC(),
 		content:   text,
@@ -62,7 +70,11 @@ func (f *Field) sendInput() {
 		authorID:  f.UserID,
 		authorURL: f.Username.GetIconURL(),
 		nonce:     f.generateNonce(),
+		files:     attachments,
 	})
+
+	// Clear the input field after sending.
+	f.clearText()
 }
 
 func (f *Field) SendMessage(data PresendMessage) {
@@ -84,16 +96,21 @@ type SendMessageData struct {
 	authorID  string
 	authorURL string // avatar
 	nonce     string
+	files     []attachment.File
 }
 
 type PresendMessage interface {
 	cchat.MessageHeader // returns nonce and time
 	cchat.SendableMessage
 	cchat.MessageNonce
+	cchat.SendableMessageAttachments
+
+	// These methods are reserved for internal use.
 
 	Author() text.Rich
 	AuthorID() string
 	AuthorAvatarURL() string // may be empty
+	Files() []attachment.File
 }
 
 var _ PresendMessage = (*SendMessageData)(nil)
@@ -125,4 +142,16 @@ func (s SendMessageData) AuthorAvatarURL() string {
 
 func (s SendMessageData) Nonce() string {
 	return s.nonce
+}
+
+func (s SendMessageData) Files() []attachment.File {
+	return s.files
+}
+
+func (s SendMessageData) Attachments() []cchat.MessageAttachment {
+	var attachments = make([]cchat.MessageAttachment, len(s.files))
+	for i, file := range s.files {
+		attachments[i] = file.AsAttachment()
+	}
+	return attachments
 }

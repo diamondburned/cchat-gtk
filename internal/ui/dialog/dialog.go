@@ -6,22 +6,27 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-func ShowModal(body gtk.IWidget, title, button string, callback func()) {
-	NewModal(body, title, title, callback).Show()
+type Modal struct {
+	*gtk.Dialog
+	Cancel *gtk.Button
+	Action *gtk.Button
+	Header *gtk.HeaderBar
 }
 
-func NewModal(body gtk.IWidget, title, button string, callback func()) *gtk.Dialog {
-	cancel, _ := gtk.ButtonNew()
+func ShowModal(body gtk.IWidget, title, button string, clicked func(m *Modal)) {
+	NewModal(body, title, title, clicked).Show()
+}
+
+func NewModal(body gtk.IWidget, title, button string, clicked func(m *Modal)) *Modal {
+	cancel, _ := gtk.ButtonNewWithMnemonic("_Cancel")
 	cancel.Show()
 	cancel.SetHAlign(gtk.ALIGN_START)
 	cancel.SetRelief(gtk.RELIEF_NONE)
-	cancel.SetLabel("Cancel")
 
-	action, _ := gtk.ButtonNew()
+	action, _ := gtk.ButtonNewWithMnemonic(button)
 	action.Show()
 	action.SetHAlign(gtk.ALIGN_END)
 	action.SetRelief(gtk.RELIEF_NONE)
-	action.SetLabel(button)
 
 	header, _ := gtk.HeaderBarNew()
 	header.Show()
@@ -32,11 +37,17 @@ func NewModal(body gtk.IWidget, title, button string, callback func()) *gtk.Dial
 	header.PackEnd(action)
 
 	dialog := newCSD(body, header)
+	modald := &Modal{
+		dialog,
+		cancel,
+		action,
+		header,
+	}
 
 	cancel.Connect("clicked", dialog.Destroy)
-	action.Connect("clicked", callback)
+	action.Connect("clicked", func() { clicked(modald) })
 
-	return dialog
+	return modald
 }
 
 func NewCSD(body, header gtk.IWidget) *gtk.Dialog {

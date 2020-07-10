@@ -10,7 +10,6 @@ import (
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
@@ -18,9 +17,6 @@ type ImageContainer interface {
 	SetFromPixbuf(*gdk.Pixbuf)
 	SetFromAnimation(*gdk.PixbufAnimation)
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
-
-	// for internal use
-	pbgetter
 }
 
 type ImageContainerSizer interface {
@@ -82,14 +78,6 @@ func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...img
 
 	go syncImage(ctx, l, url, procs, gif)
 }
-
-type pbgetter interface {
-	GetPixbuf() *gdk.Pixbuf
-	GetAnimation() *gdk.PixbufAnimation
-	GetStorageType() gtk.ImageType
-}
-
-var _ pbgetter = (*gtk.Image)(nil)
 
 func connectDestroyer(img ImageContainer, cancel func()) {
 	img.Connect("destroy", func(img ImageContainer) {

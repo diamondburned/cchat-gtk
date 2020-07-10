@@ -77,6 +77,7 @@ func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Controller) *Ro
 	// Make a commander button that's hidden by default in case.
 	cmdbtn, _ := gtk.ButtonNewFromIconName("utilities-terminal-symbolic", gtk.ICON_SIZE_BUTTON)
 	buttonoverlay.Take(srow.Button, cmdbtn, server.IconSize)
+	primitives.AddClass(cmdbtn, "command-button")
 
 	row := &Row{
 		Row:    srow,

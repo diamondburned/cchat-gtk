@@ -108,26 +108,28 @@ func PromptOpen(uri string) {
 	// Style the label.
 	primitives.AttachCSS(l, warnLabelCSS)
 
-	open := func() {
+	open := func(m *dialog.Modal) {
+		// Close the dialog.
+		m.Destroy()
+		// Open the link.
 		if err := open.Start(uri); err != nil {
 			log.Error(errors.Wrap(err, "Failed to open URL after confirm"))
 		}
 	}
 
 	// Prompt the user if they want to open the URL.
-	dlg := dialog.NewModal(l, "Caution", "Open", open)
+	dlg := dialog.NewModal(l, "Caution", "_Open", open)
 	dlg.SetSizeRequest(350, 100)
+
+	// Style the button to have a color.
+	primitives.SuggestAction(dlg.Action)
 
 	// Add a class to the dialog to allow theming.
 	primitives.AddClass(dlg, "url-warning")
 
-	// On link click, close the dialog.
+	// On link click, close the dialog, open the link ourselves, then return.
 	l.Connect("activate-link", func(l *gtk.Label, uri string) bool {
-		// Close the dialog.
-		dlg.Destroy()
-		// Open the link anyway.
-		open()
-		// Return true since we handled the event.
+		open(dlg)
 		return true
 	})
 

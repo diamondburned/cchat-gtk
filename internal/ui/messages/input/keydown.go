@@ -1,8 +1,11 @@
 package input
 
 import (
+	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 const shiftMask = uint(gdk.SHIFT_MASK)
@@ -21,9 +24,9 @@ func convEvent(ev *gdk.Event) (key, mask uint) {
 func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 	var key, mask = convEvent(ev)
 
-	switch key {
+	switch {
 	// If Enter is pressed.
-	case gdk.KEY_Return:
+	case key == gdk.KEY_Return:
 		// If Shift is being held, insert a new line.
 		if bithas(mask, shiftMask) {
 			f.buffer.InsertAtCursor("\n")
@@ -36,7 +39,7 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 
 	// If Arrow Up is pressed, then we might want to edit the latest message if
 	// any.
-	case gdk.KEY_Up:
+	case key == gdk.KEY_Up:
 		// Do we have input? If we do, then we shouldn't touch it.
 		if f.textLen() > 0 {
 			return false
@@ -63,10 +66,32 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 		return true
 
 	// There are multiple things to do here when we press the Escape key.
-	case gdk.KEY_Escape:
+	case key == gdk.KEY_Escape:
 		// First, we'd want to cancel editing if we have one.
 		if f.editingID != "" {
 			return f.StopEditing() // always returns true
+		}
+
+		// Second... Nothing yet?
+
+	// Ctrl+V is paste.
+	case key == gdk.KEY_v && bithas(mask, cntrlMask):
+		// Is there an image in the clipboard?
+		if !gts.Clipboard.WaitIsImageAvailable() {
+			// No.
+			return false
+		}
+		// Yes.
+
+		p, err := gts.Clipboard.WaitForImage()
+		if err != nil {
+			log.Error(errors.Wrap(err, "Failed to get image from clipboard"))
+			return true // interrupt as technically valid
+		}
+
+		if err := f.Attachments.AddPixbuf(p); err != nil {
+			log.Error(errors.Wrap(err, "Failed to add image to attachment list"))
+			return true
 		}
 	}
 

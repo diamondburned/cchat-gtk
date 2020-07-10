@@ -83,6 +83,17 @@ func AddClass(styleCtx StyleContexter, classes ...string) {
 	}
 }
 
+type StyleContextFocuser interface {
+	StyleContexter
+	GrabFocus()
+}
+
+// SuggestAction styles the element to have the suggeested action class.
+func SuggestAction(styleCtx StyleContextFocuser) {
+	AddClass(styleCtx, "suggested-action")
+	styleCtx.GrabFocus()
+}
+
 type Bin interface {
 	GetChild() (gtk.IWidget, error)
 }
@@ -241,11 +252,7 @@ func PrepareCSS(css string) *gtk.CssProvider {
 	return p
 }
 
-type StyleContextGetter interface {
-	GetStyleContext() (*gtk.StyleContext, error)
-}
-
-func AttachCSS(ctx StyleContextGetter, prov *gtk.CssProvider) {
+func AttachCSS(ctx StyleContexter, prov *gtk.CssProvider) {
 	s, _ := ctx.GetStyleContext()
 	s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }

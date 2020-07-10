@@ -11,7 +11,7 @@ import (
 )
 
 type Dialog struct {
-	*gtk.Dialog
+	*dialog.Modal
 	Auther cchat.Authenticator
 	onAuth func(cchat.Session)
 
@@ -58,8 +58,8 @@ func NewDialog(name text.Rich, auther cchat.Authenticator, auth func(cchat.Sessi
 		body:   box,
 		label:  label,
 	}
-	d.Dialog = dialog.NewModal(stack, "Log in to "+name.Content, "Log in", d.ok)
-	d.Dialog.SetDefaultSize(400, 300)
+	d.Modal = dialog.NewModal(stack, "Log in to "+name.Content, "Log in", d.ok)
+	d.Modal.SetDefaultSize(400, 300)
 	d.spin(nil)
 	d.Show()
 
@@ -93,7 +93,7 @@ func (d *Dialog) spin(err error) {
 	d.body.Add(d.request)
 }
 
-func (d *Dialog) ok() {
+func (d *Dialog) ok(m *dialog.Modal) {
 	// Disable the buttons.
 	d.Dialog.SetSensitive(false)
 

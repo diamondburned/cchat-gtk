@@ -1,6 +1,7 @@
 package humanize
 
 import (
+	"strings"
 	"time"
 
 	"github.com/goodsign/monday"
@@ -60,4 +61,10 @@ func timeAgo(t time.Time, truncs []truncator) string {
 	}
 
 	return ""
+}
+
+// Error returns a short error string.
+func Error(err error) string {
+	parts := strings.Split(err.Error(), ":")
+	return strings.TrimSpace(parts[len(parts)-1])
 }

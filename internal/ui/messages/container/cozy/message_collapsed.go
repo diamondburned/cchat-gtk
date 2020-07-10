@@ -32,7 +32,7 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)
 
 	// Set Content's padding accordingly to FullMessage's main box.
-	gc.Content.SetMarginEnd(container.ColumnSpacing * 2)
+	gc.Content.ToWidget().SetMarginEnd(container.ColumnSpacing * 2)
 
 	return &CollapsedMessage{
 		GenericContainer: gc,

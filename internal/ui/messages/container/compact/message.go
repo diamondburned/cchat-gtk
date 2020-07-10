@@ -5,7 +5,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -32,10 +31,6 @@ var _ container.GridMessage = (*Message)(nil)
 func NewMessage(msg cchat.MessageCreate) Message {
 	msgc := message.NewContainer(msg)
 	message.FillContainer(msgc, msg)
-
-	primitives.AddClass(msgc.Timestamp, "compact-timestamp")
-	primitives.AddClass(msgc.Username, "compact-username")
-	primitives.AddClass(msgc.Content, "compact-content")
 
 	return Message{msgc}
 }

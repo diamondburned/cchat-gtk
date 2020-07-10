@@ -54,7 +54,10 @@ type GenericContainer struct {
 
 	Timestamp *gtk.Label
 	Username  *gtk.Label
-	Content   *gtk.Label
+	Content   gtk.IWidget // conceal widget implementation
+
+	contentBox  *gtk.Box // basically what is in Content
+	ContentBody *gtk.Label
 
 	MenuItems []menu.Item
 }
@@ -100,46 +103,54 @@ func NewEmptyContainer() *GenericContainer {
 	user.SetVAlign(gtk.ALIGN_START)
 	user.Show()
 
-	content, _ := gtk.LabelNew("")
-	content.SetLineWrap(true)
-	content.SetLineWrapMode(pango.WRAP_WORD_CHAR)
-	content.SetXAlign(0) // left align
-	content.SetSelectable(true)
-	content.Show()
+	ctbody, _ := gtk.LabelNew("")
+	ctbody.SetLineWrap(true)
+	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	ctbody.SetXAlign(0) // left align
+	ctbody.SetSelectable(true)
+	ctbody.Show()
+
+	// Wrap the content label inside a content box.
+	ctbox, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	ctbox.PackStart(ctbody, false, false, 0)
+	ctbox.Show()
 
 	// Causes bugs with selections.
 
-	// content.Connect("grab-notify", func(l *gtk.Label, grabbed bool) {
+	// ctbody.Connect("grab-notify", func(l *gtk.Label, grabbed bool) {
 	// 	if grabbed {
 	// 		// Hack to stop the label from selecting everything after being
 	// 		// refocused.
-	// 		content.SetSelectable(false)
-	// 		gts.ExecAsync(func() { content.SetSelectable(true) })
+	// 		ctbody.SetSelectable(false)
+	// 		gts.ExecAsync(func() { ctbody.SetSelectable(true) })
 	// 	}
 	// })
 
 	// Add CSS classes.
 	primitives.AddClass(ts, "message-time")
 	primitives.AddClass(user, "message-author")
-	primitives.AddClass(content, "message-content")
+	primitives.AddClass(ctbody, "message-content")
 
 	// Attach the timestamp CSS.
 	primitives.AttachCSS(ts, timestampCSS)
 
 	gc := &GenericContainer{
-		Timestamp: ts,
-		Username:  user,
-		Content:   content,
+		Timestamp:   ts,
+		Username:    user,
+		Content:     ctbox,
+		contentBox:  ctbox,
+		ContentBody: ctbody,
 	}
 
-	gc.Content.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
+	// Bind the custom popup menu to the content label.
+	gc.ContentBody.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
 		menu.MenuSeparator(m)
 		menu.MenuItems(m, gc.MenuItems)
 	})
 
 	// Make up for the lack of inline images with an image popover that's shown
 	// when links are clicked.
-	imgview.BindTooltip(gc.Content)
+	imgview.BindTooltip(gc.ContentBody)
 
 	return gc
 }
@@ -190,7 +201,7 @@ func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
 		markup += " " + rich.Small("(edited)")
 	}
 
-	m.Content.SetMarkup(markup)
+	m.ContentBody.SetMarkup(markup)
 }
 
 // AttachMenu connects signal handlers to handle a list of menu items from
