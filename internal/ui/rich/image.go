@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
@@ -14,9 +15,10 @@ import (
 
 type IconerFn = func(context.Context, cchat.IconContainer) (func(), error)
 
+// Icon represents a rounded image container.
 type Icon struct {
 	*gtk.Revealer
-	Image *gtk.Image
+	Image *roundimage.Image
 	procs []imgutil.Processor
 	size  int
 
@@ -35,7 +37,7 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 		sizepx = DefaultIconSize
 	}
 
-	img, _ := gtk.ImageNew()
+	img, _ := roundimage.NewImage(0)
 	img.Show()
 	img.SetSizeRequest(sizepx, sizepx)
 
@@ -92,7 +94,7 @@ func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
 	i.SetSize(iconSzPx)
 
 	if iconName != "" {
-		primitives.SetImageIcon(i.Image, iconName, iconSzPx)
+		primitives.SetImageIcon(i.Image.Image, iconName, iconSzPx)
 	}
 }
 
@@ -128,11 +130,7 @@ func (i *Icon) SetIconUnsafe(url string) {
 }
 
 func (i *Icon) updateAsync() {
-	if i.size > 0 {
-		httputil.AsyncImageSized(i.Image, i.url, i.size, i.size, i.procs...)
-	} else {
-		httputil.AsyncImage(i.Image, i.url, i.procs...)
-	}
+	httputil.AsyncImageSized(i.Image, i.url, i.size, i.size, i.procs...)
 }
 
 type ToggleButtonImage struct {

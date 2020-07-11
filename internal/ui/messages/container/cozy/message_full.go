@@ -10,8 +10,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
-	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -165,17 +165,17 @@ func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
 }
 
 type Avatar struct {
-	gtk.Image
+	roundimage.Image
 	url string
 }
 
 func NewAvatar() *Avatar {
-	avatar, _ := gtk.ImageNew()
+	avatar, _ := roundimage.NewImage(0)
 	avatar.SetSizeRequest(AvatarSize, AvatarSize)
 	avatar.SetVAlign(gtk.ALIGN_START)
 
 	// Default icon.
-	primitives.SetImageIcon(avatar, "user-available-symbolic", AvatarSize)
+	primitives.SetImageIcon(avatar.Image, "user-available-symbolic", AvatarSize)
 
 	return &Avatar{*avatar, ""}
 }
@@ -191,7 +191,7 @@ func (a *Avatar) SetURL(url string) {
 	}
 
 	a.url = url
-	httputil.AsyncImageSized(a, url, AvatarSize, AvatarSize, imgutil.Round(true))
+	httputil.AsyncImageSized(a, url, AvatarSize, AvatarSize)
 }
 
 // ManuallySetURL sets the URL without downloading the image. It assumes the

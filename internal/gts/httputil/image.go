@@ -26,34 +26,21 @@ type ImageContainerSizer interface {
 
 // AsyncImage loads an image. This method uses the cache.
 func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
-	if url == "" {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	connectDestroyer(img, cancel)
-
-	gif := strings.Contains(url, ".gif")
-
-	l, err := gdk.PixbufLoaderNew()
-	if err != nil {
-		log.Error(errors.Wrap(err, "Failed to make pixbuf loader"))
-		return
-	}
-
-	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
-
-	go syncImage(ctx, l, url, procs, gif)
+	asyncImage(img, url, 0, 0, procs)
 }
 
 // AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
 func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...imgutil.Processor) {
+	asyncImage(img, url, w, h, procs)
+}
+
+func asyncImage(img ImageContainer, url string, w, h int, procs []imgutil.Processor) {
 	if url == "" {
 		return
 	}
 
-	// Add a processor to resize.
-	procs = append(procs, imgutil.Resize(w, h))
+	// // Add a processor to resize.
+	// procs = append(procs, imgutil.Resize(w, h))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	connectDestroyer(img, cancel)
@@ -66,13 +53,17 @@ func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...img
 		return
 	}
 
-	l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
-		w, h = imgutil.MaxSize(imgW, imgH, w, h)
-		if w != imgW || h != imgH {
-			l.SetSize(w, h)
-			execIfCtx(ctx, func() { img.SetSizeRequest(w, h) })
-		}
-	})
+	if w > 0 && h > 0 {
+		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
+			w, h = imgutil.MaxSize(imgW, imgH, w, h)
+			if w != imgW || h != imgH {
+				l.SetSize(w, h)
+				execIfCtx(ctx, func() {
+					img.(ImageContainerSizer).SetSizeRequest(w, h)
+				})
+			}
+		})
+	}
 
 	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
 

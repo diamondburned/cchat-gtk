@@ -6,7 +6,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
-	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -21,7 +20,6 @@ type header struct {
 
 func newHeader(svc cchat.Service) *header {
 	b := rich.NewToggleButtonImage(svc.Name())
-	b.Image.AddProcessors(imgutil.Round(true))
 	b.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
 	b.SetRelief(gtk.RELIEF_NONE)
 	b.SetMode(true)

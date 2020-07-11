@@ -7,13 +7,16 @@ import (
 	"image/png"
 	"io"
 	"io/ioutil"
+	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/disintegration/imaging"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
@@ -24,7 +27,10 @@ var pngEncoder = png.Encoder{
 	CompressionLevel: png.BestCompression,
 }
 
-const FileIconSize = 72
+const (
+	ThumbSize = 72
+	IconSize  = 56
+)
 
 // File represents a middle format that can be used to create a
 // MessageAttachment.
@@ -264,8 +270,11 @@ func (c *Container) remove(name string) {
 
 var previewCSS = primitives.PrepareCSS(`
 	.attachment-preview {
-		background-color: alpha(@theme_fg_color, 0.2);
-		border-radius: 4px;
+		box-shadow: none;
+		border: none;
+
+		background-color: alpha(@theme_fg_color, 0.15);
+		border-radius: 5px;
 	}
 `)
 
@@ -278,7 +287,7 @@ var deleteAttBtnCSS = primitives.PrepareCSS(`
 		/* Add our own styling */
 		border-radius: 999px 999px;
 		transition: linear 100ms all;
-		background-color: alpha(@theme_bg_color, 0.50);
+		background-color: alpha(@theme_bg_color, 0.75);
 	}
 	.delete-attachment:hover {
 		background-color: alpha(red, 0.5);
@@ -287,9 +296,9 @@ var deleteAttBtnCSS = primitives.PrepareCSS(`
 
 func (c *Container) addPreview(name string, src image.Image) {
 	// Make a fallback image first.
-	gimg, _ := gtk.ImageNew()
-	primitives.SetImageIcon(gimg, "image-x-generic-symbolic", FileIconSize/3)
-	gimg.SetSizeRequest(FileIconSize, FileIconSize)
+	gimg, _ := roundimage.NewImage(4) // border-radius: 4px
+	primitives.SetImageIcon(gimg.Image, iconFromName(name), IconSize)
+	gimg.SetSizeRequest(ThumbSize, ThumbSize)
 	gimg.SetVAlign(gtk.ALIGN_CENTER)
 	gimg.SetHAlign(gtk.ALIGN_CENTER)
 	gimg.SetTooltipText(name)
@@ -300,14 +309,14 @@ func (c *Container) addPreview(name string, src image.Image) {
 	// Determine if we could generate an image preview.
 	if src != nil {
 		// Get the minimum dimension.
-		var w, h = minsize(src.Bounds().Dx(), src.Bounds().Dy(), FileIconSize)
+		var w, h = minsize(src.Bounds().Dx(), src.Bounds().Dy(), ThumbSize)
 
 		var img *image.NRGBA
 		// Downscale the image.
 		img = imaging.Resize(src, w, h, imaging.Lanczos)
 
 		// Crop to a square.
-		img = imaging.CropCenter(img, FileIconSize, FileIconSize)
+		img = imaging.CropCenter(img, ThumbSize, ThumbSize)
 
 		// Copy the image to a pixbuf.
 		gimg.SetFromPixbuf(gts.RenderPixbuf(img))
@@ -315,7 +324,7 @@ func (c *Container) addPreview(name string, src image.Image) {
 
 	// BLOAT!!! Make an overlay of an event box that, when hovered, will show
 	// something that allows closing the image.
-	del, _ := gtk.ButtonNewFromIconName("window-close", gtk.ICON_SIZE_DIALOG)
+	del, _ := gtk.ButtonNewFromIconName("window-close-symbolic", gtk.ICON_SIZE_DIALOG)
 	del.SetVAlign(gtk.ALIGN_CENTER)
 	del.SetHAlign(gtk.ALIGN_CENTER)
 	del.SetTooltipText("Remove " + name)
@@ -325,13 +334,31 @@ func (c *Container) addPreview(name string, src image.Image) {
 	primitives.AttachCSS(del, deleteAttBtnCSS)
 
 	ovl, _ := gtk.OverlayNew()
-	ovl.SetSizeRequest(FileIconSize, FileIconSize)
+	ovl.SetSizeRequest(ThumbSize, ThumbSize)
 	ovl.Add(gimg)
 	ovl.AddOverlay(del)
 	ovl.Show()
 
 	c.items[name] = ovl
 	c.Box.PackStart(ovl, false, false, 0)
+}
+
+func iconFromName(filename string) string {
+	switch t := mime.TypeByExtension(filepath.Ext(filename)); {
+	case strings.HasPrefix(t, "image"):
+		return "image-x-generic-symbolic"
+
+	case strings.HasPrefix(t, "audio"):
+		return "audio-x-generic-symbolic"
+
+	case strings.HasPrefix(t, "application"):
+		return "application-x-appliance-symbolic"
+
+	case strings.HasPrefix(t, "text"):
+		fallthrough
+	default:
+		return "text-x-generic-symbolic"
+	}
 }
 
 func minsize(w, h, maxsz int) (int, int) {

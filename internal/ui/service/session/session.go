@@ -17,6 +17,7 @@ import (
 )
 
 const IconSize = 32
+const IconName = "face-plain-symbolic"
 
 // Controller extends server.RowController to add session.
 type Controller interface {
@@ -67,7 +68,7 @@ func NewLoading(parent breadcrumb.Breadcrumber, id, name string, ctrl Controller
 
 func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Controller) *Row {
 	srow := server.NewRow(parent, name)
-	srow.Button.SetPlaceholderIcon("user-invisible-symbolic", IconSize)
+	srow.Button.SetPlaceholderIcon(IconName, IconSize)
 	srow.Show()
 
 	// Bind the row to .session in CSS.
@@ -142,7 +143,7 @@ func (r *Row) DisconnectSession() {
 	r.Reset()
 
 	// Set the offline icon to the button.
-	r.Button.Image.SetPlaceholderIcon("user-invisible-symbolic", IconSize)
+	r.Button.Image.SetPlaceholderIcon(IconName, IconSize)
 	// Also unselect the button.
 	r.Button.SetActive(false)
 

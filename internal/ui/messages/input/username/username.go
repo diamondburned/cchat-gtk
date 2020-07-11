@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
-	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -41,7 +40,7 @@ var usernameCSS = primitives.PrepareCSS(`
 `)
 
 func NewContainer() *Container {
-	avatar := rich.NewIcon(AvatarSize, imgutil.Round(true))
+	avatar := rich.NewIcon(AvatarSize)
 	avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
 	avatar.Show()
 

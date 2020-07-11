@@ -35,25 +35,13 @@ var textCSS = primitives.PrepareCSS(`
 	}
 
 	.message-input * {
-	    background-color: @theme_base_color;
 	    transition: linear 50ms background-color;
-
-		/* Legacy styling
 	    border: 1px solid alpha(@theme_fg_color, 0.2);
 	    border-radius: 4px;
-		*/
 	}
 
 	.message-input:focus * {
-		background-color: mix(
-			@theme_base_color,
-			@theme_selected_bg_color,
-			0.15
-		);
-
-		/* Legacy styling
 	    border-color: @theme_selected_bg_color;
-		*/
 	}
 `)
 

@@ -17,7 +17,7 @@ type ToggleButtonImage struct {
 	clicked func(bool)
 
 	err    error
-	icon   bool // whether or not the button has an icon
+	icon   string // whether or not the button has an icon
 	iconSz int
 }
 
@@ -62,8 +62,8 @@ func (b *ToggleButtonImage) SetNormal() {
 	b.SetLabelUnsafe(b.GetLabel())
 	b.menu.SetItems(b.extraMenu)
 
-	if b.icon {
-		b.Image.SetPlaceholderIcon("user-available-symbolic", b.Image.Size())
+	if b.icon != "" {
+		b.Image.SetPlaceholderIcon(b.icon, b.Image.Size())
 	}
 }
 
@@ -73,7 +73,7 @@ func (b *ToggleButtonImage) SetLoading() {
 	// Reset the menu.
 	b.menu.SetItems(b.extraMenu)
 
-	if b.icon {
+	if b.icon != "" {
 		b.Image.SetPlaceholderIcon("content-loading-symbolic", b.Image.Size())
 	}
 }
@@ -87,13 +87,13 @@ func (b *ToggleButtonImage) SetFailed(err error, retry func()) {
 	b.menu.AddItems(b.extraMenu...)
 
 	// If we have an icon set, then we can use the failed icon.
-	if b.icon {
+	if b.icon != "" {
 		b.Image.SetPlaceholderIcon("computer-fail-symbolic", b.Image.Size())
 	}
 }
 
 func (b *ToggleButtonImage) SetPlaceholderIcon(iconName string, iconSzPx int) {
-	b.icon = true
+	b.icon = iconName
 	b.Image.SetPlaceholderIcon(iconName, iconSzPx)
 }
 
@@ -102,12 +102,6 @@ func (b *ToggleButtonImage) SetIcon(url string) {
 }
 
 func (b *ToggleButtonImage) SetIconUnsafe(url string) {
-	b.icon = true
+	b.icon = ""
 	b.Image.SetIconUnsafe(url)
 }
-
-// type Row struct {
-// 	gtk.Box
-// 	Button   *ToggleButtonImage
-// 	Children *gtk.Box
-// }

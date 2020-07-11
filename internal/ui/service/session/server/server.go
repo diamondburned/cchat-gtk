@@ -10,13 +10,12 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/cchat/text"
-	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
 const ChildrenMargin = 24
-const IconSize = 20
+const IconSize = 32
 
 type Controller interface {
 	RowSelected(*ServerRow, cchat.ServerMessage)
@@ -36,8 +35,6 @@ type Row struct {
 func NewRow(parent breadcrumb.Breadcrumber, name text.Rich) *Row {
 	button := button.NewToggleButtonImage(name)
 	button.Box.SetHAlign(gtk.ALIGN_START)
-	button.Image.AddProcessors(imgutil.Round(true))
-	button.Image.SetSize(IconSize)
 	button.SetRelief(gtk.RELIEF_NONE)
 	button.Show()
 
@@ -64,6 +61,7 @@ func (r *Row) SetLabelUnsafe(name text.Rich) {
 
 func (r *Row) SetIconer(v interface{}) {
 	if iconer, ok := v.(cchat.Icon); ok {
+		r.Button.Image.SetSize(IconSize)
 		r.Button.Image.AsyncSetIconer(iconer, "Error getting server icon URL")
 	}
 }
@@ -134,7 +132,9 @@ func (r *Row) childrenFailed(err error) {
 
 func (r *Row) childrenDone() {
 	r.loaded = true
-	r.SetDone()
+
+	// I don't think this is supposed to be called here...
+	// r.SetDone()
 }
 
 // SetSelected is used for highlighting the current message server.
