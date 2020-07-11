@@ -15,3 +15,7 @@ trivial to do.
 ## Spellcheck
 
 Write a Golang gspell binding and use that.
+
+## Frame limiter
+
+Limit to 25fps if background using glib.TimeoutAdd.
