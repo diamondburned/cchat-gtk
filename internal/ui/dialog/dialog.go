@@ -2,6 +2,7 @@ package dialog
 
 import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -12,6 +13,12 @@ type Modal struct {
 	Action *gtk.Button
 	Header *gtk.HeaderBar
 }
+
+var headerCSS = primitives.PrepareCSS(`
+	.modal-header {
+		padding: 0 5px;
+	}
+`)
 
 func ShowModal(body gtk.IWidget, title, button string, clicked func(m *Modal)) {
 	NewModal(body, title, title, clicked).Show()
@@ -30,11 +37,12 @@ func NewModal(body gtk.IWidget, title, button string, clicked func(m *Modal)) *M
 
 	header, _ := gtk.HeaderBarNew()
 	header.Show()
-	header.SetMarginStart(5)
-	header.SetMarginEnd(5)
 	header.SetTitle(title)
 	header.PackStart(cancel)
 	header.PackEnd(action)
+
+	primitives.AddClass(header, "modal-header")
+	primitives.AttachCSS(header, headerCSS)
 
 	dialog := newCSD(body, header)
 	modald := &Modal{

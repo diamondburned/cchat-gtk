@@ -4,239 +4,269 @@ import (
 	"fmt"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
-type View struct {
-	*gtk.ScrolledWindow
-	Box      *gtk.Box
-	Services []*Container
+const IconSize = 48
+
+type ListController interface {
+	// RowSelected is called when a server message row is clicked.
+	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
+	// SessionSelected tells the view to change the session view.
+	SessionSelected(*Service, *session.Row)
+	// AuthenticateSession tells View to call to the parent's authenticator.
+	AuthenticateSession(*Service)
 }
 
-var servicesCSS = primitives.PrepareCSS(`
-	.services {
-		background-color: @theme_base_color;
+// Service holds everything that a single service has.
+type Service struct {
+	*gtk.Box
+	Button *gtk.ToggleButton
+	Icon   *rich.Icon
+
+	BodyRev  *gtk.Revealer // revealed
+	BodyList *session.List // not really supposed to be here
+
+	svclctrl ListController
+	service  cchat.Service // state
+}
+
+var serviceCSS = primitives.PrepareClassCSS("service", `
+	.service {
+		box-shadow: 0 0 2px 0 alpha(@theme_bg_color, 0.75);
+		margin: 6px 8px;
+		margin-bottom: 0;
+		border-radius: 14px;
+	}
+
+	.service:first-child { margin-top: 8px; }
+	.service:last-child  { margin-bottom: 8px; }
+`)
+
+var serviceButtonCSS = primitives.PrepareClassCSS("service-button", `
+	.service-button {
+		padding: 2px;
+		margin:  0;
+	}
+
+	.service-button:not(:checked) {
+		border-radius: 14px;
+		transition: linear 80ms border-radius; /* TODO add delay */
+	}
+
+	.service-button:checked {
+		border-radius: 14px 14px 0 0;
+		background-color: alpha(@theme_fg_color, 0.2);
 	}
 `)
 
-func NewView() *View {
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.Show()
+var serviceIconCSS = primitives.PrepareClassCSS("service-icon", `
+	.service-icon { padding: 4px }
+`)
 
-	primitives.AddClass(box, "services")
-	primitives.AttachCSS(box, servicesCSS)
-
-	sw, _ := gtk.ScrolledWindowNew(nil, nil)
-	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-	sw.Add(box)
-
-	return &View{
-		sw,
-		box,
-		nil,
-	}
-}
-
-func (v *View) AddService(svc cchat.Service, ctrl Controller) *Container {
-	s := NewContainer(svc, ctrl)
-	v.Services = append(v.Services, s)
-	v.Box.Add(s)
-
-	// Try and restore all sessions.
-	s.restoreAllSessions()
-
-	return s
-}
-
-type Controller interface {
-	// RowSelected is wrapped around session's MessageRowSelected.
-	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
-	// AuthenticateSession is called to spawn the authentication dialog.
-	AuthenticateSession(*Container, cchat.Service)
-	// OnSessionRemove is called to remove a session. This should also clear out
-	// the message view in the parent package.
-	OnSessionRemove(id string)
-	// OnSessionDisconnect is here to satisfy session's controller.
-	OnSessionDisconnect(id string)
-}
-
-// Container represents a single service, including the button header and the
-// child containers.
-type Container struct {
-	*gtk.Box
-	Service cchat.Service
-
-	header   *header
-	revealer *gtk.Revealer
-	children *children
-
-	// Embed controller and extend it to override RestoreSession.
-	Controller
-}
-
-// Guarantee that our interface is up-to-date with session's controller.
-var _ session.Controller = (*Container)(nil)
-
-func NewContainer(svc cchat.Service, ctrl Controller) *Container {
-	children := newChildren()
-
-	chrev, _ := gtk.RevealerNew()
-	chrev.SetRevealChild(true)
-	chrev.Add(children)
-	chrev.Show()
-
-	header := newHeader(svc)
-	header.SetActive(chrev.GetRevealChild())
-
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.Show()
-	box.PackStart(header, false, false, 0)
-	box.PackStart(chrev, false, false, 0)
-
-	primitives.AddClass(box, "service")
-
-	container := &Container{
-		Box:        box,
-		Service:    svc,
-		header:     header,
-		revealer:   chrev,
-		children:   children,
-		Controller: ctrl,
+func NewService(svc cchat.Service, svclctrl ListController) *Service {
+	service := &Service{
+		service:  svc,
+		svclctrl: svclctrl,
 	}
 
-	// On click, toggle reveal.
-	header.Connect("clicked", func() {
-		revealed := !chrev.GetRevealChild()
-		chrev.SetRevealChild(revealed)
-		header.SetActive(revealed)
+	service.BodyList = session.NewList(service)
+	service.BodyList.Show()
+
+	service.BodyRev, _ = gtk.RevealerNew()
+	service.BodyRev.SetRevealChild(false) // TODO persistent state
+	service.BodyRev.SetTransitionDuration(50)
+	service.BodyRev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_DOWN)
+	service.BodyRev.Add(service.BodyList)
+	service.BodyRev.Show()
+
+	// TODO: have it so the button changes to the session avatar when collapsed
+
+	// TODO: libhandy avatar generation?
+	service.Icon = rich.NewIcon(IconSize)
+	service.Icon.Show()
+	// potentially nonstandard
+	service.Icon.SetPlaceholderIcon("text-html-symbolic", IconSize)
+	// TODO: hover for name. We use tooltip for now.
+	service.Icon.SetTooltipMarkup(markup.Render(svc.Name()))
+	// TODO: add a padding
+	serviceIconCSS(service.Icon)
+
+	if iconer, ok := svc.(cchat.Icon); ok {
+		service.Icon.AsyncSetIconer(iconer, "Failed to set service icon")
+	}
+
+	service.Button, _ = gtk.ToggleButtonNew()
+	service.Button.Add(service.Icon)
+	service.Button.SetRelief(gtk.RELIEF_NONE)
+	service.Button.Show()
+	service.Button.Connect("clicked", func(tb *gtk.ToggleButton) {
+		revealed := !service.GetRevealChild()
+		service.SetRevealChild(revealed)
+		tb.SetActive(revealed)
 	})
+	serviceButtonCSS(service.Button)
 
-	// On click, show the auth dialog.
-	header.Add.Connect("clicked", func() {
-		ctrl.AuthenticateSession(container, svc)
-	})
+	// Intermediary box to contain both the icon and the revealer.
+	service.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	service.Box.PackStart(service.Button, false, false, 0)
+	service.Box.PackStart(service.BodyRev, false, false, 0)
+	service.Box.Show()
+	serviceCSS(service.Box)
 
-	// Add more menu item(s).
-	header.Menu.AddSimpleItem("Save Sessions", container.SaveAllSessions)
-
-	return container
+	return service
 }
 
-func (c *Container) GetService() cchat.Service {
-	return c.Service
+// SetRevealChild sets whether or not the service should reveal all sessions.
+func (s *Service) SetRevealChild(reveal bool) {
+	s.BodyRev.SetRevealChild(reveal)
 }
 
-func (c *Container) Sessions() []*session.Row {
-	return c.children.Sessions()
+// GetRevealChild gets whether or not the service is revealing all sessions.
+func (s *Service) GetRevealChild() bool {
+	return s.BodyRev.GetRevealChild()
 }
 
-func (c *Container) AddSession(ses cchat.Session) *session.Row {
-	srow := session.New(c, ses, c)
-	c.children.AddSessionRow(ses.ID(), srow)
-	c.SaveAllSessions()
+func (s *Service) SessionSelected(srow *session.Row) {
+	s.svclctrl.SessionSelected(s, srow)
+}
+
+func (s *Service) AuthenticateSession() {
+	s.svclctrl.AuthenticateSession(s)
+}
+
+func (s *Service) AddLoadingSession(id, name string) *session.Row {
+	srow := session.NewLoading(s, id, name, s)
+	srow.Show()
+
+	s.BodyList.AddSessionRow(id, srow)
 	return srow
 }
 
-func (c *Container) AddLoadingSession(id, name string) *session.Row {
-	srow := session.NewLoading(c, id, name, c)
-	c.children.AddSessionRow(id, srow)
+func (s *Service) AddSession(ses cchat.Session) *session.Row {
+	srow := session.New(s, ses, s)
+	srow.Show()
+
+	s.BodyList.AddSessionRow(ses.ID(), srow)
+	s.SaveAllSessions()
 	return srow
 }
 
-func (c *Container) RemoveSession(row *session.Row) {
-	var id = row.Session.ID()
-	c.children.RemoveSessionRow(id)
-	c.SaveAllSessions()
-	// Call the parent's method.
-	c.Controller.OnSessionRemove(id)
+func (s *Service) Service() cchat.Service {
+	return s.service
 }
 
-func (c *Container) MoveSession(rowID, beneathRowID string) {
-	c.children.MoveSession(rowID, beneathRowID)
-	c.SaveAllSessions()
+func (s *Service) OnSessionDisconnect(row *session.Row) {
+	s.BodyList.RemoveSessionRow(row.Session.ID())
+	s.SaveAllSessions()
 }
 
-func (c *Container) OnSessionDisconnect(ses *session.Row) {
-	c.Controller.OnSessionDisconnect(ses.ID())
+func (s *Service) RowSelected(r *session.Row, sv *server.ServerRow, m cchat.ServerMessage) {
+	s.svclctrl.RowSelected(r, sv, m)
 }
 
-// RestoreSession tries to restore sessions asynchronously. This satisfies
-// session.Controller.
-func (c *Container) RestoreSession(row *session.Row, id string) {
-	// Can this session be restored? If not, exit.
-	restorer, ok := c.Service.(cchat.SessionRestorer)
-	if !ok {
-		return
-	}
-
-	// Do we even have a session stored?
-	krs := keyring.RestoreSession(c.Service.Name(), id)
-	if krs == nil {
-		log.Error(fmt.Errorf(
-			"Missing keyring for service %s, session ID %s",
-			c.Service.Name().Content, id,
-		))
-
-		return
-	}
-
-	c.restoreSession(row, restorer, *krs)
+func (s *Service) RemoveSession(row *session.Row) {
+	s.BodyList.RemoveSessionRow(row.Session.ID())
+	s.SaveAllSessions()
 }
 
-// internal method called on AddService.
-func (c *Container) restoreAllSessions() {
-	// Can this session be restored? If not, exit.
-	restorer, ok := c.Service.(cchat.SessionRestorer)
-	if !ok {
-		return
-	}
-
-	var sessions = keyring.RestoreSessions(c.Service.Name())
-
-	for _, krs := range sessions {
-		// Copy the session to avoid race conditions.
-		krs := krs
-		row := c.AddLoadingSession(krs.ID, krs.Name)
-
-		c.restoreSession(row, restorer, krs)
-	}
+func (s *Service) MoveSession(id, movingID string) {
+	s.BodyList.MoveSession(id, movingID)
+	s.SaveAllSessions()
 }
 
-func (c *Container) restoreSession(r *session.Row, res cchat.SessionRestorer, k keyring.Session) {
-	go func() {
-		s, err := res.RestoreSession(k.Data)
-		if err != nil {
-			err = errors.Wrapf(err, "Failed to restore session %s (%s)", k.ID, k.Name)
-			log.Error(err)
-
-			gts.ExecAsync(func() { r.SetFailed(err) })
-		} else {
-			gts.ExecAsync(func() { r.SetSession(s) })
-		}
-	}()
+func (s *Service) Breadcrumb() breadcrumb.Breadcrumb {
+	return breadcrumb.Try(nil, s.service.Name().Content)
 }
 
-func (c *Container) SaveAllSessions() {
-	var sessions = c.children.Sessions()
-	var ksessions = make([]keyring.Session, 0, len(sessions))
+func (s *Service) SaveAllSessions() {
+	var sessions = s.BodyList.Sessions()
+	var keyrings = make([]keyring.Session, 0, len(sessions))
 
 	for _, s := range sessions {
-		if k := s.KeyringSession(); k != nil {
-			ksessions = append(ksessions, *k)
+		if k := keyring.ConvertSession(s.Session); k != nil {
+			keyrings = append(keyrings, *k)
 		}
 	}
 
-	keyring.SaveSessions(c.Service.Name(), ksessions)
+	keyring.SaveSessions(s.service, keyrings)
 }
 
-func (c *Container) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(nil, c.header.GetText())
+func (s *Service) RestoreSession(row *session.Row, id string) {
+	rs, ok := s.service.(cchat.SessionRestorer)
+	if !ok {
+		return
+	}
+
+	if k := keyring.RestoreSession(s.service, id); k != nil {
+		restoreAsync(row, rs, *k)
+		return
+	}
+
+	log.Error(fmt.Errorf(
+		"Missing keyring for service %s, session ID %s",
+		s.service.Name().Content, id,
+	))
 }
+
+// restoreAll restores all sessions.
+func (s *Service) restoreAll() {
+	rs, ok := s.service.(cchat.SessionRestorer)
+	if !ok {
+		return
+	}
+
+	// Session is not a pointer, so we can pass it into arguments safely.
+	for _, ses := range keyring.RestoreSessions(s.service) {
+		row := s.AddLoadingSession(ses.ID, ses.Name)
+		restoreAsync(row, rs, ses)
+	}
+}
+
+// restoreAsync asynchronously restores a single session.
+func restoreAsync(r *session.Row, res cchat.SessionRestorer, k keyring.Session) {
+	r.RestoreSession(res, k)
+}
+
+/*
+type header struct {
+	*rich.ToggleButtonImage
+	Add *gtk.Button
+
+	Menu *menu.LazyMenu
+}
+
+func newHeader(svc cchat.Service) *header {
+	b := rich.NewToggleButtonImage(svc.Name())
+	b.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
+	b.SetRelief(gtk.RELIEF_NONE)
+	b.SetMode(true)
+	b.Show()
+
+	if iconer, ok := svc.(cchat.Icon); ok {
+		b.Image.AsyncSetIconer(iconer, "Error getting session logo")
+	}
+
+	add, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
+	add.Show()
+
+	// Add the button overlay into the main button.
+	buttonoverlay.Take(b, add, IconSize)
+
+	// Construct a menu and its items.
+	var menu = menu.NewLazyMenu(b)
+	if configurator, ok := svc.(config.Configurator); ok {
+		menu.AddItems(config.MenuItem(configurator))
+	}
+
+	return &header{b, add, menu}
+}
+*/

@@ -12,6 +12,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Container interface {
+	Remove(gtk.IWidget)
+	GetChildren() *glib.List
+}
+
+var _ Container = (*gtk.Container)(nil)
+
+func RemoveChildren(w Container) {
+	w.GetChildren().Foreach(func(child interface{}) {
+		w.Remove(child.(gtk.IWidget))
+	})
+}
+
 type Namer interface {
 	SetName(string)
 	GetName() (string, error)
@@ -80,6 +93,13 @@ func AddClass(styleCtx StyleContexter, classes ...string) {
 	var style, _ = styleCtx.GetStyleContext()
 	for _, class := range classes {
 		style.AddClass(class)
+	}
+}
+
+func RemoveClass(styleCtx StyleContexter, classes ...string) {
+	var style, _ = styleCtx.GetStyleContext()
+	for _, class := range classes {
+		style.RemoveClass(class)
 	}
 }
 
@@ -240,6 +260,16 @@ func ActionPopover(p *gtk.Popover, actions [][2]string) {
 
 	box.Show()
 	p.Add(box)
+}
+
+func PrepareClassCSS(class, css string) (attach func(StyleContexter)) {
+	prov := PrepareCSS(css)
+
+	return func(ctx StyleContexter) {
+		s, _ := ctx.GetStyleContext()
+		s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+		s.AddClass(class)
+	}
 }
 
 func PrepareCSS(css string) *gtk.CssProvider {

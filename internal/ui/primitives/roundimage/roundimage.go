@@ -48,7 +48,7 @@ func NewImage(radius float64) (*Image, error) {
 		switch {
 		// If radius is less than 0, then don't round.
 		case r < 0:
-			break
+			return false
 
 		// If radius is 0, then we have to calculate our own radius.:This only
 		// works if the image is a square.

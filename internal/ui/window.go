@@ -12,8 +12,8 @@ type window struct {
 	MessageView *messages.View
 }
 
-func newWindow() *window {
-	services := service.NewView()
+func newWindow(mainctl service.Controller) *window {
+	services := service.NewView(mainctl)
 	services.SetSizeRequest(leftMinWidth, -1)
 	services.Show()
 
@@ -27,4 +27,8 @@ func newWindow() *window {
 	pane.Show()
 
 	return &window{pane, services, mesgview}
+}
+
+func (w *window) AllServices() []*service.Service {
+	return w.Services.Services.Services
 }

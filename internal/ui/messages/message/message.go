@@ -5,10 +5,9 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
-	"github.com/diamondburned/cchat-gtk/internal/ui/imgview"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
@@ -53,11 +52,11 @@ type GenericContainer struct {
 	nonce     string
 
 	Timestamp *gtk.Label
-	Username  *gtk.Label
+	Username  *labeluri.Label
 	Content   gtk.IWidget // conceal widget implementation
 
 	contentBox  *gtk.Box // basically what is in Content
-	ContentBody *gtk.Label
+	ContentBody *labeluri.Label
 
 	MenuItems []menu.Item
 }
@@ -95,7 +94,7 @@ func NewEmptyContainer() *GenericContainer {
 	ts.SetVAlign(gtk.ALIGN_END)
 	ts.Show()
 
-	user, _ := gtk.LabelNew("")
+	user := labeluri.NewLabel(text.Rich{})
 	user.SetMaxWidthChars(35)
 	user.SetLineWrap(true)
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
@@ -103,7 +102,8 @@ func NewEmptyContainer() *GenericContainer {
 	user.SetVAlign(gtk.ALIGN_START)
 	user.Show()
 
-	ctbody, _ := gtk.LabelNew("")
+	ctbody := labeluri.NewLabel(text.Rich{})
+	ctbody.SetEllipsize(pango.ELLIPSIZE_NONE)
 	ctbody.SetLineWrap(true)
 	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	ctbody.SetXAlign(0) // left align
@@ -148,10 +148,6 @@ func NewEmptyContainer() *GenericContainer {
 		menu.MenuItems(m, gc.MenuItems)
 	})
 
-	// Make up for the lack of inline images with an image popover that's shown
-	// when links are clicked.
-	imgview.BindTooltip(gc.ContentBody)
-
 	return gc
 }
 
@@ -192,16 +188,17 @@ func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
 }
 
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
-	m.Username.SetMarkup(parser.RenderMarkup(name))
+	m.Username.SetLabelUnsafe(name)
 }
 
 func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
-	var markup = parser.RenderMarkup(content)
-	if edited {
-		markup += " " + rich.Small("(edited)")
-	}
+	m.ContentBody.SetLabelUnsafe(content)
 
-	m.ContentBody.SetMarkup(markup)
+	if edited {
+		markup := m.ContentBody.Output().Markup
+		markup += " " + rich.Small("(edited)")
+		m.ContentBody.SetMarkup(markup)
+	}
 }
 
 // AttachMenu connects signal handlers to handle a list of menu items from

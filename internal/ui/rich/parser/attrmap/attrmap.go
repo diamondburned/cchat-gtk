@@ -2,8 +2,11 @@ package attrmap
 
 import (
 	"fmt"
+	"html"
 	"sort"
 	"strings"
+
+	"github.com/diamondburned/cchat/text"
 )
 
 type AppendMap struct {
@@ -31,9 +34,50 @@ func (a *AppendMap) appendIndex(ind int) {
 	a.indices = append(a.indices, ind)
 }
 
+func (a *AppendMap) Anchor(start, end int, href string) {
+	a.Openf(start, `<a href="%s">`, html.EscapeString(href))
+	a.Close(end, "</a>")
+}
+
+// AnchorNU makes a new <a> tag without underlines.
+func (a *AppendMap) AnchorNU(start, end int, href string) {
+	a.Anchor(start, end, href)
+	a.Span(start, end, `underline="none"`)
+}
+
 func (a *AppendMap) Span(start, end int, attrs ...string) {
 	a.Openf(start, "<span %s>", strings.Join(attrs, " "))
 	a.Close(end, "</span>")
+}
+
+// Pad inserts 2 spaces into start and end. It ensures that not more than 1
+// space is inserted.
+func (a *AppendMap) Pad(start, end int) {
+	// Ensure that the starting point does not already have a space.
+	if !posHaveSpace(a.appended, start) {
+		a.Open(start, " ")
+	}
+	if !posHaveSpace(a.prepended, end) {
+		a.Close(end, " ")
+	}
+}
+
+func posHaveSpace(tags map[int]string, pos int) bool {
+	tg, ok := tags[pos]
+	if !ok || len(tg) == 0 {
+		return false
+	}
+
+	// Check trailing spaces.
+	if tg[0] == ' ' {
+		return true
+	}
+	if tg[len(tg)-1] == ' ' {
+		return true
+	}
+
+	// Check spaces mid-tag. This works because strings are always escaped.
+	return strings.Contains(tg, "> <")
 }
 
 func (a *AppendMap) Pair(start, end int, open, close string) {
@@ -81,4 +125,10 @@ func (a *AppendMap) Finalize(strlen int) []int {
 	a.Close(strlen, "")
 	sort.Ints(a.indices)
 	return a.indices
+}
+
+// CoverAll returns true if the given start and end covers the entire text
+// segment.
+func CoverAll(txt text.Rich, start, end int) bool {
+	return start == 0 && end == len(txt.Content)
 }

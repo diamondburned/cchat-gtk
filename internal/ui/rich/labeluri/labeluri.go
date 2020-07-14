@@ -1,4 +1,4 @@
-package imgview
+package labeluri
 
 import (
 	"fmt"
@@ -11,7 +11,10 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
+	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -31,7 +34,84 @@ type WidgetConnector interface {
 
 var _ WidgetConnector = (*gtk.Label)(nil)
 
-func BindTooltip(connector WidgetConnector) {
+// Labeler implements a rich label that stores an output state.
+type Labeler interface {
+	WidgetConnector
+	rich.Labeler
+	Output() markup.RenderOutput
+}
+
+// Label implements a label that's already bounded to the markup URI handlers.
+type Label struct {
+	*rich.Label
+	output markup.RenderOutput
+}
+
+var (
+	_ Labeler           = (*Label)(nil)
+	_ rich.SuperLabeler = (*Label)(nil)
+)
+
+func NewLabel(txt text.Rich) *Label {
+	l := &Label{}
+	l.Label = rich.NewInheritLabel(l)
+	l.Label.SetLabelUnsafe(txt) // test
+
+	// Bind and return.
+	BindRichLabel(l)
+	return l
+}
+
+func (l *Label) Reset() {
+	l.output = markup.RenderOutput{}
+}
+
+func (l *Label) SetLabelUnsafe(content text.Rich) {
+	l.output = markup.RenderCmplx(content)
+	l.SetMarkup(l.output.Markup)
+}
+
+// Output returns the label's markup output. This function is NOT
+// thread-safe.
+func (l *Label) Output() markup.RenderOutput {
+	return l.output
+}
+
+func BindRichLabel(label Labeler) {
+	bind(label, func(uri string, ptr gdk.Rectangle) bool {
+		var output = label.Output()
+
+		if mention := output.IsMention(uri); mention != nil {
+			if info := mention.MentionInfo(); !info.Empty() {
+				l, _ := gtk.LabelNew(markup.Render(info))
+				l.SetUseMarkup(true)
+				l.SetXAlign(0)
+				l.Show()
+
+				// Enable images???
+				BindActivator(l)
+
+				p, _ := gtk.PopoverNew(label)
+				p.SetPointingTo(ptr)
+				p.Add(l)
+				p.Connect("destroy", l.Destroy)
+				p.Popup()
+			}
+
+			return true
+		}
+
+		return false
+	})
+}
+
+func BindActivator(connector WidgetConnector) {
+	bind(connector, nil)
+}
+
+// bind connects activate-link. If activator returns true, then nothing is done.
+// Activator can be nil.
+func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle) bool) {
 	// This implementation doesn't seem like a good idea. First off, is the
 	// closure really garbage collected? If it's not, then we have some huge
 	// issues. Second, if the closure is garbage collected, then when? If it's
@@ -44,24 +124,33 @@ func BindTooltip(connector WidgetConnector) {
 	})
 
 	connector.Connect("activate-link", func(c WidgetConnector, uri string) bool {
+		// Make a new rectangle to use in the popover.
+		r := gdk.Rectangle{}
+		r.SetX(int(x))
+		r.SetY(int(y))
+
+		if activator != nil && activator(uri, r) {
+			return true
+		}
+
 		switch ext(uri) {
 		case ".jpg", ".jpeg", ".png", ".webp", ".gif":
-			// Make a new rectangle to use in the popover.
-			r := gdk.Rectangle{}
-			r.SetX(int(x))
-			r.SetY(int(y))
-
 			// Make a new image that's asynchronously fetched inside a button.
-			// This allows us to make it clickable.
-			img, _ := gtk.ImageNewFromIconName("image-loading", gtk.ICON_SIZE_BUTTON)
-			img.SetMarginStart(5)
-			img.SetMarginEnd(5)
-			img.SetMarginTop(5)
-			img.SetMarginBottom(5)
+			// Cap the width and height if requested.
+			var w, h, round = markup.FragmentImageSize(uri, MaxWidth, MaxHeight)
+
+			var img *gtk.Image
+			if !round {
+				img, _ = gtk.ImageNew()
+			} else {
+				r, _ := roundimage.NewImage(0)
+				img = r.Image
+			}
+
+			img.SetFromIconName("image-loading", gtk.ICON_SIZE_BUTTON)
 			img.Show()
 
-			// Cap the width and height if requested.
-			var w, h = parser.FragmentImageSize(uri, MaxWidth, MaxHeight)
+			// Asynchronously fetch the image.
 			httputil.AsyncImageSized(img, uri, w, h)
 
 			btn, _ := gtk.ButtonNew()
@@ -76,9 +165,10 @@ func BindTooltip(connector WidgetConnector) {
 			p.Add(btn)
 			p.Popup()
 
-		default:
-			PromptOpen(uri)
+			return true
 		}
+
+		PromptOpen(uri)
 
 		// Never let Gtk open the dialog.
 		return true

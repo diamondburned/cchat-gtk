@@ -15,6 +15,7 @@ type Completer struct {
 	ctrl Completeable
 
 	Input   *gtk.TextView
+	Buffer  *gtk.TextBuffer
 	List    *gtk.ListBox
 	Popover *gtk.Popover
 
@@ -38,22 +39,21 @@ func NewCompleter(input *gtk.TextView, ctrl Completeable) *Completer {
 	p := NewPopover(input)
 	p.Add(s)
 
+	input.Connect("key-press-event", KeyDownHandler(l, input.GrabFocus))
+	ibuf, _ := input.GetBuffer()
+
 	c := &Completer{
 		Input:   input,
+		Buffer:  ibuf,
 		List:    l,
 		Popover: p,
 		ctrl:    ctrl,
 	}
 
-	input.Connect("key-press-event", KeyDownHandler(l, input.GrabFocus))
-
-	ibuf, _ := input.GetBuffer()
-	ibuf.Connect("end-user-action", func() {
-		t, v := State(ibuf)
-		c.Cursor = v
-		c.Words, c.Index = split.SpaceIndexed(t, v)
-		c.complete()
-	})
+	// This one is for buffer modification.
+	ibuf.Connect("end-user-action", c.onChange)
+	// This one is for when the cursor moves.
+	input.Connect("move-cursor", c.onChange)
 
 	l.Connect("row-activated", func(l *gtk.ListBox, r *gtk.ListBoxRow) {
 		SwapWord(ibuf, ctrl.Word(r.GetIndex()), c.Cursor)
@@ -82,6 +82,22 @@ func (c *Completer) Clear() {
 	})
 }
 
+func (c *Completer) onChange() {
+	t, v, blank := State(c.Buffer)
+	c.Cursor = v
+
+	// If the curssor is on a blank character, then we should not
+	// autocomplete anything, so we set the states to nil.
+	if blank {
+		c.Words = nil
+		c.Index = -1
+	} else {
+		c.Words, c.Index = split.SpaceIndexed(t, v)
+	}
+
+	c.complete()
+}
+
 func (c *Completer) complete() {
 	c.Clear()
 
@@ -95,6 +111,7 @@ func (c *Completer) complete() {
 		c.Popover.Popup()
 	} else {
 		c.Hide()
+		return
 	}
 
 	for i, widget := range widgets {

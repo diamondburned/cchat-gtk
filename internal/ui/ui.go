@@ -23,7 +23,7 @@ func init() {
 // constraints for the left panel
 const (
 	leftMinWidth     = 200
-	leftCurrentWidth = 250
+	leftCurrentWidth = 275
 	leftMaxWidth     = 400
 )
 
@@ -52,10 +52,9 @@ var (
 )
 
 func NewApplication() *App {
-	app := &App{
-		window: newWindow(),
-		header: newHeader(),
-	}
+	app := &App{}
+	app.window = newWindow(app)
+	app.header = newHeader()
 
 	// Resize the left-side header w/ the left-side pane.
 	app.window.Services.Connect("size-allocate", func(wv gtk.IWidget) {
@@ -73,7 +72,7 @@ func NewApplication() *App {
 }
 
 func (app *App) AddService(svc cchat.Service) {
-	app.window.Services.AddService(svc, app)
+	app.window.Services.AddService(svc)
 }
 
 // OnSessionRemove resets things before the session is removed.
@@ -89,6 +88,12 @@ func (app *App) OnSessionDisconnect(id string) {
 	// We're basically doing the same thing as removing a session. Check
 	// OnSessionRemove above.
 	app.OnSessionRemove(id)
+}
+
+func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
+	// TODO: restore last message box
+	app.window.MessageView.Reset()
+	app.header.SetBreadcrumb(nil)
 }
 
 func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
@@ -114,9 +119,10 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 	})
 }
 
-func (app *App) AuthenticateSession(container *service.Container, svc cchat.Service) {
+func (app *App) AuthenticateSession(list *service.List, ssvc *service.Service) {
+	var svc = ssvc.Service()
 	auth.NewDialog(svc.Name(), svc.Authenticate(), func(ses cchat.Session) {
-		container.AddSession(ses)
+		ssvc.AddSession(ses)
 	})
 }
 
@@ -125,13 +131,15 @@ func (app *App) Close() {
 	// Disconnect everything. This blocks the main thread, so by the time we're
 	// done, the application would exit immediately. There's no need to update
 	// the GUI.
-	for _, s := range app.window.Services.Services {
-		for _, session := range s.Sessions() {
+	for _, s := range app.window.AllServices() {
+		var service = s.Service().Name()
+
+		for _, session := range s.BodyList.Sessions() {
 			if session.Session == nil {
 				continue
 			}
 
-			log.Printlnf("Disconnecting %s session %s", s.Service.Name(), session.ID())
+			log.Printlnf("Disconnecting %s session %s", service, session.ID())
 
 			if err := session.Session.Disconnect(); err != nil {
 				log.Error(errors.Wrap(err, "Failed to disconnect "+session.ID()))
