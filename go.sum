@@ -72,6 +72,14 @@ github.com/diamondburned/cchat-discord v0.0.0-20200711215912-d1f5376e30b3 h1:uMr
 github.com/diamondburned/cchat-discord v0.0.0-20200711215912-d1f5376e30b3/go.mod h1:TP5/aE708Ae2quG1yAvCCoDJjKuBcjFZ1LYVw60FbTw=
 github.com/diamondburned/cchat-discord v0.0.0-20200711221358-e50f72a01d0a h1:0/j7J0HTR3OuU0qaQ9HWLK0DlJdXPL72ziFVD1f6d8E=
 github.com/diamondburned/cchat-discord v0.0.0-20200711221358-e50f72a01d0a/go.mod h1:TP5/aE708Ae2quG1yAvCCoDJjKuBcjFZ1LYVw60FbTw=
+github.com/diamondburned/cchat-discord v0.0.0-20200712063736-b8c92a56d89b h1:W5Mmf6GagIctMH5n2TYORSENMZdJm8th4JrEJubLb60=
+github.com/diamondburned/cchat-discord v0.0.0-20200712063736-b8c92a56d89b/go.mod h1:KRdCNnJHsHIcQP6/fE90MKTIZJuGyTKW/aTx18eGuuI=
+github.com/diamondburned/cchat-discord v0.0.0-20200714012913-3c1d6f1d3f17 h1:dUF7+pmzfAKS1gBr5SySg5xkSrAmzRGcghDRjXl5TDg=
+github.com/diamondburned/cchat-discord v0.0.0-20200714012913-3c1d6f1d3f17/go.mod h1:KRdCNnJHsHIcQP6/fE90MKTIZJuGyTKW/aTx18eGuuI=
+github.com/diamondburned/cchat-discord v0.0.0-20200714014557-cc97c2a69cc2 h1:2+XIy4DzLymP/X7LFH03WBdHpkVavb0MC0fQrPvRGxs=
+github.com/diamondburned/cchat-discord v0.0.0-20200714014557-cc97c2a69cc2/go.mod h1:KRdCNnJHsHIcQP6/fE90MKTIZJuGyTKW/aTx18eGuuI=
+github.com/diamondburned/cchat-discord v0.0.0-20200714063838-0a590627268b h1:dZ7fntEpmeh2xvwZ6jqyWjzk9Ikvx0o/O7pEDMR1PzU=
+github.com/diamondburned/cchat-discord v0.0.0-20200714063838-0a590627268b/go.mod h1:KRdCNnJHsHIcQP6/fE90MKTIZJuGyTKW/aTx18eGuuI=
 github.com/diamondburned/cchat-mock v0.0.0-20200704044009-f587c4904aa3 h1:xr07/2cwINyrMqh92pQQJVDfQqG0u6gHAK+ZcGfpSew=
 github.com/diamondburned/cchat-mock v0.0.0-20200704044009-f587c4904aa3/go.mod h1:SRu3OOeggELFr2Wd3/+SpYV1eNcvSk2LBhM70NOZSG8=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b h1:sq0MXjJc3yAOZvuolRxOpKQNvpMLyTmsECxQqdYgF5E=
@@ -92,6 +100,8 @@ github.com/diamondburned/ningen v0.1.1-0.20200708211706-57c712372ede h1:qRmfQCOS
 github.com/diamondburned/ningen v0.1.1-0.20200708211706-57c712372ede/go.mod h1:FNezDLQIhoDS+RkXLSQ7dJNrt6BW/nVl1krzDgWMQwg=
 github.com/diamondburned/ningen v0.1.1-0.20200711215126-d4b8a17e818d h1:XgG/KRbAwu8v2/YZWimjXo0dgdD69E38ollCfbFtU7s=
 github.com/diamondburned/ningen v0.1.1-0.20200711215126-d4b8a17e818d/go.mod h1:NVneOJDUDEIC3cnyeh2vpeAPVtBdC2Kcy+uwDy4o2qk=
+github.com/diamondburned/ningen v0.1.1-0.20200712031630-349ee2c3f01c h1:CpYhIGiRzee7Jm0H4c0fLvRe/08QitDNo8KHYtrOmFE=
+github.com/diamondburned/ningen v0.1.1-0.20200712031630-349ee2c3f01c/go.mod h1:NVneOJDUDEIC3cnyeh2vpeAPVtBdC2Kcy+uwDy4o2qk=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
 github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
 github.com/dlclark/regexp2 v1.2.0 h1:8sAhBGEM0dRWogWqWyQeIJnxjWO6oIjl8FKqREDsGfk=

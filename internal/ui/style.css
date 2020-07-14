@@ -1,10 +1,7 @@
 /* Make CSS more consistent across themes */
 headerbar { padding: 0; }
 
-/* Consistent design */
-.services button { border-radius: 0; }
-
-popover > box { margin: 6px; }
+popover > *:not(stack):not(button) { margin: 6px; }
 
 /* Hack to fix the input bar being high in Adwaita */
 .input-field * { min-height: 0; }

@@ -50,15 +50,15 @@ func New(parent gtk.IWidget, placeholder WidgetUnreferencer) *FaceView {
 
 // Reset brings the view to an empty box.
 func (v *FaceView) Reset() {
-	v.Stack.SetVisibleChildName("empty")
 	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Stop()
+	v.Stack.SetVisibleChildName("empty")
 }
 
 func (v *FaceView) SetMain() {
-	v.Stack.SetVisibleChildName("main")
 	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Stop()
+	v.Stack.SetVisibleChildName("main")
 }
 
 func (v *FaceView) SetLoading() {
@@ -79,7 +79,7 @@ func (v *FaceView) ensurePlaceholderDestroyed() {
 	if v.placeholder != nil {
 		// Safely remove the placeholder from the stack.
 		if v.Stack.GetVisibleChildName() == "placeholder" {
-			v.Stack.SetVisibleChildName("main")
+			v.Stack.SetVisibleChildName("empty")
 		}
 
 		// Remove the placeholder widget.

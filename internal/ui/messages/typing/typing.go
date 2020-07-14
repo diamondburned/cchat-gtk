@@ -5,7 +5,7 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -95,7 +95,7 @@ func render(typers []cchat.Typer) string {
 
 	for i, typer := range typers {
 		builder.WriteString("<b>")
-		builder.WriteString(parser.RenderMarkup(typer.Name()))
+		builder.WriteString(markup.Render(typer.Name()))
 		builder.WriteString("</b>")
 
 		switch i {

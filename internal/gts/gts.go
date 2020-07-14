@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/diamondburned/cchat-gtk/internal/gts/throttler"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/disintegration/imaging"
 	"github.com/gotk3/gotk3/gdk"
@@ -125,6 +126,9 @@ func Main(wfn func() WindowHeaderer) {
 				w.Close()
 			})
 		})
+
+		// Limit the TPS of the main loop on unfocus.
+		throttler.Bind(App.Window)
 	})
 
 	// Use a special function to run the application. Exit with the appropriate

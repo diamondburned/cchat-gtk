@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/keyring/driver/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
-	"github.com/diamondburned/cchat/text"
 	"github.com/pkg/errors"
 )
 
@@ -23,7 +22,11 @@ type Session struct {
 	Data map[string]string
 }
 
-func ConvertSession(ses cchat.Session, name string) *Session {
+// ConvertSession attempts to get the session data from the given cchat session.
+// It returns nil if it can't do it.
+func ConvertSession(ses cchat.Session) *Session {
+	var name = ses.Name().Content
+
 	saver, ok := ses.(cchat.SessionSaver)
 	if !ok {
 		return nil
@@ -48,24 +51,24 @@ func ConvertSession(ses cchat.Session, name string) *Session {
 	}
 }
 
-func SaveSessions(serviceName text.Rich, sessions []Session) {
-	if err := store.Set(serviceName.Content, sessions); err != nil {
+func SaveSessions(service cchat.Service, sessions []Session) {
+	if err := store.Set(service.Name().Content, sessions); err != nil {
 		log.Warn(errors.Wrap(err, "Error saving session"))
 	}
 }
 
 // RestoreSessions restores all sessions of the service asynchronously, then
 // calls the auth callback inside the Gtk main thread.
-func RestoreSessions(serviceName text.Rich) (sessions []Session) {
+func RestoreSessions(service cchat.Service) (sessions []Session) {
 	// Ignore the error, it's not important.
-	if err := store.Get(serviceName.Content, &sessions); err != nil {
+	if err := store.Get(service.Name().Content, &sessions); err != nil {
 		log.Warn(err)
 	}
 	return
 }
 
-func RestoreSession(serviceName text.Rich, id string) *Session {
-	var sessions = RestoreSessions(serviceName)
+func RestoreSession(service cchat.Service, id string) *Session {
+	var sessions = RestoreSessions(service)
 	for _, session := range sessions {
 		if session.ID == id {
 			return &session

@@ -7,7 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
@@ -74,7 +74,7 @@ func (v *View) Update(words []string, i int) []gtk.IWidget {
 			s := rich.NewLabel(text.Rich{})
 			s.SetMarkup(fmt.Sprintf(
 				`<span alpha="50%%" size="small">%s</span>`,
-				parser.RenderMarkup(entry.Secondary),
+				markup.Render(entry.Secondary),
 			))
 			s.Show()
 

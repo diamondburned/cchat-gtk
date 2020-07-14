@@ -1,6 +1,8 @@
 package completion
 
 import (
+	"unicode"
+
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
@@ -91,18 +93,30 @@ func CursorRect(i *gtk.TextView) gdk.Rectangle {
 	return *r
 }
 
-func State(buf *gtk.TextBuffer) (string, int) {
+func State(buf *gtk.TextBuffer) (text string, offset int, blank bool) {
 	// obtain current state
 	mark := buf.GetInsert()
 	iter := buf.GetIterAtMark(mark)
 
 	// obtain the input string and the current cursor position
 	start, end := buf.GetBounds()
-	text, _ := buf.GetText(start, end, true)
-	offset := iter.GetOffset()
 
-	return text, offset
+	text, _ = buf.GetText(start, end, true)
+	offset = iter.GetOffset()
+
+	// We need the rune before the cursor.
+	iter.BackwardChar()
+	char := iter.GetChar()
+
+	// Treat NULs as blanks.
+	blank = unicode.IsSpace(char) || char == '\x00'
+
+	return
 }
+
+const searchFlags = 0 |
+	gtk.TEXT_SEARCH_TEXT_ONLY |
+	gtk.TEXT_SEARCH_VISIBLE_ONLY
 
 func GetWordIters(buf *gtk.TextBuffer, offset int) (start, end *gtk.TextIter) {
 	iter := buf.GetIterAtOffset(offset)
@@ -110,13 +124,13 @@ func GetWordIters(buf *gtk.TextBuffer, offset int) (start, end *gtk.TextIter) {
 	var ok bool
 
 	// Seek backwards for space or start-of-line:
-	_, start, ok = iter.BackwardSearch(" ", gtk.TEXT_SEARCH_TEXT_ONLY, nil)
+	_, start, ok = iter.BackwardSearch(" ", searchFlags, nil)
 	if !ok {
 		start = buf.GetStartIter()
 	}
 
 	// Seek forwards for space or end-of-line:
-	_, end, ok = iter.ForwardSearch(" ", gtk.TEXT_SEARCH_TEXT_ONLY, nil)
+	_, end, ok = iter.ForwardSearch(" ", searchFlags, nil)
 	if !ok {
 		end = buf.GetEndIter()
 	}

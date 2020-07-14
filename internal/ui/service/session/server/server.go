@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/button"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
@@ -17,8 +16,37 @@ import (
 const ChildrenMargin = 24
 const IconSize = 32
 
-type Controller interface {
-	RowSelected(*ServerRow, cchat.ServerMessage)
+type ServerRow struct {
+	*Row
+	Server cchat.Server
+}
+
+var serverCSS = primitives.PrepareClassCSS("server", `
+	.server {
+		margin: 0;
+		margin-top: 3px;
+		border-radius: 0;
+	}
+`)
+
+func NewServerRow(p breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *ServerRow {
+	row := NewRow(p, server.Name())
+	row.SetIconer(server)
+	serverCSS(row)
+
+	var serverRow = &ServerRow{Row: row, Server: server}
+
+	switch server := server.(type) {
+	case cchat.ServerList:
+		row.SetServerList(server, ctrl)
+		primitives.AddClass(row, "server-list")
+
+	case cchat.ServerMessage:
+		row.Button.SetClickedIfTrue(func() { ctrl.RowSelected(serverRow, server) })
+		primitives.AddClass(row, "server-message")
+	}
+
+	return serverRow
 }
 
 type Row struct {
@@ -27,6 +55,7 @@ type Row struct {
 
 	parentcrumb breadcrumb.Breadcrumber
 
+	childrev   *gtk.Revealer
 	children   *Children
 	serverList cchat.ServerList
 	loaded     bool
@@ -39,7 +68,6 @@ func NewRow(parent breadcrumb.Breadcrumber, name text.Rich) *Row {
 	button.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.SetMarginStart(ChildrenMargin)
 	box.PackStart(button, false, false, 0)
 
 	row := &Row{
@@ -75,7 +103,12 @@ func (r *Row) SetServerList(list cchat.ServerList, ctrl Controller) {
 	r.children = NewChildren(r, ctrl)
 	r.children.Show()
 
-	r.Box.PackStart(r.children, false, false, 0)
+	r.childrev, _ = gtk.RevealerNew()
+	r.childrev.SetRevealChild(false)
+	r.childrev.Add(r.children)
+	r.childrev.Show()
+
+	r.Box.PackStart(r.childrev, false, false, 0)
 	r.serverList = list
 }
 
@@ -161,7 +194,7 @@ func (r *Row) SetRevealChild(reveal bool) {
 	}
 
 	// Actually reveal the children.
-	r.children.SetRevealChild(reveal)
+	r.childrev.SetRevealChild(reveal)
 
 	// If this isn't a reveal, then we don't need to load.
 	if !reveal {
@@ -207,137 +240,8 @@ func (r *Row) Load() {
 // GetRevealChild returns whether or not the server list is expanded, or always
 // false if there is no server list.
 func (r *Row) GetRevealChild() bool {
-	if r.children != nil {
-		return r.children.GetRevealChild()
+	if r.childrev != nil {
+		return r.childrev.GetRevealChild()
 	}
 	return false
-}
-
-type ServerRow struct {
-	*Row
-	Server cchat.Server
-}
-
-func NewServerRow(p breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *ServerRow {
-	row := NewRow(p, server.Name())
-	row.Show()
-	row.SetIconer(server)
-	primitives.AddClass(row, "server")
-
-	var serverRow = &ServerRow{Row: row, Server: server}
-
-	switch server := server.(type) {
-	case cchat.ServerList:
-		row.SetServerList(server, ctrl)
-		primitives.AddClass(row, "server-list")
-
-	case cchat.ServerMessage:
-		row.Button.SetClickedIfTrue(func() { ctrl.RowSelected(serverRow, server) })
-		primitives.AddClass(row, "server-message")
-	}
-
-	return serverRow
-}
-
-// Children is a children server with a reference to the parent.
-type Children struct {
-	*gtk.Revealer
-	Main *gtk.Box
-
-	rowctrl Controller
-
-	load *loading.Button // only not nil while loading
-
-	Rows   []*ServerRow
-	Parent breadcrumb.Breadcrumber
-}
-
-func NewChildren(p breadcrumb.Breadcrumber, ctrl Controller) *Children {
-	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	main.Show()
-
-	rev, _ := gtk.RevealerNew()
-	rev.SetRevealChild(false)
-	rev.Add(main)
-
-	return &Children{
-		Revealer: rev,
-		Main:     main,
-		rowctrl:  ctrl,
-		Parent:   p,
-	}
-}
-
-// setLoading shows the loading circle as a list child.
-func (c *Children) setLoading() {
-	// Exit if we're already loading.
-	if c.load != nil {
-		return
-	}
-
-	// Clear everything.
-	c.Reset()
-
-	// Set the loading circle and stuff.
-	c.load = loading.NewButton()
-	c.load.Show()
-	c.Main.Add(c.load)
-}
-
-func (c *Children) Reset() {
-	// Remove old servers from the list.
-	for _, row := range c.Rows {
-		c.Main.Remove(row)
-	}
-
-	// Wipe the list empty.
-	c.Rows = nil
-}
-
-// setNotLoading removes the loading circle, if any. This is not in Reset()
-// anymore, since the backend may not necessarily call SetServers.
-func (c *Children) setNotLoading() {
-	// Do we have the spinning circle button? If yes, remove it.
-	if c.load != nil {
-		// Stop the loading mode. The reset function should do everything for us.
-		c.Main.Remove(c.load)
-		c.load = nil
-	}
-}
-
-func (c *Children) SetServers(servers []cchat.Server) {
-	gts.ExecAsync(func() {
-		// Save the current state.
-		var oldID string
-		for _, row := range c.Rows {
-			if row.GetActive() {
-				oldID = row.Server.ID()
-				break
-			}
-		}
-
-		// Reset before inserting new servers.
-		c.Reset()
-
-		c.Rows = make([]*ServerRow, len(servers))
-
-		for i, server := range servers {
-			row := NewServerRow(c, server, c.rowctrl)
-			c.Rows[i] = row
-			c.Main.Add(row)
-		}
-
-		// Update parent reference? Only if it's activated.
-		if oldID != "" {
-			for _, row := range c.Rows {
-				if row.Server.ID() == oldID {
-					row.Button.SetActive(true)
-				}
-			}
-		}
-	})
-}
-
-func (c *Children) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(c.Parent)
 }

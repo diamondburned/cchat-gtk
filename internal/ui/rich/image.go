@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 type IconerFn = func(context.Context, cchat.IconContainer) (func(), error)
@@ -90,6 +91,7 @@ func (i *Icon) CopyPixbuf(dst httputil.ImageContainer) {
 
 // SetPlaceholderIcon is not thread-safe.
 func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
+	i.Image.SetRadius(-1) // square
 	i.SetRevealChild(true)
 	i.SetSize(iconSzPx)
 
@@ -114,16 +116,17 @@ func (i *Icon) SetIcon(url string) {
 	gts.ExecAsync(func() { i.SetIconUnsafe(url) })
 }
 
-func (i *Icon) AsyncSetIconer(iconer cchat.Icon, wrap string) {
+func (i *Icon) AsyncSetIconer(iconer cchat.Icon, errwrap string) {
 	AsyncUse(i.r, func(ctx context.Context) (interface{}, func(), error) {
 		ni := &nullIcon{}
 		f, err := iconer.Icon(ctx, ni)
-		return ni, f, err
+		return ni, f, errors.Wrap(err, errwrap)
 	})
 }
 
 // SetIconUnsafe is not thread-safe.
 func (i *Icon) SetIconUnsafe(url string) {
+	i.Image.SetRadius(0) // round
 	i.SetRevealChild(true)
 	i.url = url
 	i.updateAsync()

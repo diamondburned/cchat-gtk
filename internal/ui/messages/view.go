@@ -115,9 +115,9 @@ func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 func (v *View) Reset() {
 	v.state.Reset()     // Reset the state variables.
 	v.Typing.Reset()    // Reset the typing state.
-	v.FaceView.Reset()  // Switch back to the main screen.
 	v.InputView.Reset() // Reset the input.
 	v.Container.Reset() // Clean all messages.
+	v.FaceView.Reset()  // Switch back to the main screen.
 
 	// Keep the scroller at the bottom.
 	v.Scroller.Bottomed = true
