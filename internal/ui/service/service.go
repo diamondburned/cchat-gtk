@@ -24,6 +24,9 @@ type ListController interface {
 	SessionSelected(*Service, *session.Row)
 	// AuthenticateSession tells View to call to the parent's authenticator.
 	AuthenticateSession(*Service)
+
+	OnSessionRemove(*Service, *session.Row)
+	OnSessionDisconnect(*Service, *session.Row)
 }
 
 // Service holds everything that a single service has.
@@ -165,8 +168,16 @@ func (s *Service) Service() cchat.Service {
 }
 
 func (s *Service) OnSessionDisconnect(row *session.Row) {
-	s.BodyList.RemoveSessionRow(row.Session.ID())
-	s.SaveAllSessions()
+	// Unselect if selected.
+	if cur := s.BodyList.GetSelectedRow(); cur.GetIndex() == row.GetIndex() {
+		s.BodyList.UnselectAll()
+	}
+
+	s.svclctrl.OnSessionDisconnect(s, row)
+
+	// WHY WAS THIS HERE?!?!?!
+	// s.BodyList.RemoveSessionRow(row.Session.ID())
+	// s.SaveAllSessions()
 }
 
 func (s *Service) RowSelected(r *session.Row, sv *server.ServerRow, m cchat.ServerMessage) {
@@ -174,6 +185,7 @@ func (s *Service) RowSelected(r *session.Row, sv *server.ServerRow, m cchat.Serv
 }
 
 func (s *Service) RemoveSession(row *session.Row) {
+	s.svclctrl.OnSessionRemove(s, row)
 	s.BodyList.RemoveSessionRow(row.Session.ID())
 	s.SaveAllSessions()
 }

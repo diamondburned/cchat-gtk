@@ -9,22 +9,23 @@ import (
 )
 
 // static assets
-var logo256 *gdk.Pixbuf
+var assets = map[string]*gdk.Pixbuf{}
 
-func Logo256() *gdk.Pixbuf {
-	if logo256 == nil {
-		logo256 = loadPixbuf(pkger.Include("/icons/cchat-variant2_256.png"))
-	}
-	return logo256
+func Logo256Variant2() *gdk.Pixbuf {
+	return loadPixbuf(__cchat_variant2_256)
 }
 
-func loadPixbuf(name string) *gdk.Pixbuf {
+func Logo256() *gdk.Pixbuf {
+	return loadPixbuf(__cchat_256)
+}
+
+func loadPixbuf(data []byte) *gdk.Pixbuf {
 	l, err := gdk.PixbufLoaderNew()
 	if err != nil {
 		log.Fatalln("Failed to create a pixbuf loader for icons:", err)
 	}
 
-	p, err := l.WriteAndReturnPixbuf(readFile(name))
+	p, err := l.WriteAndReturnPixbuf(data)
 	if err != nil {
 		log.Fatalln("Failed to write and return pixbuf:", err)
 	}

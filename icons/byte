@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Script to embed a file to Go.
+
+for file in "$@"; {
+	name="${file%.*}"
+	name="${name//[^[:alnum:]]/_}" # sanitize
+	
+	file2byteslice           \
+		-input "$file"       \
+		-output "${name}.go" \
+		-package icons       \
+		-var "__${name}"
+
+	echo "Written $file to \`var __$name'"
+}

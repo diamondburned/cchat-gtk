@@ -4,7 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat/text"
 )
 

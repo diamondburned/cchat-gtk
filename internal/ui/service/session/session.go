@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
@@ -13,6 +14,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat/text"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -47,13 +49,17 @@ type Servicer interface {
 // Row represents a session row entry in the session List.
 type Row struct {
 	*gtk.ListBoxRow
-	icon *rich.Icon // nilable
+	icon *rich.EventIcon // nilable
+
+	parentcrumb breadcrumb.Breadcrumber
 
 	Session   cchat.Session // state; nilable
 	sessionID string
 
 	Servers *Servers // accessed by View for the right view
 	svcctrl Servicer
+
+	ActionsMenu *actions.Menu // session.*
 
 	// TODO: enum class? having the button be red on fail would be good
 
@@ -78,6 +84,9 @@ var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 		padding: 4px;
 		margin:  0;
 	}
+	.session-icon.failed {
+		background-color: alpha(red, 0.45);
+	}
 `)
 
 func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Servicer) *Row {
@@ -94,20 +103,49 @@ func NewLoading(parent breadcrumb.Breadcrumber, id, name string, ctrl Servicer) 
 }
 
 func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
-	row := &Row{svcctrl: ctrl}
+	row := &Row{
+		svcctrl:     ctrl,
+		parentcrumb: parent,
+	}
 
-	row.icon = rich.NewIcon(IconSize)
-	row.icon.SetPlaceholderIcon(IconName, IconSize)
+	row.icon = rich.NewEventIcon(IconSize)
+	row.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
 	row.icon.Show()
-	rowIconCSS(row.icon)
+	rowIconCSS(row.icon.Icon)
 
 	row.ListBoxRow, _ = gtk.ListBoxRowNew()
 	rowCSS(row.ListBoxRow)
 
 	// TODO: commander button
 
-	row.Servers = NewServers(parent, row)
+	row.Servers = NewServers(row, row)
 	row.Servers.Show()
+
+	// Bind session.* actions into row.
+	row.ActionsMenu = actions.NewMenu("session")
+	row.ActionsMenu.InsertActionGroup(row)
+
+	// Bind right clicks and show a popover menu on such event.
+	row.icon.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			row.ActionsMenu.Popover(row).Popup()
+		}
+	})
+
+	return row
+}
+
+func NewAddButton() *gtk.ListBoxRow {
+	img, _ := gtk.ImageNew()
+	img.Show()
+	primitives.SetImageIcon(img, "list-add-symbolic", IconSize/2)
+
+	row, _ := gtk.ListBoxRowNew()
+	row.SetSizeRequest(IconSize, IconSize)
+	row.SetSelectable(false) // activatable though
+	row.Add(img)
+	row.Show()
+	rowCSS(row)
 
 	return row
 }
@@ -115,11 +153,22 @@ func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Servicer) *Row 
 // Reset extends the server row's Reset function and resets additional states.
 // It resets all states back to nil, but the session ID stays.
 func (r *Row) Reset() {
-	r.Servers.Reset() // wipe servers
-	// TODO: better visual clue
-	r.icon.Image.SetFromPixbuf(nil) // wipe image
+	r.Servers.Reset()     // wipe servers
+	r.ActionsMenu.Reset() // wipe menu items
+
+	// Set a lame placeholder icon.
+	r.icon.Icon.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
+
 	r.Session = nil
 	r.cmder = nil
+}
+
+func (r *Row) SessionID() string {
+	return r.sessionID
+}
+
+func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
+	return breadcrumb.Try(r.parentcrumb, r.Session.Name().Content)
 }
 
 // Activate executes whatever needs to be done. If the row has failed, then this
@@ -142,10 +191,13 @@ func (r *Row) SetLoading() {
 	r.Session = nil
 
 	// Reset the icon.
-	r.icon.Image.SetFromPixbuf(nil)
+	r.icon.Icon.Reset()
 
 	// Remove everything from the row, including the icon.
 	primitives.RemoveChildren(r)
+
+	// Remove the failed class.
+	primitives.RemoveClass(r.icon.Icon, "failed")
 
 	// Add a loading circle.
 	spin := spinner.New()
@@ -170,7 +222,9 @@ func (r *Row) SetFailed(err error) {
 	// Add the icon.
 	r.Add(r.icon)
 	// Set the button to a retry icon.
-	r.icon.SetPlaceholderIcon("view-refresh-symbolic", IconSize)
+	r.icon.Icon.SetPlaceholderIcon("view-refresh-symbolic", IconSize)
+	// Mark the icon as failed.
+	primitives.AddClass(r.icon.Icon, "failed")
 
 	// SetFailed, but also add the callback to retry.
 	// r.Row.SetFailed(err, r.ReconnectSession)
@@ -196,11 +250,11 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.Session = ses
 	r.sessionID = ses.ID()
 	r.SetTooltipMarkup(markup.Render(ses.Name()))
-	r.icon.SetPlaceholderIcon(IconName, IconSize)
+	r.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
 
 	// If the session has an icon, then use it.
 	if iconer, ok := ses.(cchat.Icon); ok {
-		r.icon.AsyncSetIconer(iconer, "Failed to set session icon")
+		r.icon.Icon.AsyncSetIconer(iconer, "Failed to set session icon")
 	}
 
 	// Update to indicate that we're done.
@@ -208,20 +262,22 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.SetSensitive(true)
 	r.Add(r.icon)
 
+	// Bind extra menu items before loading. These items won't be clickable
+	// during loading.
+	r.ActionsMenu.Reset()
+	r.ActionsMenu.AddAction("Disconnect", r.DisconnectSession)
+	r.ActionsMenu.AddAction("Remove", r.RemoveSession)
+
 	// Set the commander, if any. The function will return nil if the assertion
 	// returns nil. As such, we assert with an ignored ok bool, allowing cmd to
 	// be nil.
 	cmd, _ := ses.(commander.SessionCommander)
 	r.cmder = commander.NewBuffer(r.svcctrl.Service(), cmd)
 
-	// TODO commander button
-
-	// // Bind extra menu items before loading. These items won't be clickable
-	// // during loading.
-	// r.SetNormalExtraMenu([]menu.Item{
-	// 	menu.SimpleItem("Disconnect", r.DisconnectSession),
-	// 	menu.SimpleItem("Remove", r.RemoveSession),
-	// })
+	// Show the command button if the session actually supports the commander.
+	if r.cmder != nil {
+		r.ActionsMenu.AddAction("Command Prompt", r.ShowCommander)
+	}
 
 	// Load all top-level servers now.
 	r.Servers.SetList(ses)
@@ -277,6 +333,9 @@ func (r *Row) DisconnectSession() {
 	// Call the disconnect function from the controller first.
 	r.svcctrl.OnSessionDisconnect(r)
 
+	// Copy the session to avoid data race and allow us to reset.
+	session := r.Session
+
 	// Show visually that we're disconnected first by wiping all servers.
 	r.Reset()
 
@@ -287,25 +346,17 @@ func (r *Row) DisconnectSession() {
 	// Try and disconnect asynchronously.
 	gts.Async(func() (func(), error) {
 		// Disconnect and wrap the error if any. Wrap works with a nil error.
-		err := errors.Wrap(r.Session.Disconnect(), "Failed to disconnect.")
+		err := errors.Wrap(session.Disconnect(), "Failed to disconnect.")
 		return func() {
 			// Re-enable access to the menu.
 			r.SetSensitive(true)
 
 			// Set the menu to allow disconnection.
-			// r.Button.SetNormalExtraMenu([]menu.Item{
-			// 	menu.SimpleItem("Connect", r.ReconnectSession),
-			// 	menu.SimpleItem("Remove", r.RemoveSession),
-			// })
+			r.ActionsMenu.AddAction("Connect", r.ReconnectSession)
+			r.ActionsMenu.AddAction("Remove", r.RemoveSession)
 		}, err
 	})
 }
-
-// // KeyringSession returns a keyring session, or nil if the session cannot be
-// // saved.
-// func (r *Row) KeyringSession() *keyring.Session {
-// 	return keyring.ConvertSession(r.Session)
-// }
 
 // ID returns the session ID.
 func (r *Row) ID() string {

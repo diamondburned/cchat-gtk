@@ -20,17 +20,23 @@ type Connector interface {
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 
-func Bind(evc Connector) *State {
+func Bind(app *gtk.Application) *State {
 	var settings, _ = gtk.SettingsGetDefault()
 	var s = State{
 		settings: settings,
 		ticker:   time.Tick(time.Second / TPS),
 	}
 
-	evc.Connect("focus-out-event", s.Start)
-	evc.Connect("focus-in-event", s.Stop)
+	app.Connect("window-added", func(app *gtk.Application, w *gtk.Window) {
+		s.Connect(w)
+	})
 
 	return &s
+}
+
+func (s *State) Connect(c Connector) {
+	c.Connect("focus-out-event", s.Start)
+	c.Connect("focus-in-event", s.Stop)
 }
 
 func (s *State) Start() {
