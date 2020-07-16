@@ -5,7 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/gotk3/gotk3/gtk"
 )
 

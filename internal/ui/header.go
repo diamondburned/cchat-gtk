@@ -4,14 +4,15 @@ import (
 	"html"
 	"strings"
 
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type header struct {
 	*gtk.Box
-	left  *headerLeft // TODO
+	left  *headerLeft // middle-ish
 	right *headerRight
 }
 
@@ -41,26 +42,33 @@ func newHeader() *header {
 
 const BreadcrumbSlash = `<span weight="light" rise="-1024" size="x-large">/</span>`
 
-func (h *header) SetBreadcrumb(b breadcrumb.Breadcrumb) {
-	for i := range b {
-		b[i] = html.EscapeString(b[i])
+func (h *header) SetBreadcrumber(b breadcrumb.Breadcrumber) {
+	if b == nil {
+		h.right.breadcrumb.SetText("")
+		return
+	}
+
+	var crumb = b.Breadcrumb()
+	for i := range crumb {
+		crumb[i] = html.EscapeString(crumb[i])
 	}
 
 	h.right.breadcrumb.SetMarkup(
-		BreadcrumbSlash + " " + strings.Join(b, " "+BreadcrumbSlash+" "),
+		BreadcrumbSlash + " " + strings.Join(crumb, " "+BreadcrumbSlash+" "),
 	)
+}
+
+func (h *header) SetSessionMenu(s *session.Row) {
+	h.left.openmenu.Bind(s.ActionsMenu)
 }
 
 type headerLeft struct {
 	*gtk.Box
-	openmenu *gtk.MenuButton
+	openmenu *actions.MenuButton
 }
 
 func newHeaderLeft() *headerLeft {
-	openmenu := primitives.NewMenuActionButton([][2]string{
-		{"Preferences", "app.preferences"},
-		{"Quit", "app.quit"},
-	})
+	openmenu := actions.NewMenuButton()
 	openmenu.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)

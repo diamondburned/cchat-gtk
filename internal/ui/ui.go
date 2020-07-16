@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/icons"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
@@ -10,14 +11,25 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/markbates/pkger"
 	"github.com/pkg/errors"
 )
 
 func init() {
 	// Load the local CSS.
-	gts.LoadCSS(pkger.Include("/internal/ui/style.css"))
+	gts.LoadCSS("main", `
+		/* Make CSS more consistent across themes */
+		headerbar { padding-left: 0 }
+
+		.appmenu { margin: 0 18px }
+		
+		popover > *:not(stack):not(button) { margin: 6px }
+		
+		/* Hack to fix the input bar being high in Adwaita */
+		.input-field * { min-height: 0 }
+	`)
 }
 
 // constraints for the left panel
@@ -47,7 +59,7 @@ type App struct {
 }
 
 var (
-	_ gts.WindowHeaderer = (*App)(nil)
+	_ gts.Window         = (*App)(nil)
 	_ service.Controller = (*App)(nil)
 )
 
@@ -76,24 +88,25 @@ func (app *App) AddService(svc cchat.Service) {
 }
 
 // OnSessionRemove resets things before the session is removed.
-func (app *App) OnSessionRemove(id string) {
+func (app *App) OnSessionRemove(s *service.Service, r *session.Row) {
 	// Reset the message view if it's what we're showing.
-	if app.window.MessageView.SessionID() == id {
+	if app.window.MessageView.SessionID() == r.SessionID() {
 		app.window.MessageView.Reset()
-		app.header.SetBreadcrumb(nil)
+		app.header.SetBreadcrumber(nil)
 	}
 }
 
-func (app *App) OnSessionDisconnect(id string) {
+func (app *App) OnSessionDisconnect(s *service.Service, r *session.Row) {
 	// We're basically doing the same thing as removing a session. Check
 	// OnSessionRemove above.
-	app.OnSessionRemove(id)
+	app.OnSessionRemove(s, r)
 }
 
 func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 	// TODO: restore last message box
 	app.window.MessageView.Reset()
-	app.header.SetBreadcrumb(nil)
+	app.header.SetBreadcrumber(ses)
+	app.header.SetSessionMenu(ses)
 }
 
 func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
@@ -106,7 +119,7 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 	app.lastSelector = srv.SetSelected
 	app.lastSelector(true)
 
-	app.header.SetBreadcrumb(srv.Breadcrumb())
+	app.header.SetBreadcrumber(srv)
 
 	// Disable the server list because we don't want the user to switch around
 	// while we're loading.
@@ -154,4 +167,16 @@ func (app *App) Header() gtk.IWidget {
 
 func (app *App) Window() gtk.IWidget {
 	return app.window
+}
+
+func (app *App) Icon() *gdk.Pixbuf {
+	return icons.Logo256()
+}
+
+func (app *App) Menu() *glib.MenuModel {
+	menu := glib.MenuNew()
+	menu.Append("Preferences", "app.preferences")
+	menu.Append("Quit", "app.quit")
+
+	return &menu.MenuModel
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/button"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"

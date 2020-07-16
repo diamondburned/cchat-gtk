@@ -20,6 +20,13 @@ func NewLazyMenu(bindTo primitives.Connector) *LazyMenu {
 	return l
 }
 
+func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {
+	// Is this a right click? Run the menu if yes.
+	if gts.EventIsRightClick(ev) {
+		m.PopupAtPointer(ev)
+	}
+}
+
 func (m *LazyMenu) SetItems(items []Item) {
 	m.items = items
 }
@@ -45,13 +52,6 @@ func (m *LazyMenu) PopupAtPointer(ev *gdk.Event) {
 	menu, _ := gtk.MenuNew()
 	MenuItems(menu, m.items)
 	menu.PopupAtPointer(ev)
-}
-
-func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {
-	// Is this a right click? Run the menu if yes.
-	if gts.EventIsRightClick(ev) {
-		m.PopupAtPointer(ev)
-	}
 }
 
 type MenuAppender interface {
@@ -92,6 +92,7 @@ func ToolbarItems(toolbar ToolbarInserter, items []Item) {
 }
 
 type Item struct {
+	Icon  string
 	Name  string
 	Func  func()
 	Extra func(*gtk.MenuItem)
@@ -100,6 +101,19 @@ type Item struct {
 func SimpleItem(name string, fn func()) Item {
 	return Item{Name: name, Func: fn}
 }
+
+// func (item Item) ToModelButton() *gtk.ModelButton {
+// 	b, _ := gtk.ModelButtonNew()
+// 	b.SetLabel(action[0])
+// 	b.SetActionName(action[1])
+// 	b.Show()
+
+// 	// Set the label's alignment in a hacky way.
+// 	c, _ := b.GetChild()
+// 	l := c.(LabelTweaker)
+// 	l.SetUseMarkup(true)
+// 	l.SetHAlign(gtk.ALIGN_START)
+// }
 
 func (item Item) ToMenuItem() *gtk.MenuItem {
 	mb, _ := gtk.MenuItemNewWithLabel(item.Name)

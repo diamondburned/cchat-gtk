@@ -16,7 +16,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/typing"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -85,7 +85,7 @@ func NewView() *View {
 	primitives.AddClass(view.Box, "message-view")
 
 	// placeholder logo
-	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256())
+	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2())
 	logo.Show()
 
 	view.FaceView = sadface.New(view.Box, logo)

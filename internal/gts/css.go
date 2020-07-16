@@ -29,24 +29,14 @@ func loadProviders(screen *gdk.Screen) {
 	}
 }
 
-func LoadCSS(files ...string) {
-	var buf bytes.Buffer
-	for _, file := range files {
-		buf.Reset()
-
-		if err := readFile(&buf, file); err != nil {
-			log.Error(errors.Wrap(err, "Failed to load a CSS file"))
-			continue
-		}
-
-		prov, _ := gtk.CssProviderNew()
-		if err := prov.LoadFromData(buf.String()); err != nil {
-			log.Error(errors.Wrap(err, "Failed to parse CSS "+file))
-			continue
-		}
-
-		cssRepos[file] = prov
+func LoadCSS(name, css string) {
+	prov, _ := gtk.CssProviderNew()
+	if err := prov.LoadFromData(css); err != nil {
+		log.Error(errors.Wrap(err, "Failed to parse CSS in "+name))
+		return
 	}
+
+	cssRepos[name] = prov
 }
 
 func readFile(buf *bytes.Buffer, file string) error {

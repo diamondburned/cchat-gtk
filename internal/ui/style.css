@@ -1,7 +1,0 @@
-/* Make CSS more consistent across themes */
-headerbar { padding: 0; }
-
-popover > *:not(stack):not(button) { margin: 6px; }
-
-/* Hack to fix the input bar being high in Adwaita */
-.input-field * { min-height: 0; }

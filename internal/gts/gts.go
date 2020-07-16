@@ -23,6 +23,8 @@ var App struct {
 	*gtk.Application
 	Window *gtk.ApplicationWindow
 	Header *gtk.HeaderBar
+
+	Throttler *throttler.State
 }
 
 // Clipboard is initialized on init().
@@ -37,6 +39,7 @@ func NewModalDialog() (*gtk.Dialog, error) {
 	}
 	d.SetModal(true)
 	d.SetTransientFor(App.Window)
+	App.Throttler.Connect(d)
 
 	return d, nil
 }
@@ -63,48 +66,48 @@ func AddAppAction(name string, call func()) {
 	App.AddAction(action)
 }
 
-// Commented because this is not a good function to use. Components should use
-// AddAppAction instead.
-
-// func AddWindowAction(name string, call func()) {
-// 	action := glib.SimpleActionNew(name, nil)
-// 	action.Connect("activate", call)
-// 	App.Window.AddAction(action)
-// }
-
 func init() {
 	gtk.Init(&Args)
 	App.Application, _ = gtk.ApplicationNew(AppID, 0)
 	Clipboard, _ = gtk.ClipboardGet(gdk.SELECTION_CLIPBOARD)
+
+	// Limit the TPS of the main loop on window unfocus.
+	App.Throttler = throttler.Bind(App.Application)
 }
 
-type WindowHeaderer interface {
+type Window interface {
 	Window() gtk.IWidget
 	Header() gtk.IWidget
+	Menu() *glib.MenuModel
+	Icon() *gdk.Pixbuf
 	Close()
 }
 
-func Main(wfn func() WindowHeaderer) {
+func Main(wfn func() Window) {
 	App.Application.Connect("activate", func() {
 		// Load all CSS onto the default screen.
 		loadProviders(getDefaultScreen())
 
+		// Execute the function later, because we need it to run after
+		// initialization.
+		w := wfn()
+		App.Application.SetAppMenu(w.Menu())
+
 		App.Header, _ = gtk.HeaderBarNew()
+		// Right buttons only.
+		App.Header.SetDecorationLayout("menu:minimize,close")
 		App.Header.SetShowCloseButton(true)
 		App.Header.Show()
 
-		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-		App.Header.SetCustomTitle(b)
+		// b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+		// App.Header.SetCustomTitle(b)
 
 		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
 		App.Window.SetDefaultSize(1000, 500)
 		App.Window.SetTitlebar(App.Header)
-
+		App.Window.SetIcon(w.Icon())
 		App.Window.Show()
 
-		// Execute the function later, because we need it to run after
-		// initialization.
-		w := wfn()
 		App.Window.Add(w.Window())
 		App.Header.Add(w.Header())
 
@@ -127,8 +130,6 @@ func Main(wfn func() WindowHeaderer) {
 			})
 		})
 
-		// Limit the TPS of the main loop on unfocus.
-		throttler.Bind(App.Window)
 	})
 
 	// Use a special function to run the application. Exit with the appropriate
@@ -223,6 +224,7 @@ func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 		"Upload", gtk.RESPONSE_ACCEPT,
 	)
 
+	App.Throttler.Connect(dialog)
 	BindPreviewer(dialog)
 
 	if dirpath == "" {

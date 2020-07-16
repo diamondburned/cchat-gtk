@@ -5,23 +5,6 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-// TODO rename file
-
-// TODO: round buttons
-func NewAddButton() *gtk.ListBoxRow {
-	img, _ := gtk.ImageNew()
-	img.Show()
-	primitives.SetImageIcon(img, "list-add-symbolic", IconSize/2)
-
-	row, _ := gtk.ListBoxRowNew()
-	row.SetSizeRequest(IconSize, IconSize)
-	row.SetSelectable(false) // activatable though
-	row.Add(img)
-	row.Show()
-
-	return row
-}
-
 type ServiceController interface {
 	SessionSelected(*Row)
 	AuthenticateSession()

@@ -40,7 +40,6 @@ func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
 
 	img, _ := roundimage.NewImage(0)
 	img.Show()
-	img.SetSizeRequest(sizepx, sizepx)
 
 	rev, _ := gtk.RevealerNew()
 	rev.Add(img)
@@ -93,7 +92,6 @@ func (i *Icon) CopyPixbuf(dst httputil.ImageContainer) {
 func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
 	i.Image.SetRadius(-1) // square
 	i.SetRevealChild(true)
-	i.SetSize(iconSzPx)
 
 	if iconName != "" {
 		primitives.SetImageIcon(i.Image.Image, iconName, iconSzPx)
@@ -134,6 +132,24 @@ func (i *Icon) SetIconUnsafe(url string) {
 
 func (i *Icon) updateAsync() {
 	httputil.AsyncImageSized(i.Image, i.url, i.size, i.size, i.procs...)
+}
+
+type EventIcon struct {
+	*gtk.EventBox
+	Icon *Icon
+}
+
+func NewEventIcon(sizepx int, pp ...imgutil.Processor) *EventIcon {
+	icn := NewIcon(sizepx, pp...)
+	icn.Show()
+
+	evb, _ := gtk.EventBoxNew()
+	evb.Add(icn)
+
+	return &EventIcon{
+		EventBox: evb,
+		Icon:     icn,
+	}
 }
 
 type ToggleButtonImage struct {

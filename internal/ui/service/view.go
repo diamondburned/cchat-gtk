@@ -33,13 +33,10 @@ type Controller interface {
 	AuthenticateSession(*List, *Service)
 	// OnSessionRemove is called to remove a session. This should also clear out
 	// the message view in the parent package.
-	OnSessionRemove(id string)
+	OnSessionRemove(*Service, *session.Row)
 	// OnSessionDisconnect is here to satisfy session's controller.
-	OnSessionDisconnect(id string)
+	OnSessionDisconnect(*Service, *session.Row)
 }
-
-// LeftWidth is the width of the left-most services panel.
-const LeftWidth = IconSize
 
 type View struct {
 	*gtk.Box   // 2 panes, but left-most hard-coded
@@ -57,7 +54,6 @@ func NewView(ctrller Controller) *View {
 	view := &View{Controller: ctrller}
 
 	view.Services = NewList(view)
-	view.Services.SetSizeRequest(LeftWidth, -1)
 	view.Services.Show()
 
 	// Make a separator.

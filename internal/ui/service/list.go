@@ -12,6 +12,8 @@ type ViewController interface {
 	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
 	SessionSelected(*Service, *session.Row)
 	AuthenticateSession(*List, *Service)
+	OnSessionRemove(*Service, *session.Row)
+	OnSessionDisconnect(*Service, *session.Row)
 }
 
 // List is a list of services. Each service is a revealer that contains
@@ -57,6 +59,14 @@ func (sl *List) SetSizeRequest(w, h int) {
 
 func (sl *List) AuthenticateSession(svc *Service) {
 	sl.ViewController.AuthenticateSession(sl, svc)
+}
+
+func (sl *List) OnSessionRemove(svc *Service, row *session.Row) {
+	sl.ViewController.OnSessionRemove(svc, row)
+}
+
+func (sl *List) OnSessionDisconnect(svc *Service, row *session.Row) {
+	sl.ViewController.OnSessionDisconnect(svc, row)
 }
 
 func (sl *List) AddService(svc cchat.Service) {
