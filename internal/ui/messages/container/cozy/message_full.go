@@ -10,8 +10,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -43,6 +44,13 @@ var boldCSS = primitives.PrepareCSS(`
 	* { font-weight: 600; }
 `)
 
+var avatarCSS = primitives.PrepareClassCSS("cozy-avatar", `
+	/* Slightly dip down on click */
+	.cozy-avatar:active {
+	    margin-top: 1px;
+	}
+`)
+
 func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
 	msgc := WrapFullMessage(message.NewContainer(msg))
 	// Don't update the avatar. NewMessage in controller will try and reuse the
@@ -57,6 +65,11 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	avatar := NewAvatar()
 	avatar.SetMarginTop(TopFullMargin)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
+	avatar.Connect("clicked", func() {
+		if output := gc.Username.Output(); len(output.Mentions) > 0 {
+			labeluri.PopoverMentioner(avatar, output.Mentions[0])
+		}
+	})
 	// We don't call avatar.Show(). That's called in Attach.
 
 	// Style the timestamp accordingly.
@@ -64,8 +77,8 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	gc.Timestamp.SetVAlign(gtk.ALIGN_END) // bottom-align
 	gc.Timestamp.SetMarginStart(0)        // clear margins
 
-	// Attach the class for the left avatar.
-	primitives.AddClass(avatar, "cozy-avatar")
+	// Attach the class and CSS for the left avatar.
+	avatarCSS(avatar)
 
 	// Attach the username style provider.
 	primitives.AttachCSS(gc.Username, boldCSS)
@@ -123,11 +136,11 @@ func (m *FullMessage) UpdateAuthor(author cchat.MessageAuthor) {
 // CopyAvatarPixbuf sets the pixbuf into the given container. This shares the
 // same pixbuf, but gtk.Image should take its own reference from the pixbuf.
 func (m *FullMessage) CopyAvatarPixbuf(dst httputil.ImageContainer) {
-	switch m.Avatar.GetStorageType() {
+	switch img := m.Avatar.Image; img.GetStorageType() {
 	case gtk.IMAGE_PIXBUF:
-		dst.SetFromPixbuf(m.Avatar.GetPixbuf())
+		dst.SetFromPixbuf(img.GetPixbuf())
 	case gtk.IMAGE_ANIMATION:
-		dst.SetFromAnimation(m.Avatar.GetAnimation())
+		dst.SetFromAnimation(img.GetAnimation())
 	}
 }
 
@@ -165,17 +178,19 @@ func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
 }
 
 type Avatar struct {
-	roundimage.Image
+	roundimage.Button
 	url string
 }
 
 func NewAvatar() *Avatar {
-	avatar, _ := roundimage.NewImage(0)
+	avatar, _ := roundimage.NewButton()
 	avatar.SetSizeRequest(AvatarSize, AvatarSize)
 	avatar.SetVAlign(gtk.ALIGN_START)
 
 	// Default icon.
-	primitives.SetImageIcon(avatar.Image, "user-available-symbolic", AvatarSize)
+	primitives.SetImageIcon(
+		avatar.Image.Image, "user-available-symbolic", AvatarSize,
+	)
 
 	return &Avatar{*avatar, ""}
 }
@@ -191,7 +206,7 @@ func (a *Avatar) SetURL(url string) {
 	}
 
 	a.url = url
-	httputil.AsyncImageSized(a, url, AvatarSize, AvatarSize)
+	httputil.AsyncImageSized(a.Image, url, AvatarSize, AvatarSize)
 }
 
 // ManuallySetURL sets the URL without downloading the image. It assumes the

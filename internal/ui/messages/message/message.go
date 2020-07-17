@@ -6,9 +6,9 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -100,6 +100,7 @@ func NewEmptyContainer() *GenericContainer {
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	user.SetXAlign(1) // right align
 	user.SetVAlign(gtk.ALIGN_START)
+	user.SetTrackVisitedLinks(false)
 	user.Show()
 
 	ctbody := labeluri.NewLabel(text.Rich{})
@@ -108,6 +109,7 @@ func NewEmptyContainer() *GenericContainer {
 	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	ctbody.SetXAlign(0) // left align
 	ctbody.SetSelectable(true)
+	ctbody.SetTrackVisitedLinks(false)
 	ctbody.Show()
 
 	// Wrap the content label inside a content box.

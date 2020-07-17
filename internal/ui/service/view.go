@@ -8,22 +8,6 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-/*
-
-Design:
-
-____________________________
-|  #  |           |        |
-|-----|-----------|--------|
-|  D  | nixhub    |        |
-| --- |   #home   |        | <- shaded revealer
-|  O  |   #dev... |        | <- user accounts collapsed
-| --- | astolf... |        |
-|     | asdada... |        |
-|  M  |           |        |
-|_____|___________|________|
-*/
-
 type Controller interface {
 	// SessionSelected is called when
 	SessionSelected(svc *Service, srow *session.Row)
@@ -66,16 +50,17 @@ func NewView(ctrller Controller) *View {
 	view.ServerStack.SetTransitionDuration(50)
 	view.ServerStack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
 	view.ServerStack.SetHomogeneous(true)
+	view.ServerStack.SetHExpand(true)
 	view.ServerStack.Show()
 
 	view.ServerView, _ = gtk.ScrolledWindowNew(nil, nil)
 	view.ServerView.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+	view.ServerView.SetHExpand(true)
 	view.ServerView.Add(view.ServerStack)
 	view.ServerView.Show()
 
 	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	view.Box.PackStart(view.Services, false, false, 0)
-	// view.Box.PackStart(sep, false, false, 0)
 	view.Box.PackStart(view.ServerView, true, true, 0)
 	view.Box.Show()
 

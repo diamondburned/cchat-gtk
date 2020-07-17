@@ -35,7 +35,7 @@ func GetName(namer Namer) string {
 	return nm
 }
 
-func EachChildren(w interface{ GetChildren() *glib.List }, fn func(i int, v interface{}) bool) {
+func EachChildren(w Container, fn func(i int, v interface{}) bool) {
 	var cursor int = -1
 	for ptr := w.GetChildren(); ptr != nil; ptr = ptr.Next() {
 		cursor++
@@ -44,45 +44,6 @@ func EachChildren(w interface{ GetChildren() *glib.List }, fn func(i int, v inte
 			return
 		}
 	}
-}
-
-type DragSortable interface {
-	DragSourceSet(gdk.ModifierType, []gtk.TargetEntry, gdk.DragAction)
-	DragDestSet(gtk.DestDefaults, []gtk.TargetEntry, gdk.DragAction)
-	GetAllocation() *gtk.Allocation
-	Connector
-}
-
-func BindDragSortable(ds DragSortable, target, id string, fn func(id, target string)) {
-	var dragEntries = []gtk.TargetEntry{NewTargetEntry(target)}
-	var dragAtom = gdk.GdkAtomIntern(target, true)
-
-	// Drag source so you can drag the button away.
-	ds.DragSourceSet(gdk.BUTTON1_MASK, dragEntries, gdk.ACTION_MOVE)
-
-	// Drag destination so you can drag the button here.
-	ds.DragDestSet(gtk.DEST_DEFAULT_ALL, dragEntries, gdk.ACTION_MOVE)
-
-	ds.Connect("drag-data-get",
-		// TODO change ToggleButton.
-		func(ds DragSortable, ctx *gdk.DragContext, data *gtk.SelectionData) {
-			// Set the index-in-bytes.
-			data.SetData(dragAtom, []byte(id))
-		},
-	)
-
-	ds.Connect("drag-data-received",
-		func(ds DragSortable, ctx *gdk.DragContext, x, y uint, data *gtk.SelectionData) {
-			// Receive the incoming row's ID and call MoveSession.
-			fn(id, string(data.GetData()))
-		},
-	)
-
-	ds.Connect("drag-begin",
-		func(ds DragSortable, ctx *gdk.DragContext) {
-			gtk.DragSetIconName(ctx, "user-available-symbolic", 0, 0)
-		},
-	)
 }
 
 type StyleContexter interface {
@@ -199,11 +160,6 @@ func BindDynamicMenu(connector Connector, constr func(menu *gtk.Menu)) {
 	})
 }
 
-func NewTargetEntry(target string) gtk.TargetEntry {
-	e, _ := gtk.TargetEntryNew(target, gtk.TARGET_SAME_APP, 0)
-	return *e
-}
-
 // NewMenuActionButton is the same as NewActionButton, but it uses the
 // open-menu-symbolic icon.
 func NewMenuActionButton(actions [][2]string) *gtk.MenuButton {
@@ -285,4 +241,8 @@ func PrepareCSS(css string) *gtk.CssProvider {
 func AttachCSS(ctx StyleContexter, prov *gtk.CssProvider) {
 	s, _ := ctx.GetStyleContext()
 	s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+}
+
+func InlineCSS(ctx StyleContexter, css string) {
+	AttachCSS(ctx, PrepareCSS(css))
 }

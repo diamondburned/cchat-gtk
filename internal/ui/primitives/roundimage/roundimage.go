@@ -3,6 +3,7 @@ package roundimage
 import (
 	"math"
 
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -11,6 +12,32 @@ const (
 	pi     = math.Pi
 	circle = 2 * math.Pi
 )
+
+// Button implements a rounded button with a rounded image. This widget only
+// supports a full circle for rounding.
+type Button struct {
+	*gtk.Button
+	Image *Image
+}
+
+var roundButtonCSS = primitives.PrepareClassCSS("round-button", `
+	.round-button {
+		padding: 0;
+		border-radius: 50%;
+	}
+`)
+
+func NewButton() (*Button, error) {
+	image, _ := NewImage(0)
+	image.Show()
+
+	b, _ := gtk.ButtonNew()
+	b.SetImage(image)
+	b.SetRelief(gtk.RELIEF_NONE)
+	roundButtonCSS(b)
+
+	return &Button{Button: b, Image: image}, nil
+}
 
 type Image struct {
 	*gtk.Image
@@ -28,78 +55,76 @@ func NewImage(radius float64) (*Image, error) {
 	image := &Image{Image: i, Radius: radius}
 
 	// Connect to the draw callback and clip the context.
-	i.Connect("draw", func(i *gtk.Image, cc *cairo.Context) bool {
-		var w = float64(i.GetAllocatedWidth())
-		var h = float64(i.GetAllocatedHeight())
-
-		var min = w
-		// Use the smallest side for radius calculation.
-		if h < w {
-			min = h
-		}
-
-		// Copy the variables in case we need to change them.
-		var r = image.Radius
-
-		// We have to do this so the arc paint doesn't leave back a black
-		// background instead of the usual alpha.
-		// cc.SetSourceRGBA(255, 255, 255, 0)
-
-		switch {
-		// If radius is less than 0, then don't round.
-		case r < 0:
-			return false
-
-		// If radius is 0, then we have to calculate our own radius.:This only
-		// works if the image is a square.
-		case r == 0:
-			// Calculate the radius by dividing a side by 2.
-			r = (min / 2)
-
-			// Draw an arc from 0deg to 360deg.
-			cc.Arc(w/2, h/2, r, 0, circle)
-			cc.SetSourceRGBA(255, 255, 255, 0)
-
-			// Clip the image with the arc we drew.
-			cc.Clip()
-
-		// If radius is more than 0, then we have to calculate the radius from
-		// the edges.
-		case r > 0:
-			// StackOverflow is godly.
-			// https://stackoverflow.com/a/6959843.
-
-			// Account for the offset.
-			// r += o
-
-			// Radius should be largest a single side divided by 2.
-			if max := min / 2; r > max {
-				r = max
-			}
-
-			// Draw 4 arcs at 4 corners.
-			cc.Arc(0+r, 0+r, r, 2*(pi/2), 3*(pi/2)) // top left
-			cc.Arc(w-r, 0+r, r, 3*(pi/2), 4*(pi/2)) // top right
-			cc.Arc(w-r, h-r, r, 0*(pi/2), 1*(pi/2)) // bottom right
-			cc.Arc(0+r, h-r, r, 1*(pi/2), 2*(pi/2)) // bottom left
-
-			// Close the created path.
-			cc.ClosePath()
-			cc.SetSourceRGBA(255, 255, 255, 0)
-
-			// Clip the image with the arc we drew.
-			cc.Clip()
-		}
-
-		// Paint the changes.
-		cc.Paint()
-
-		return false
-	})
+	i.Connect("draw", image.drawer)
 
 	return image, nil
 }
 
 func (i *Image) SetRadius(r float64) {
 	i.Radius = r
+}
+
+func (i *Image) drawer(widget gtk.IWidget, cc *cairo.Context) bool {
+	var w = float64(i.GetAllocatedWidth())
+	var h = float64(i.GetAllocatedHeight())
+
+	var min = w
+	// Use the smallest side for radius calculation.
+	if h < w {
+		min = h
+	}
+
+	// Copy the variables in case we need to change them.
+	var r = i.Radius
+
+	switch {
+	// If radius is less than 0, then don't round.
+	case r < 0:
+		return false
+
+	// If radius is 0, then we have to calculate our own radius.:This only
+	// works if the image is a square.
+	case r == 0:
+		// Calculate the radius by dividing a side by 2.
+		r = (min / 2)
+
+		// Draw an arc from 0deg to 360deg.
+		cc.Arc(w/2, h/2, r, 0, circle)
+
+		// We have to do this so the arc paint doesn't leave back a black
+		// background instead of the usual alpha.
+		cc.SetSourceRGBA(255, 255, 255, 0)
+
+		// Clip the image with the arc we drew.
+		cc.Clip()
+
+	// If radius is more than 0, then we have to calculate the radius from
+	// the edges.
+	case r > 0:
+		// StackOverflow is godly.
+		// https://stackoverflow.com/a/6959843.
+
+		// Radius should be largest a single side divided by 2.
+		if max := min / 2; r > max {
+			r = max
+		}
+
+		// Draw 4 arcs at 4 corners.
+		cc.Arc(0+r, 0+r, r, 2*(pi/2), 3*(pi/2)) // top left
+		cc.Arc(w-r, 0+r, r, 3*(pi/2), 4*(pi/2)) // top right
+		cc.Arc(w-r, h-r, r, 0*(pi/2), 1*(pi/2)) // bottom right
+		cc.Arc(0+r, h-r, r, 1*(pi/2), 2*(pi/2)) // bottom left
+
+		// Close the created path.
+		cc.ClosePath()
+		cc.SetSourceRGBA(255, 255, 255, 0)
+
+		// Clip the image with the arc we drew.
+		cc.Clip()
+	}
+
+	// Paint the changes.
+	cc.Paint()
+
+	return false
 }

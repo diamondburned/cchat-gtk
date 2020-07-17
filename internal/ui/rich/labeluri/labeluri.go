@@ -82,19 +82,8 @@ func BindRichLabel(label Labeler) {
 		var output = label.Output()
 
 		if mention := output.IsMention(uri); mention != nil {
-			if info := mention.MentionInfo(); !info.Empty() {
-				l, _ := gtk.LabelNew(markup.Render(info))
-				l.SetUseMarkup(true)
-				l.SetXAlign(0)
-				l.Show()
-
-				// Enable images???
-				BindActivator(l)
-
-				p, _ := gtk.PopoverNew(label)
+			if p := popoverMentioner(label, mention); p != nil {
 				p.SetPointingTo(ptr)
-				p.Add(l)
-				p.Connect("destroy", l.Destroy)
 				p.Popup()
 			}
 
@@ -103,6 +92,32 @@ func BindRichLabel(label Labeler) {
 
 		return false
 	})
+}
+
+func PopoverMentioner(rel gtk.IWidget, mention text.Mentioner) {
+	if p := popoverMentioner(rel, mention); p != nil {
+		p.Popup()
+	}
+}
+
+func popoverMentioner(rel gtk.IWidget, mention text.Mentioner) *gtk.Popover {
+	var info = mention.MentionInfo()
+	if info.Empty() {
+		return nil
+	}
+
+	l, _ := gtk.LabelNew(markup.Render(info))
+	l.SetUseMarkup(true)
+	l.SetXAlign(0)
+	l.Show()
+
+	// Enable images???
+	BindActivator(l)
+
+	p, _ := gtk.PopoverNew(rel)
+	p.Add(l)
+	p.Connect("destroy", l.Destroy)
+	return p
 }
 
 func BindActivator(connector WidgetConnector) {

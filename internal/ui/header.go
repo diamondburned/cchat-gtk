@@ -4,9 +4,12 @@ import (
 	"html"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/icons"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -14,6 +17,7 @@ type header struct {
 	*gtk.Box
 	left  *headerLeft // middle-ish
 	right *headerRight
+	menu  *glib.Menu
 }
 
 func newHeader() *header {
@@ -32,15 +36,22 @@ func newHeader() *header {
 	box.PackStart(right, true, true, 0)
 	box.Show()
 
+	menu := glib.MenuNew()
+	menu.Append("Preferences", "app.preferences")
+	menu.Append("Quit", "app.quit")
+
+	left.appmenu.SetMenuModel(&menu.MenuModel)
+
 	// TODO
 	return &header{
 		box,
 		left,
 		right,
+		menu,
 	}
 }
 
-const BreadcrumbSlash = `<span weight="light" rise="-1024" size="x-large">/</span>`
+const BreadcrumbSlash = `<span rise="-1024" size="x-large">/</span>`
 
 func (h *header) SetBreadcrumber(b breadcrumb.Breadcrumber) {
 	if b == nil {
@@ -59,24 +70,63 @@ func (h *header) SetBreadcrumber(b breadcrumb.Breadcrumber) {
 }
 
 func (h *header) SetSessionMenu(s *session.Row) {
-	h.left.openmenu.Bind(s.ActionsMenu)
+	h.left.sesmenu.Bind(s.ActionsMenu)
+}
+
+type appMenu struct {
+	*gtk.MenuButton
+}
+
+func newAppMenu() *appMenu {
+	img, _ := gtk.ImageNew()
+	img.SetFromPixbuf(icons.Logo256(24))
+	img.Show()
+
+	appmenu, _ := gtk.MenuButtonNew()
+	appmenu.SetImage(img)
+	appmenu.SetUsePopover(true)
+	appmenu.SetHAlign(gtk.ALIGN_CENTER)
+	appmenu.SetMarginStart(8)
+	appmenu.SetMarginEnd(8)
+
+	return &appMenu{appmenu}
+}
+
+func (a *appMenu) SetSizeRequest(w, h int) {
+	// Subtract the margin size.
+	if w -= 8 * 2; w < 0 {
+		w = 0
+	}
+
+	a.MenuButton.SetSizeRequest(w, h)
 }
 
 type headerLeft struct {
 	*gtk.Box
-	openmenu *actions.MenuButton
+	appmenu *appMenu
+	sesmenu *actions.MenuButton
 }
 
 func newHeaderLeft() *headerLeft {
-	openmenu := actions.NewMenuButton()
-	openmenu.Show()
+	appmenu := newAppMenu()
+	appmenu.Show()
+
+	sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
+	sep.Show()
+	primitives.AddClass(sep, "titlebutton")
+
+	sesmenu := actions.NewMenuButton()
+	sesmenu.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(openmenu, false, false, 5)
+	box.PackStart(appmenu, false, false, 0)
+	box.PackStart(sep, false, false, 0)
+	box.PackStart(sesmenu, false, false, 5)
 
 	return &headerLeft{
-		Box:      box,
-		openmenu: openmenu,
+		Box:     box,
+		appmenu: appmenu,
+		sesmenu: sesmenu,
 	}
 }
 

@@ -112,7 +112,7 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 	// Borrow the avatar pixbuf, but only if the avatar URL is the same.
 	p, ok := lastAuthorMsg.(AvatarPixbufCopier)
 	if ok && lastAuthorMsg.AvatarURL() == avatarURL {
-		p.CopyAvatarPixbuf(full.Avatar)
+		p.CopyAvatarPixbuf(full.Avatar.Image)
 		full.Avatar.ManuallySetURL(avatarURL)
 	} else {
 		// We can't borrow, so we need to fetch it anew.
