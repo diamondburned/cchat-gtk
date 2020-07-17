@@ -11,9 +11,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
@@ -52,7 +52,7 @@ type Row struct {
 	*gtk.ListBoxRow
 	icon *rich.EventIcon // nilable
 
-	parentcrumb breadcrumb.Breadcrumber
+	parentcrumb traverse.Breadcrumber
 
 	Session   cchat.Session // state; nilable
 	sessionID string
@@ -86,20 +86,20 @@ var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 	}
 `)
 
-func New(parent breadcrumb.Breadcrumber, ses cchat.Session, ctrl Servicer) *Row {
+func New(parent traverse.Breadcrumber, ses cchat.Session, ctrl Servicer) *Row {
 	row := newRow(parent, text.Rich{}, ctrl)
 	row.SetSession(ses)
 	return row
 }
 
-func NewLoading(parent breadcrumb.Breadcrumber, id, name string, ctrl Servicer) *Row {
+func NewLoading(parent traverse.Breadcrumber, id, name string, ctrl Servicer) *Row {
 	row := newRow(parent, text.Rich{Content: name}, ctrl)
 	row.sessionID = id
 	row.SetLoading()
 	return row
 }
 
-func newRow(parent breadcrumb.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
+func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	row := &Row{
 		svcctrl:     ctrl,
 		parentcrumb: parent,
@@ -163,8 +163,8 @@ func (r *Row) Reset() {
 	r.cmder = nil
 }
 
-func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(r.parentcrumb, r.Session.Name().Content)
+func (r *Row) Breadcrumb() traverse.Breadcrumb {
+	return traverse.TryBreadcrumb(r.parentcrumb, r.Session.Name().Content)
 }
 
 // Activate executes whatever needs to be done. If the row has failed, then this

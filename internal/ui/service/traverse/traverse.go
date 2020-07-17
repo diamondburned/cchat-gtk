@@ -1,4 +1,4 @@
-package breadcrumb
+package traverse
 
 import "strings"
 
@@ -12,8 +12,8 @@ type Breadcrumber interface {
 	Breadcrumb() Breadcrumb
 }
 
-// Try accepts a nilable breadcrumber and handles it appropriately.
-func Try(i Breadcrumber, appended ...string) []string {
+// TryBreadcrumb accepts a nilable breadcrumber and handles it appropriately.
+func TryBreadcrumb(i Breadcrumber, appended ...string) []string {
 	if i == nil {
 		return appended
 	}

@@ -10,9 +10,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -205,8 +205,8 @@ func (s *Service) MoveSession(id, movingID string) {
 	s.SaveAllSessions()
 }
 
-func (s *Service) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(nil, s.service.Name().Content)
+func (s *Service) Breadcrumb() traverse.Breadcrumb {
+	return traverse.TryBreadcrumb(nil, s.service.Name().Content)
 }
 
 func (s *Service) SaveAllSessions() {

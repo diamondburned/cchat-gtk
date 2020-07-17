@@ -4,8 +4,8 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -20,7 +20,7 @@ type Children struct {
 
 	Rows []*ServerRow
 
-	Parent  breadcrumb.Breadcrumber
+	Parent  traverse.Breadcrumber
 	rowctrl Controller
 }
 
@@ -33,7 +33,7 @@ var childrenCSS = primitives.PrepareClassCSS("server-children", `
 	}
 `)
 
-func NewChildren(p breadcrumb.Breadcrumber, ctrl Controller) *Children {
+func NewChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.SetMarginStart(ChildrenMargin)
 	childrenCSS(main)
@@ -120,6 +120,6 @@ func (c *Children) SetServers(servers []cchat.Server) {
 	})
 }
 
-func (c *Children) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(c.Parent)
+func (c *Children) Breadcrumb() traverse.Breadcrumb {
+	return traverse.TryBreadcrumb(c.Parent)
 }

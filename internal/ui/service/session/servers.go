@@ -8,7 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -31,7 +31,7 @@ var toplevelCSS = primitives.PrepareClassCSS("top-level", `
 	.top-level { margin: 0 3px }
 `)
 
-func NewServers(p breadcrumb.Breadcrumber, ctrl server.Controller) *Servers {
+func NewServers(p traverse.Breadcrumber, ctrl server.Controller) *Servers {
 	c := server.NewChildren(p, ctrl)
 	c.SetMarginStart(0) // children is top level; there is no main row
 	c.SetHExpand(true)  // fill

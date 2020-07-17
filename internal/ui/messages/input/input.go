@@ -217,7 +217,8 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 		f.typer, _ = sender.(cchat.ServerMessageTypingIndicator)
 
 		// See if we can upload files.
-		_, f.upload = sender.(cchat.ServerMessageAttachmentSender)
+		_, allowUpload := sender.(cchat.ServerMessageAttachmentSender)
+		f.SetAllowUpload(allowUpload)
 
 		// Populate the duration state if typer is not nil.
 		if f.typer != nil {

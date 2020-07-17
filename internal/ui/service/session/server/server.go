@@ -6,8 +6,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -30,7 +30,7 @@ var serverCSS = primitives.PrepareClassCSS("server", `
 	}
 `)
 
-func NewServerRow(p breadcrumb.Breadcrumber, server cchat.Server, ctrl Controller) *ServerRow {
+func NewServerRow(p traverse.Breadcrumber, server cchat.Server, ctrl Controller) *ServerRow {
 	row := NewRow(p, server.Name())
 	row.SetIconer(server)
 	serverCSS(row)
@@ -69,7 +69,7 @@ type Row struct {
 	*gtk.Box
 	Button *button.ToggleButtonImage
 
-	parentcrumb breadcrumb.Breadcrumber
+	parentcrumb traverse.Breadcrumber
 
 	childrev   *gtk.Revealer
 	children   *Children
@@ -77,7 +77,7 @@ type Row struct {
 	loaded     bool
 }
 
-func NewRow(parent breadcrumb.Breadcrumber, name text.Rich) *Row {
+func NewRow(parent traverse.Breadcrumber, name text.Rich) *Row {
 	button := button.NewToggleButtonImage(name)
 	button.Box.SetHAlign(gtk.ALIGN_START)
 	button.SetRelief(gtk.RELIEF_NONE)
@@ -95,8 +95,8 @@ func NewRow(parent breadcrumb.Breadcrumber, name text.Rich) *Row {
 	return row
 }
 
-func (r *Row) Breadcrumb() breadcrumb.Breadcrumb {
-	return breadcrumb.Try(r.parentcrumb, r.Button.GetText())
+func (r *Row) Breadcrumb() traverse.Breadcrumb {
+	return traverse.TryBreadcrumb(r.parentcrumb, r.Button.GetText())
 }
 
 func (r *Row) SetLabelUnsafe(name text.Rich) {

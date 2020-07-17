@@ -7,7 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/icons"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -53,7 +53,7 @@ func newHeader() *header {
 
 const BreadcrumbSlash = `<span rise="-1024" size="x-large">/</span>`
 
-func (h *header) SetBreadcrumber(b breadcrumb.Breadcrumber) {
+func (h *header) SetBreadcrumber(b traverse.Breadcrumber) {
 	if b == nil {
 		h.right.breadcrumb.SetText("")
 		return
