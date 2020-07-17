@@ -62,12 +62,8 @@ type Row struct {
 
 	ActionsMenu *actions.Menu // session.*
 
-	// TODO: enum class? having the button be red on fail would be good
-
 	// put commander in either a hover menu or a right click menu. maybe in the
 	// headerbar as well.
-	// TODO headerbar how? custom interface to get menu items and callbacks in
-	// controller?
 	cmder *commander.Buffer
 }
 

@@ -64,6 +64,19 @@ func RemoveClass(styleCtx StyleContexter, classes ...string) {
 	}
 }
 
+type ClassEnum struct{ class string }
+
+func (c *ClassEnum) SetClass(ctx StyleContexter, class string) {
+	var style, _ = ctx.GetStyleContext()
+	if c.class != "" {
+		style.RemoveClass(c.class)
+	}
+
+	if c.class = class; class != "" {
+		style.AddClass(class)
+	}
+}
+
 type StyleContextFocuser interface {
 	StyleContexter
 	GrabFocus()

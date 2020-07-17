@@ -1,6 +1,8 @@
 package input
 
 import (
+	"time"
+
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/gotk3/gotk3/gdk"
@@ -92,6 +94,23 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 		if err := f.Attachments.AddPixbuf(p); err != nil {
 			log.Error(errors.Wrap(err, "Failed to add image to attachment list"))
 			return true
+		}
+	}
+
+	// If the server supports typing indication, then announce that we are
+	// typing with a proper rate limit.
+	if f.typer != nil {
+		// Get the current time; if the next timestamp is before now, then that
+		// means it's time for us to update it and send a typing indication.
+		if now := time.Now(); f.lastTyped.Add(f.typerDura).Before(now) {
+			// Update.
+			f.lastTyped = now
+			// Send asynchronously.
+			go func() {
+				if err := f.typer.Typing(); err != nil {
+					log.Error(errors.Wrap(err, "Failed to announce typing"))
+				}
+			}()
 		}
 	}
 

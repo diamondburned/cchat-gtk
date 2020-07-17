@@ -7,7 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/button"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -45,6 +45,21 @@ func NewServerRow(p breadcrumb.Breadcrumber, server cchat.Server, ctrl Controlle
 	case cchat.ServerMessage:
 		row.Button.SetClickedIfTrue(func() { ctrl.RowSelected(serverRow, server) })
 		primitives.AddClass(row, "server-message")
+
+		// Check if the server is capable of indicating unread state.
+		if unreader, ok := server.(cchat.ServerMessageUnreadIndicator); ok {
+			// Set as read by default.
+			row.Button.SetUnreadUnsafe(false, false)
+
+			gts.Async(func() (func(), error) {
+				c, err := unreader.UnreadIndicate(row)
+				if err != nil {
+					return nil, errors.Wrap(err, "Failed to use unread indicator")
+				}
+
+				return func() { row.Connect("destroy", c) }, nil
+			})
+		}
 	}
 
 	return serverRow
@@ -208,6 +223,15 @@ func (r *Row) SetRevealChild(reveal bool) {
 	}
 }
 
+// GetRevealChild returns whether or not the server list is expanded, or always
+// false if there is no server list.
+func (r *Row) GetRevealChild() bool {
+	if r.childrev != nil {
+		return r.childrev.GetRevealChild()
+	}
+	return false
+}
+
 // Load loads the row without uncollapsing it.
 func (r *Row) Load() {
 	// Safeguard.
@@ -239,11 +263,11 @@ func (r *Row) Load() {
 	}()
 }
 
-// GetRevealChild returns whether or not the server list is expanded, or always
-// false if there is no server list.
-func (r *Row) GetRevealChild() bool {
-	if r.childrev != nil {
-		return r.childrev.GetRevealChild()
-	}
-	return false
+// SetUnread is thread-safe.
+func (r *Row) SetUnread(unread, mentioned bool) {
+	gts.ExecAsync(func() { r.SetUnreadUnsafe(unread, mentioned) })
+}
+
+func (r *Row) SetUnreadUnsafe(unread, mentioned bool) {
+	r.Button.SetUnreadUnsafe(unread, mentioned)
 }

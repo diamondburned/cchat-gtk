@@ -39,7 +39,7 @@ func (a *AppendMap) Anchor(start, end int, href string) {
 	a.Close(end, "</a>")
 }
 
-// AnchorNU makes a new <a> tag without underlines.
+// AnchorNU makes a new <a> tag without underlines and colors.
 func (a *AppendMap) AnchorNU(start, end int, href string) {
 	a.Anchor(start, end, href)
 	a.Span(start, end, `underline="none"`)

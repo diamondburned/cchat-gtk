@@ -3,8 +3,9 @@ package button
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 )
 
@@ -15,6 +16,7 @@ type ToggleButtonImage struct {
 	menu      *menu.LazyMenu
 
 	clicked func(bool)
+	readcss primitives.ClassEnum
 
 	err    error
 	icon   string // whether or not the button has an icon
@@ -22,6 +24,12 @@ type ToggleButtonImage struct {
 }
 
 var _ cchat.IconContainer = (*ToggleButtonImage)(nil)
+
+var serverButtonCSS = primitives.PrepareCSS(`
+	.read      { color: alpha(@theme_fg_color, 0.5) }
+	.unread    { color: @theme_fg_color }
+	.mentioned { color: red }
+`)
 
 func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	b := rich.NewToggleButtonImage(content)
@@ -33,10 +41,8 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 		clicked: func(bool) {},
 		menu:    menu.NewLazyMenu(b.ToggleButton),
 	}
-
-	tb.Connect("clicked", func() {
-		tb.clicked(tb.GetActive())
-	})
+	tb.Connect("clicked", func() { tb.clicked(tb.GetActive()) })
+	primitives.AttachCSS(tb, serverButtonCSS)
 
 	return tb
 }
@@ -89,6 +95,17 @@ func (b *ToggleButtonImage) SetFailed(err error, retry func()) {
 	// If we have an icon set, then we can use the failed icon.
 	if b.icon != "" {
 		b.Image.SetPlaceholderIcon("computer-fail-symbolic", b.Image.Size())
+	}
+}
+
+func (b *ToggleButtonImage) SetUnreadUnsafe(unread, mentioned bool) {
+	switch {
+	case unread:
+		b.readcss.SetClass(b, "unread")
+	case mentioned:
+		b.readcss.SetClass(b, "mentioned")
+	default:
+		b.readcss.SetClass(b, "read")
 	}
 }
 

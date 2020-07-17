@@ -1,6 +1,8 @@
 package input
 
 import (
+	"time"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
@@ -96,12 +98,14 @@ type Field struct {
 	UserID string
 	Sender cchat.ServerMessageSender
 	editor cchat.ServerMessageEditor
+	typer  cchat.ServerMessageTypingIndicator
 
 	ctrl Controller
 
 	// states
 	editingID string // never empty
-	sendings  []PresendMessage
+	lastTyped time.Time
+	typerDura time.Duration
 }
 
 var inputFieldCSS = primitives.PrepareCSS(`
@@ -178,6 +182,10 @@ func (f *Field) Reset() {
 	f.UserID = ""
 	f.Sender = nil
 	f.editor = nil
+	f.typer = nil
+	f.lastTyped = time.Time{}
+	f.typerDura = 0
+
 	f.Username.Reset()
 
 	// reset the input
@@ -197,11 +205,14 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 		f.text.SetSensitive(true)
 
 		// Allow editor to be nil.
-		ed, ok := sender.(cchat.ServerMessageEditor)
-		if !ok {
-			log.Printlnf("Editor is not implemented for %T", sender)
+		f.editor, _ = sender.(cchat.ServerMessageEditor)
+		// Allow typer to be nil.
+		f.typer, _ = sender.(cchat.ServerMessageTypingIndicator)
+
+		// Populate the duration state if typer is not nil.
+		if f.typer != nil {
+			f.typerDura = f.typer.TypingTimeout()
 		}
-		f.editor = ed
 	}
 }
 
