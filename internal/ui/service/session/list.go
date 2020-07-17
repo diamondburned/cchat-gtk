@@ -2,6 +2,7 @@ package session
 
 import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -89,9 +90,6 @@ func (sl *List) AddSessionRow(id string, row *Row) {
 	// Set the map, which increases the length by 1.
 	sl.sessions[id] = row
 
-	// Bind the mover.
-	row.BindMover(id)
-
 	// Assert that a name can be obtained.
 	namer := primitives.Namer(row)
 	namer.SetName(id) // set ID here, get it in Move
@@ -108,23 +106,16 @@ func (sl *List) RemoveSessionRow(sessionID string) bool {
 
 // MoveSession moves sessions around. This function must not touch the add
 // button.
-func (sl *List) MoveSession(id, movingID string) {
+func (sl *List) MoveSession(targetID, movingID string) {
 	// Get the widget of the row that is moving.
-	var moving = sl.sessions[movingID]
+	var moving, ok = sl.sessions[movingID]
+	if !ok {
+		return // sometimes movingID might come from other services
+	}
 
 	// Find the current position of the row that we're moving the other one
 	// underneath of.
-	var rowix = -1
-
-	primitives.EachChildren(sl.ListBox, func(i int, v interface{}) bool {
-		// The obtained name will be the ID set in AddSessionRow.
-		if primitives.GetName(v.(primitives.Namer)) == id {
-			rowix = i
-			return true
-		}
-
-		return false
-	})
+	var rowix = drag.Find(sl.ListBox, targetID)
 
 	// Reorder the box.
 	sl.ListBox.Remove(moving)

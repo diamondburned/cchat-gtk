@@ -1,28 +1,30 @@
 package icons
 
 import (
-	"bytes"
 	"log"
 
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/markbates/pkger"
 )
 
 // static assets
 var assets = map[string]*gdk.Pixbuf{}
 
-func Logo256Variant2() *gdk.Pixbuf {
-	return loadPixbuf(__cchat_variant2_256)
+func Logo256Variant2(sz int) *gdk.Pixbuf {
+	return loadPixbuf(__cchat_variant2_256, sz)
 }
 
-func Logo256() *gdk.Pixbuf {
-	return loadPixbuf(__cchat_256)
+func Logo256(sz int) *gdk.Pixbuf {
+	return loadPixbuf(__cchat_256, sz)
 }
 
-func loadPixbuf(data []byte) *gdk.Pixbuf {
+func loadPixbuf(data []byte, sz int) *gdk.Pixbuf {
 	l, err := gdk.PixbufLoaderNew()
 	if err != nil {
 		log.Fatalln("Failed to create a pixbuf loader for icons:", err)
+	}
+
+	if sz > 0 {
+		l.Connect("size-prepared", func() { l.SetSize(sz, sz) })
 	}
 
 	p, err := l.WriteAndReturnPixbuf(data)
@@ -31,19 +33,4 @@ func loadPixbuf(data []byte) *gdk.Pixbuf {
 	}
 
 	return p
-}
-
-func readFile(name string) []byte {
-	f, err := pkger.Open(name)
-	if err != nil {
-		log.Fatalln("Failed to open pkger file:", err)
-	}
-	defer f.Close()
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(f); err != nil {
-		log.Fatalln("Failed to read from pkger file:", err)
-	}
-
-	return buf.Bytes()
 }

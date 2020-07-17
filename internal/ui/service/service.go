@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
@@ -24,6 +25,8 @@ type ListController interface {
 	SessionSelected(*Service, *session.Row)
 	// AuthenticateSession tells View to call to the parent's authenticator.
 	AuthenticateSession(*Service)
+	// MoveService tells the view to shift the service to before the target.
+	MoveService(id, targetID string)
 
 	OnSessionRemove(*Service, *session.Row)
 	OnSessionDisconnect(*Service, *session.Row)
@@ -125,6 +128,9 @@ func NewService(svc cchat.Service, svclctrl ListController) *Service {
 	service.Box.Show()
 	serviceCSS(service.Box)
 
+	// Bind a drag and drop on the button instead of the entire box.
+	drag.BindDraggable(service, "network-workgroup", svclctrl.MoveService, service.Button)
+
 	return service
 }
 
@@ -161,6 +167,10 @@ func (s *Service) AddSession(ses cchat.Session) *session.Row {
 	s.BodyList.AddSessionRow(ses.ID(), srow)
 	s.SaveAllSessions()
 	return srow
+}
+
+func (s *Service) ID() string {
+	return s.service.Name().Content
 }
 
 func (s *Service) Service() cchat.Service {
@@ -247,38 +257,3 @@ func (s *Service) restoreAll() {
 func restoreAsync(r *session.Row, res cchat.SessionRestorer, k keyring.Session) {
 	r.RestoreSession(res, k)
 }
-
-/*
-type header struct {
-	*rich.ToggleButtonImage
-	Add *gtk.Button
-
-	Menu *menu.LazyMenu
-}
-
-func newHeader(svc cchat.Service) *header {
-	b := rich.NewToggleButtonImage(svc.Name())
-	b.Image.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
-	b.SetRelief(gtk.RELIEF_NONE)
-	b.SetMode(true)
-	b.Show()
-
-	if iconer, ok := svc.(cchat.Icon); ok {
-		b.Image.AsyncSetIconer(iconer, "Error getting session logo")
-	}
-
-	add, _ := gtk.ButtonNewFromIconName("list-add-symbolic", gtk.ICON_SIZE_BUTTON)
-	add.Show()
-
-	// Add the button overlay into the main button.
-	buttonoverlay.Take(b, add, IconSize)
-
-	// Construct a menu and its items.
-	var menu = menu.NewLazyMenu(b)
-	if configurator, ok := svc.(config.Configurator); ok {
-		menu.AddItems(config.MenuItem(configurator))
-	}
-
-	return &header{b, add, menu}
-}
-*/

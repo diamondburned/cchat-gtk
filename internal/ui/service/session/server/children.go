@@ -26,7 +26,11 @@ type Children struct {
 
 // reserved
 var childrenCSS = primitives.PrepareClassCSS("server-children", `
-	.server-children {}
+	.server-children {
+		margin: 0;
+		margin-top: 3px;
+		border-radius: 0;
+	}
 `)
 
 func NewChildren(p breadcrumb.Breadcrumber, ctrl Controller) *Children {

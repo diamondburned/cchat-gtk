@@ -75,6 +75,29 @@ func init() {
 	App.Throttler = throttler.Bind(App.Application)
 }
 
+// // AppMenuWidget returns the box that holds the app menu.
+// func AppMenuWidget() (widget *gtk.Widget) {
+// 	App.Header.For().Foreach(func(v interface{}) {
+// 		// If we've already found the widget, then stop finding.
+// 		if widget != nil {
+// 			return
+// 		}
+
+// 		// Cast the interface to a widget.
+// 		curr := v.(gtk.IWidget).ToWidget()
+
+// 		log.Println("testing")
+
+// 		// Check if the widget has a class named "left".
+// 		if sctx, _ := curr.GetStyleContext(); sctx.HasClass("left") {
+// 			log.Println("has class .left")
+// 			widget = curr
+// 		}
+// 	})
+
+// 	return
+// }
+
 type Window interface {
 	Window() gtk.IWidget
 	Header() gtk.IWidget
@@ -88,28 +111,30 @@ func Main(wfn func() Window) {
 		// Load all CSS onto the default screen.
 		loadProviders(getDefaultScreen())
 
+		App.Header, _ = gtk.HeaderBarNew()
+		// Right buttons only.
+		App.Header.SetDecorationLayout(":minimize,close")
+		App.Header.SetShowCloseButton(true)
+		App.Header.SetProperty("spacing", 0)
+
+		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+		App.Header.SetCustomTitle(b)
+
+		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
+		App.Window.SetDefaultSize(1000, 500)
+		App.Window.SetTitlebar(App.Header)
+
 		// Execute the function later, because we need it to run after
 		// initialization.
 		w := wfn()
 		App.Application.SetAppMenu(w.Menu())
 
-		App.Header, _ = gtk.HeaderBarNew()
-		// Right buttons only.
-		App.Header.SetDecorationLayout("menu:minimize,close")
-		App.Header.SetShowCloseButton(true)
-		App.Header.Show()
-
-		// b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-		// App.Header.SetCustomTitle(b)
-
-		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
-		App.Window.SetDefaultSize(1000, 500)
-		App.Window.SetTitlebar(App.Header)
 		App.Window.SetIcon(w.Icon())
+		App.Window.Add(w.Window())
 		App.Window.Show()
 
-		App.Window.Add(w.Window())
 		App.Header.Add(w.Header())
+		App.Header.Show()
 
 		// Connect extra actions.
 		AddAppAction("quit", App.Window.Destroy)
@@ -129,7 +154,6 @@ func Main(wfn func() Window) {
 				w.Close()
 			})
 		})
-
 	})
 
 	// Use a special function to run the application. Exit with the appropriate

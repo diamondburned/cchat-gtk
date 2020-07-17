@@ -85,7 +85,7 @@ func NewView() *View {
 	primitives.AddClass(view.Box, "message-view")
 
 	// placeholder logo
-	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2())
+	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2(128))
 	logo.Show()
 
 	view.FaceView = sadface.New(view.Box, logo)

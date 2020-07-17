@@ -1,12 +1,9 @@
 package gts
 
 import (
-	"bytes"
-
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/markbates/pkger"
 	"github.com/pkg/errors"
 )
 
@@ -37,18 +34,4 @@ func LoadCSS(name, css string) {
 	}
 
 	cssRepos[name] = prov
-}
-
-func readFile(buf *bytes.Buffer, file string) error {
-	f, err := pkger.Open(file)
-	if err != nil {
-		return errors.Wrap(err, "Failed to load a CSS file")
-	}
-	defer f.Close()
-
-	if _, err := buf.ReadFrom(f); err != nil {
-		return errors.Wrap(err, "Failed to read file")
-	}
-
-	return nil
 }

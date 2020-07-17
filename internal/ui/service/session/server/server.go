@@ -4,10 +4,10 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/breadcrumb"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/button"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -22,7 +22,8 @@ type ServerRow struct {
 }
 
 var serverCSS = primitives.PrepareClassCSS("server", `
-	.server {
+	/* Ignore first child because .server-children already covers this */
+	.server:not(:first-child) {
 		margin: 0;
 		margin-top: 3px;
 		border-radius: 0;
@@ -130,8 +131,8 @@ func (r *Row) Reset() {
 
 // SetLoading is called by the parent struct.
 func (r *Row) SetLoading() {
-	r.Button.SetLoading()
 	r.SetSensitive(false)
+	r.Button.SetLoading()
 }
 
 // SetFailed is shared between the parent struct and the children list. This is
@@ -216,6 +217,7 @@ func (r *Row) Load() {
 
 	// Set that we're now loading.
 	r.children.setLoading()
+	r.SetLoading()
 	r.SetSensitive(false)
 
 	// Load the list of servers if we're still in loading mode.

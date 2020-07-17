@@ -23,7 +23,7 @@ func init() {
 		/* Make CSS more consistent across themes */
 		headerbar { padding-left: 0 }
 
-		.appmenu { margin: 0 18px }
+		/* .appmenu { margin: 0 20px } */
 		
 		popover > *:not(stack):not(button) { margin: 6px }
 		
@@ -68,10 +68,16 @@ func NewApplication() *App {
 	app.window = newWindow(app)
 	app.header = newHeader()
 
+	// Resize the app icon with the left-most sidebar.
+	services := app.window.Services.Services
+	services.Connect("size-allocate", func() {
+		app.header.left.appmenu.SetSizeRequest(services.GetAllocatedWidth(), -1)
+	})
+
 	// Resize the left-side header w/ the left-side pane.
-	app.window.Services.Connect("size-allocate", func(wv gtk.IWidget) {
+	app.window.Services.ServerView.Connect("size-allocate", func() {
 		// Get the current width of the left sidebar.
-		var width = app.window.GetPosition()
+		width := app.window.GetPosition()
 		// Set the left-side header's size.
 		app.header.left.SetSizeRequest(width, -1)
 	})
@@ -90,7 +96,7 @@ func (app *App) AddService(svc cchat.Service) {
 // OnSessionRemove resets things before the session is removed.
 func (app *App) OnSessionRemove(s *service.Service, r *session.Row) {
 	// Reset the message view if it's what we're showing.
-	if app.window.MessageView.SessionID() == r.SessionID() {
+	if app.window.MessageView.SessionID() == r.ID() {
 		app.window.MessageView.Reset()
 		app.header.SetBreadcrumber(nil)
 	}
@@ -170,13 +176,9 @@ func (app *App) Window() gtk.IWidget {
 }
 
 func (app *App) Icon() *gdk.Pixbuf {
-	return icons.Logo256()
+	return icons.Logo256(0)
 }
 
 func (app *App) Menu() *glib.MenuModel {
-	menu := glib.MenuNew()
-	menu.Append("Preferences", "app.preferences")
-	menu.Append("Quit", "app.quit")
-
-	return &menu.MenuModel
+	return &app.header.menu.MenuModel
 }

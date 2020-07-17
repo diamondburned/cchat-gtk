@@ -61,6 +61,14 @@ func RenderCmplx(content text.Rich) RenderOutput {
 	buf := bytes.Buffer{}
 	buf.Grow(len(content.Content))
 
+	// Sort so that all ending points are sorted decrementally. We probably
+	// don't need SliceStable here, as we're sorting again.
+	sort.Slice(content.Segments, func(i, j int) bool {
+		_, i = content.Segments[i].Bounds()
+		_, j = content.Segments[j].Bounds()
+		return i > j
+	})
+
 	// Sort so that all starting points are sorted incrementally.
 	sort.SliceStable(content.Segments, func(i, j int) bool {
 		i, _ = content.Segments[i].Bounds()
@@ -93,6 +101,10 @@ func RenderCmplx(content text.Rich) RenderOutput {
 			appended.Open(start, composeAvatarMarkup(segment))
 		}
 
+		if segment, ok := segment.(text.Colorer); ok {
+			appended.Span(start, end, fmt.Sprintf("color=\"#%06X\"", segment.Color()))
+		}
+
 		// Mentioner needs to be before colorer, as we'd want the below color
 		// segment to also highlight the full mention as well as make the
 		// padding part of the hyperlink.
@@ -101,12 +113,15 @@ func RenderCmplx(content text.Rich) RenderOutput {
 			// components will take care of showing the information.
 			appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
 			mentions = append(mentions, segment)
-		}
 
-		if segment, ok := segment.(text.Colorer); ok {
-			var covered = attrmap.CoverAll(content, start, end)
-			appended.Span(start, end, color(segment.Color(), !covered)...)
-			if !covered { // add padding if doesn't cover all
+			if segment, ok := segment.(text.Colorer); ok {
+				// Add a dimmed background highlight and pad the button-like
+				// link.
+				appended.Span(
+					start, end,
+					"bgalpha=\"10%\"",
+					fmt.Sprintf("bgcolor=\"#%06X\"", segment.Color()),
+				)
 				appended.Pad(start, end)
 			}
 		}

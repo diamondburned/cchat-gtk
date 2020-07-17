@@ -9,11 +9,15 @@ type Boxed struct {
 
 func New() *Boxed {
 	spin, _ := gtk.SpinnerNew()
+	spin.SetHAlign(gtk.ALIGN_CENTER)
+	spin.SetVAlign(gtk.ALIGN_CENTER)
 	spin.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	box.SetHAlign(gtk.ALIGN_CENTER)
 	box.SetVAlign(gtk.ALIGN_CENTER)
+	box.SetHExpand(true)
+	box.SetVExpand(true)
 	box.Add(spin)
 
 	return &Boxed{box, spin}
