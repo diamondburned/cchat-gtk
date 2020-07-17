@@ -95,17 +95,29 @@ type Field struct {
 	text       *gtk.TextView   // const
 	buffer     *gtk.TextBuffer // const
 
-	UserID string
-	Sender cchat.ServerMessageSender
-	editor cchat.ServerMessageEditor
-	typer  cchat.ServerMessageTypingIndicator
+	send   *gtk.Button
+	attach *gtk.Button
 
 	ctrl Controller
 
-	// states
+	// Embed a state field which allows us to easily reset it.
+	fieldState
+}
+
+type fieldState struct {
+	UserID string
+	Sender cchat.ServerMessageSender
+	upload bool // true if server supports files
+	editor cchat.ServerMessageEditor
+	typer  cchat.ServerMessageTypingIndicator
+
 	editingID string // never empty
 	lastTyped time.Time
 	typerDura time.Duration
+}
+
+func (s *fieldState) Reset() {
+	*s = fieldState{}
 }
 
 var inputFieldCSS = primitives.PrepareCSS(`
@@ -123,22 +135,23 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field.TextScroll.Show()
 	primitives.AddClass(field.TextScroll, "scrolled-input")
 
-	attach, _ := gtk.ButtonNewFromIconName("mail-attachment-symbolic", gtk.ICON_SIZE_BUTTON)
-	attach.SetRelief(gtk.RELIEF_NONE)
-	attach.Show()
-	primitives.AddClass(attach, "attach-button")
+	field.attach, _ = gtk.ButtonNewFromIconName("mail-attachment-symbolic", gtk.ICON_SIZE_BUTTON)
+	field.attach.SetRelief(gtk.RELIEF_NONE)
+	field.attach.SetSensitive(false)
+	// Only show this if the server supports it (upload == true).
+	primitives.AddClass(field.attach, "attach-button")
 
-	send, _ := gtk.ButtonNewFromIconName("mail-send-symbolic", gtk.ICON_SIZE_BUTTON)
-	send.SetRelief(gtk.RELIEF_NONE)
-	send.Show()
-	primitives.AddClass(send, "send-button")
+	field.send, _ = gtk.ButtonNewFromIconName("mail-send-symbolic", gtk.ICON_SIZE_BUTTON)
+	field.send.SetRelief(gtk.RELIEF_NONE)
+	field.send.Show()
+	primitives.AddClass(field.send, "send-button")
 
 	// Keep this number the same as size-allocate below -------v
 	field.FieldBox, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
 	field.FieldBox.PackStart(field.Username, false, false, 0)
-	field.FieldBox.PackStart(attach, false, false, 0)
+	field.FieldBox.PackStart(field.attach, false, false, 0)
 	field.FieldBox.PackStart(field.TextScroll, true, true, 0)
-	field.FieldBox.PackStart(send, false, false, 0)
+	field.FieldBox.PackStart(field.send, false, false, 0)
 	field.FieldBox.Show()
 	primitives.AddClass(field.FieldBox, "input-field")
 	primitives.AttachCSS(field.FieldBox, inputFieldCSS)
@@ -156,16 +169,16 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	// Bind text events.
 	text.Connect("key-press-event", field.keyDown)
 	// Bind the send button.
-	send.Connect("clicked", field.sendInput)
+	field.send.Connect("clicked", field.sendInput)
 	// Bind the attach button.
-	attach.Connect("clicked", func() { gts.SpawnUploader("", field.Attachments.AddFiles) })
+	field.attach.Connect("clicked", func() { gts.SpawnUploader("", field.Attachments.AddFiles) })
 
 	// Connect to the field's revealer. On resize, we want the attachments
 	// carousel to have the same padding too.
 	field.Username.Connect("size-allocate", func(w gtk.IWidget) {
 		// Calculate the left width: from the left of the message box to the
 		// right of the attach button, covering the username container.
-		var leftWidth = 5*2 + attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
+		var leftWidth = 5*2 + field.attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
 		// Set the autocompleter's left margin to be the same.
 		field.Attachments.SetMarginStart(leftWidth)
 	})
@@ -179,13 +192,7 @@ func (f *Field) Reset() {
 	// doing this just in case.
 	f.text.SetSensitive(false)
 
-	f.UserID = ""
-	f.Sender = nil
-	f.editor = nil
-	f.typer = nil
-	f.lastTyped = time.Time{}
-	f.typerDura = 0
-
+	f.fieldState.Reset()
 	f.Username.Reset()
 
 	// reset the input
@@ -209,10 +216,30 @@ func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSende
 		// Allow typer to be nil.
 		f.typer, _ = sender.(cchat.ServerMessageTypingIndicator)
 
+		// See if we can upload files.
+		_, f.upload = sender.(cchat.ServerMessageAttachmentSender)
+
 		// Populate the duration state if typer is not nil.
 		if f.typer != nil {
 			f.typerDura = f.typer.TypingTimeout()
 		}
+	}
+}
+
+func (f *Field) SetAllowUpload(allow bool) {
+	f.upload = allow
+
+	// Don't allow clicks on the attachment button if allow is false.
+	f.attach.SetSensitive(allow)
+	// Disable the attachmetn carousel for good measure, which also prevents
+	// drag-and-drops.
+	f.Attachments.SetEnabled(allow)
+
+	// Show the attachment button if we can, else hide it.
+	if f.upload {
+		f.attach.Show()
+	} else {
+		f.attach.Hide()
 	}
 }
 

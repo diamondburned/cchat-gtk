@@ -1,13 +1,18 @@
 package drag
 
 import (
+	"net/url"
+	"strings"
+
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
-func NewTargetEntry(target string) gtk.TargetEntry {
-	e, _ := gtk.TargetEntryNew(target, gtk.TARGET_SAME_APP, 0)
+func NewTargetEntry(target string, f gtk.TargetFlags, info uint) gtk.TargetEntry {
+	e, _ := gtk.TargetEntryNew(target, f, info)
 	return *e
 }
 
@@ -44,6 +49,35 @@ type Draggable interface {
 	primitives.Connector
 }
 
+func BindFileDest(dg Draggable, file func(path []string)) {
+	var dragEntries = []gtk.TargetEntry{
+		NewTargetEntry("text/uri-list", gtk.TARGET_OTHER_APP, 1),
+	}
+
+	dg.DragDestSet(gtk.DEST_DEFAULT_ALL, dragEntries, gdk.ACTION_COPY)
+	dg.Connect("drag-data-received",
+		func(_ gtk.IWidget, ctx *gdk.DragContext, x, y uint, data *gtk.SelectionData) {
+			// Get the files in form of line-delimited URIs
+			var uris = strings.Fields(string(data.GetData()))
+
+			// Create a path slice that we decode URIs into.
+			var paths = uris[:0]
+
+			// Decode the URIs.
+			for _, uri := range uris {
+				u, err := url.Parse(uri)
+				if err != nil {
+					log.Error(errors.Wrapf(err, "Failed parsing URI %q", uri))
+					continue
+				}
+				paths = append(paths, u.Path)
+			}
+
+			file(paths)
+		},
+	)
+}
+
 // Swapper is the type for a swap function.
 type Swapper = func(targetID, movingID string)
 
@@ -56,8 +90,10 @@ type Swapper = func(targetID, movingID string)
 // ID will be taken from the main draggable.
 func BindDraggable(dg MainDraggable, icon string, fn Swapper, draggers ...Draggable) {
 	var atom = "data_" + icon
-	var dragEntries = []gtk.TargetEntry{NewTargetEntry(atom)}
 	var dragAtom = gdk.GdkAtomIntern(atom, false)
+	var dragEntries = []gtk.TargetEntry{
+		NewTargetEntry(atom, gtk.TARGET_SAME_APP, 0),
+	}
 
 	// Set the ID for Find().
 	dg.SetName(dg.ID())

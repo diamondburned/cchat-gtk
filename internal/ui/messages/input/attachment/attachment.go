@@ -66,6 +66,8 @@ type Container struct {
 	Scroll *gtk.ScrolledWindow
 	Box    *gtk.Box
 
+	enabled bool
+
 	// states
 	files []File
 	items map[string]gtk.IWidget
@@ -125,6 +127,19 @@ func New() *Container {
 // SetMarginStart sets the inner margin of the attachments carousel.
 func (c *Container) SetMarginStart(margin int) {
 	c.Box.SetMarginStart(margin)
+}
+
+// Enabled returns whether or not the container allows attachments.
+func (c *Container) Enabled() bool {
+	return c.enabled
+}
+
+func (c *Container) SetEnabled(enabled bool) {
+	// Set the enabled state; reset the container if we're disabling the
+	// attachment box.
+	if c.enabled = enabled; !enabled {
+		c.Reset()
+	}
 }
 
 // Files returns the list of attachments

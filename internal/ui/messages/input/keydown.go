@@ -78,6 +78,12 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 
 	// Ctrl+V is paste.
 	case key == gdk.KEY_v && bithas(mask, cntrlMask):
+		// As this pasting is for image attachments, don't accept it if iwe
+		// don't allow attachments.
+		if !f.upload {
+			return false
+		}
+
 		// Is there an image in the clipboard?
 		if !gts.Clipboard.WaitIsImageAvailable() {
 			// No.
