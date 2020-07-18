@@ -13,7 +13,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
@@ -176,6 +176,9 @@ func (r *Row) Activate() {
 	if r.Session == nil {
 		r.ReconnectSession()
 	} else {
+		// Load all servers in this root node, then call the parent controller's
+		// method.
+		r.Servers.Children.LoadAll()
 		r.svcctrl.SessionSelected(r)
 	}
 }

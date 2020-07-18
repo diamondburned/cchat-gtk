@@ -35,13 +35,14 @@ func (a *AppendMap) appendIndex(ind int) {
 }
 
 func (a *AppendMap) Anchor(start, end int, href string) {
-	a.Openf(start, `<a href="%s">`, html.EscapeString(href))
-	a.Close(end, "</a>")
+	a.AnchorNU(start, end, href)
 }
 
 // AnchorNU makes a new <a> tag without underlines and colors.
 func (a *AppendMap) AnchorNU(start, end int, href string) {
-	a.Anchor(start, end, href)
+	a.Openf(start, `<a href="%s">`, html.EscapeString(href))
+	a.Close(end, "</a>")
+	// a.Anchor(start, end, href)
 	a.Span(start, end, `underline="none"`)
 }
 

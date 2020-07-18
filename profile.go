@@ -4,14 +4,11 @@ package main
 
 import (
 	"os"
-	"runtime"
 	"runtime/pprof"
 
 	_ "net/http/pprof"
 
 	_ "github.com/ianlancetaylor/cgosymbolizer"
-
-	"github.com/diamondburned/cchat-gtk/internal/log"
 )
 
 func init() {
@@ -21,18 +18,28 @@ func init() {
 	// 	}
 	// }()
 
-	runtime.SetBlockProfileRate(1)
+	// runtime.SetBlockProfileRate(1)
+
+	// f, _ := os.Create("/tmp/cchat.pprof")
+	// p := pprof.Lookup("block")
+
+	// destructor = func() {
+	// 	log.Println("==destructor==")
+
+	// 	if err := p.WriteTo(f, 2); err != nil {
+	// 		log.Println("Profile writeTo error:", err)
+	// 	}
+
+	// 	f.Close()
+	// }
 
 	f, _ := os.Create("/tmp/cchat.pprof")
-	p := pprof.Lookup("block")
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
 
 	destructor = func() {
-		log.Println("==destructor==")
-
-		if err := p.WriteTo(f, 2); err != nil {
-			log.Println("Profile writeTo error:", err)
-		}
-
+		pprof.StopCPUProfile()
 		f.Close()
 	}
 }

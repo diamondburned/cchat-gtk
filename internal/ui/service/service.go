@@ -12,7 +12,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/gotk3/gotk3/gtk"
 )
 

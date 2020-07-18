@@ -77,6 +77,12 @@ func (l *Label) Output() markup.RenderOutput {
 	return l.output
 }
 
+// SetOutput sets the internal output and label.
+func (l *Label) SetOutput(o markup.RenderOutput) {
+	l.output = o
+	l.SetMarkup(o.Markup)
+}
+
 func BindRichLabel(label Labeler) {
 	bind(label, func(uri string, ptr gdk.Rectangle) bool {
 		var output = label.Output()

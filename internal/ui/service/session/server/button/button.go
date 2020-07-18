@@ -26,9 +26,30 @@ type ToggleButtonImage struct {
 var _ cchat.IconContainer = (*ToggleButtonImage)(nil)
 
 var serverButtonCSS = primitives.PrepareCSS(`
-	.read      { color: alpha(@theme_fg_color, 0.5) }
-	.unread    { color: @theme_fg_color }
-	.mentioned { color: red }
+	.selected-server {
+		border-left: 2px solid mix(@theme_base_color, @theme_fg_color, 0.1);
+		background-color:      mix(@theme_base_color, @theme_fg_color, 0.1);
+		color: @theme_fg_color;
+	}
+
+	.read {
+		color: alpha(@theme_fg_color, 0.5);
+		border-left: 2px solid transparent;
+	}
+
+	.unread {
+		color: @theme_fg_color;
+		border-left: 2px solid alpha(@theme_fg_color, 0.75);
+		background-color: alpha(@theme_fg_color, 0.05);
+	}
+
+	@define-color mentioned rgb(240, 71, 71);
+
+	.mentioned {
+		color: @mentioned;
+		border-left: 2px solid alpha(@mentioned, 0.75);
+		background-color: alpha(@mentioned, 0.05);
+	}
 `)
 
 func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
@@ -45,6 +66,22 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	primitives.AttachCSS(tb, serverButtonCSS)
 
 	return tb
+}
+
+func (b *ToggleButtonImage) SetSelected(selected bool) {
+	// Set the clickability the opposite as the boolean.
+	b.SetSensitive(!selected)
+
+	if selected {
+		primitives.AddClass(b, "selected-server")
+	} else {
+		primitives.RemoveClass(b, "selected-server")
+	}
+
+	// Some special edge case that I forgot.
+	if !selected {
+		b.SetActive(false)
+	}
 }
 
 func (b *ToggleButtonImage) SetClicked(clicked func(bool)) {
@@ -100,10 +137,11 @@ func (b *ToggleButtonImage) SetFailed(err error, retry func()) {
 
 func (b *ToggleButtonImage) SetUnreadUnsafe(unread, mentioned bool) {
 	switch {
-	case unread:
-		b.readcss.SetClass(b, "unread")
+	// Prioritize mentions over unreads.
 	case mentioned:
 		b.readcss.SetClass(b, "mentioned")
+	case unread:
+		b.readcss.SetClass(b, "unread")
 	default:
 		b.readcss.SetClass(b, "read")
 	}

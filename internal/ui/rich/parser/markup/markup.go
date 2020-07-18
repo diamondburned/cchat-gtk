@@ -51,6 +51,16 @@ func Render(content text.Rich) string {
 
 // RenderCmplx renders content into a complete output.
 func RenderCmplx(content text.Rich) RenderOutput {
+	return RenderCmplxWithConfig(content, RenderConfig{})
+}
+
+type RenderConfig struct {
+	// NoMentionLinks prevents the renderer from wrapping mentions with a
+	// hyperlink. This prevents invalid colors.
+	NoMentionLinks bool
+}
+
+func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	// Fast path.
 	if len(content.Segments) == 0 {
 		return RenderOutput{
@@ -87,8 +97,7 @@ func RenderCmplx(content text.Rich) RenderOutput {
 		start, end := segment.Bounds()
 
 		if segment, ok := segment.(text.Linker); ok {
-			appended.Openf(start, `<a href="%s">`, html.EscapeString(segment.Link()))
-			appended.Close(end, "</a>")
+			appended.Anchor(start, end, segment.Link())
 		}
 
 		if segment, ok := segment.(text.Imager); ok {
@@ -111,7 +120,11 @@ func RenderCmplx(content text.Rich) RenderOutput {
 		if segment, ok := segment.(text.Mentioner); ok {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
-			appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
+			if cfg.NoMentionLinks {
+				appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
+			}
+
+			// Add the mention segment into the list regardless of hyperlinks.
 			mentions = append(mentions, segment)
 
 			if segment, ok := segment.(text.Colorer); ok {
@@ -177,8 +190,11 @@ func color(c uint32, bg bool) []string {
 	return attrs
 }
 
-// string constant for formatting width and height in URL fragments
-const f_FragmentSize = "w=%d;h=%d"
+const (
+	// string constant for formatting width and height in URL fragments
+	f_FragmentSize      = "w=%d;h=%d"
+	f_AnchorNoUnderline = `<a href="%s"><span underline="none">%s</span></a>`
+)
 
 func composeImageMarkup(imager text.Imager) string {
 	u, err := url.Parse(imager.Image())
@@ -193,7 +209,7 @@ func composeImageMarkup(imager text.Imager) string {
 	}
 
 	return fmt.Sprintf(
-		`<a href="%s">%s</a>`,
+		f_AnchorNoUnderline,
 		html.EscapeString(u.String()), html.EscapeString(imager.ImageText()),
 	)
 }
@@ -211,7 +227,7 @@ func composeAvatarMarkup(avatarer text.Avatarer) string {
 	}
 
 	return fmt.Sprintf(
-		`<a href="%s">%s</a>`,
+		f_AnchorNoUnderline,
 		html.EscapeString(u.String()), html.EscapeString(avatarer.AvatarText()),
 	)
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-const TPS = 15 // tps
+const TPS = 24 // tps
 
 type State struct {
 	throttling bool

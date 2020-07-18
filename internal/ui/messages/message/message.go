@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
@@ -189,8 +190,15 @@ func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
 	}
 }
 
+// authorRenderCfg is the config to render author names. It disables author
+// mention links, as there's no way to make normal names not appear blue.
+var authorRenderCfg = markup.RenderConfig{
+	NoMentionLinks: true,
+}
+
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
-	m.Username.SetLabelUnsafe(name)
+	var out = markup.RenderCmplxWithConfig(name, authorRenderCfg)
+	m.Username.SetOutput(out)
 }
 
 func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {

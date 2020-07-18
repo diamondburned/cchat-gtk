@@ -111,9 +111,9 @@ func (m *GenericPresendContainer) SetSentError(err error) {
 	m.contentBox.Add(m.ContentBody)
 
 	// Style the label appropriately by making it red.
-	var content = html.EscapeString(m.presend.Content())
-	if content == "" {
-		content = EmptyContentPlaceholder
+	var content = EmptyContentPlaceholder
+	if m.presend != nil && m.presend.Content() != "" {
+		content = m.presend.Content()
 	}
 	m.ContentBody.SetMarkup(fmt.Sprintf(`<span color="red">%s</span>`, content))
 

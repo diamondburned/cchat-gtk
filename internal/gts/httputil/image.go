@@ -13,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO:
+
 type ImageContainer interface {
 	SetFromPixbuf(*gdk.Pixbuf)
 	SetFromAnimation(*gdk.PixbufAnimation)

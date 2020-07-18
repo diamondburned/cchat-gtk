@@ -5,7 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -13,18 +13,25 @@ type Controller interface {
 	RowSelected(*ServerRow, cchat.ServerMessage)
 }
 
-// Children is a children server with a reference to the parent.
+// Children is a children server with a reference to the parent. By default, a
+// children will contain hollow rows. They are rows that do not yet have any
+// widgets. This changes as soon as Row's Load is called.
 type Children struct {
 	*gtk.Box
-	load *loading.Button // only not nil while loading
+
+	load    *loading.Button // only not nil while loading
+	loading bool
 
 	Rows []*ServerRow
 
 	Parent  traverse.Breadcrumber
 	rowctrl Controller
+
+	// Unreadable state for children rows to use. The parent row that has this
+	// Children will bind a handler to this.
+	traverse.Unreadable
 }
 
-// reserved
 var childrenCSS = primitives.PrepareClassCSS("server-children", `
 	.server-children {
 		margin: 0;
@@ -33,20 +40,73 @@ var childrenCSS = primitives.PrepareClassCSS("server-children", `
 	}
 `)
 
-func NewChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
-	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	main.SetMarginStart(ChildrenMargin)
-	childrenCSS(main)
-
+// NewHollowChildren creates a hollow children, which is a children without any
+// widgets.
+func NewHollowChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
 	return &Children{
-		Box:     main,
 		Parent:  p,
 		rowctrl: ctrl,
 	}
 }
 
-// setLoading shows the loading circle as a list child.
+// NewChildren creates a hollow children then immediately unhollows it.
+func NewChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
+	c := NewHollowChildren(p, ctrl)
+	c.Init()
+	return c
+}
+
+func (c *Children) IsHollow() bool {
+	return c.Box == nil
+}
+
+// Init ensures that the children container is not hollow. It does nothing after
+// the first call. It does not actually populate the list with widgets. This is
+// done for lazy loading. To load everything, call LoadAll after this.
+//
+// Nothing but ServerRow should call this method.
+func (c *Children) Init() {
+	if c.IsHollow() {
+		c.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+		c.Box.SetMarginStart(ChildrenMargin)
+		childrenCSS(c.Box)
+
+		// Check if we're still loading. This is effectively restoring the
+		// state that was set before we had widgets.
+		if c.loading {
+			c.setLoading()
+		} else {
+			c.setNotLoading()
+		}
+	}
+}
+
+// Reset ensures that the children container is no longer hollow, then reset all
+// states.
+func (c *Children) Reset() {
+	// If the children container isn't hollow, then we have to remove the known
+	// rows from the container box.
+	if c.Box != nil {
+		// Remove old servers from the list.
+		for _, row := range c.Rows {
+			c.Box.Remove(row)
+		}
+	}
+
+	// Wipe the list empty.
+	c.Rows = nil
+}
+
+// setLoading shows the loading circle as a list child. If hollow, this function
+// will only update the state.
 func (c *Children) setLoading() {
+	c.loading = true
+
+	// Don't do the rest if we're still hollow.
+	if c.IsHollow() {
+		return
+	}
+
 	// Exit if we're already loading.
 	if c.load != nil {
 		return
@@ -61,19 +121,16 @@ func (c *Children) setLoading() {
 	c.Box.Add(c.load)
 }
 
-func (c *Children) Reset() {
-	// Remove old servers from the list.
-	for _, row := range c.Rows {
-		c.Box.Remove(row)
-	}
-
-	// Wipe the list empty.
-	c.Rows = nil
-}
-
 // setNotLoading removes the loading circle, if any. This is not in Reset()
 // anymore, since the backend may not necessarily call SetServers.
 func (c *Children) setNotLoading() {
+	c.loading = false
+
+	// Don't call the rest if we're still hollow.
+	if c.IsHollow() {
+		return
+	}
+
 	// Do we have the spinning circle button? If yes, remove it.
 	if c.load != nil {
 		// Stop the loading mode. The reset function should do everything for us.
@@ -85,31 +142,54 @@ func (c *Children) setNotLoading() {
 // SetServers is reserved for cchat.ServersContainer.
 func (c *Children) SetServers(servers []cchat.Server) {
 	gts.ExecAsync(func() {
-		// Save the current state.
-		var oldID string
-		for _, row := range c.Rows {
-			if row.GetActive() {
-				oldID = row.Server.ID()
-				break
-			}
+		// Save the current state (if any) if the children container is not
+		// hollow.
+		if !c.IsHollow() {
+			restore := c.saveSelectedRow()
+			defer restore()
 		}
 
 		// Reset before inserting new servers.
 		c.Reset()
 
+		// Insert hollow servers.
 		c.Rows = make([]*ServerRow, len(servers))
-
 		for i, server := range servers {
-			row := NewServerRow(c, server, c.rowctrl)
-			row.Show()
-			// row.SetFocusHAdjustment(c.GetFocusHAdjustment()) // inherit
-			// row.SetFocusVAdjustment(c.GetFocusVAdjustment())
-
-			c.Rows[i] = row
-			c.Box.Add(row)
+			c.Rows[i] = NewHollowServer(c, server, c.rowctrl)
 		}
 
-		// Update parent reference? Only if it's activated.
+		// We should not unhollow everything here, but rather on uncollapse.
+		// Since the root node is always unhollow, calls to this function will
+		// pass the hollow test and unhollow its children nodes. That should not
+		// happen.
+	})
+}
+
+// LoadAll forces all children rows to be unhollowed (initialized). It does
+// NOT check if the children container itself is hollow.
+func (c *Children) LoadAll() {
+	AssertUnhollow(c)
+
+	for _, row := range c.Rows {
+		row.Init() // this is the alloc-heavy method
+		row.Show()
+		c.Box.Add(row)
+	}
+}
+
+// saveSelectedRow saves the current selected row and returns a callback that
+// restores the selection.
+func (c *Children) saveSelectedRow() (restore func()) {
+	// Save the current state.
+	var oldID string
+	for _, row := range c.Rows {
+		if row.GetActive() {
+			oldID = row.Server.ID()
+			break
+		}
+	}
+
+	return func() {
 		if oldID != "" {
 			for _, row := range c.Rows {
 				if row.Server.ID() == oldID {
@@ -117,7 +197,9 @@ func (c *Children) SetServers(servers []cchat.Server) {
 				}
 			}
 		}
-	})
+
+		// TODO Update parent reference? Only if it's activated.
+	}
 }
 
 func (c *Children) Breadcrumb() traverse.Breadcrumb {

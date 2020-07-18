@@ -8,7 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/traverse"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
