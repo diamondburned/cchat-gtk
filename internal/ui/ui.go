@@ -109,6 +109,12 @@ func (app *App) OnSessionDisconnect(s *service.Service, r *session.Row) {
 }
 
 func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
+	// Is there an old row that we should deactivate?
+	if app.lastSelector != nil {
+		app.lastSelector(false)
+		app.lastSelector = nil
+	}
+
 	// TODO: restore last message box
 	app.window.MessageView.Reset()
 	app.header.SetBreadcrumber(ses)

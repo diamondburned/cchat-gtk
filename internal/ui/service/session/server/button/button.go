@@ -9,6 +9,10 @@ import (
 	"github.com/diamondburned/cchat/text"
 )
 
+const UnreadColorDefs = `
+	@define-color mentioned rgb(240, 71, 71);
+`
+
 type ToggleButtonImage struct {
 	rich.ToggleButtonImage
 
@@ -25,7 +29,7 @@ type ToggleButtonImage struct {
 
 var _ cchat.IconContainer = (*ToggleButtonImage)(nil)
 
-var serverButtonCSS = primitives.PrepareCSS(`
+var serverButtonCSS = primitives.PrepareClassCSS("server-button", `
 	.selected-server {
 		border-left: 2px solid mix(@theme_base_color, @theme_fg_color, 0.1);
 		background-color:      mix(@theme_base_color, @theme_fg_color, 0.1);
@@ -43,14 +47,13 @@ var serverButtonCSS = primitives.PrepareCSS(`
 		background-color: alpha(@theme_fg_color, 0.05);
 	}
 
-	@define-color mentioned rgb(240, 71, 71);
-
 	.mentioned {
 		color: @mentioned;
 		border-left: 2px solid alpha(@mentioned, 0.75);
 		background-color: alpha(@mentioned, 0.05);
 	}
-`)
+
+`+UnreadColorDefs)
 
 func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	b := rich.NewToggleButtonImage(content)
@@ -63,7 +66,7 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 		menu:    menu.NewLazyMenu(b.ToggleButton),
 	}
 	tb.Connect("clicked", func() { tb.clicked(tb.GetActive()) })
-	primitives.AttachCSS(tb, serverButtonCSS)
+	serverButtonCSS(tb)
 
 	return tb
 }

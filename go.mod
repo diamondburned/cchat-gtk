@@ -4,6 +4,8 @@ go 1.14
 
 replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d
 
+replace github.com/diamondburned/cchat-discord => ../cchat-discord/
+
 require (
 	github.com/Xuanwo/go-locale v0.2.0
 	github.com/alecthomas/chroma v0.7.3

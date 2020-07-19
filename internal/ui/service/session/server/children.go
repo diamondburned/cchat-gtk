@@ -171,9 +171,11 @@ func (c *Children) LoadAll() {
 	AssertUnhollow(c)
 
 	for _, row := range c.Rows {
-		row.Init() // this is the alloc-heavy method
-		row.Show()
-		c.Box.Add(row)
+		if row.IsHollow() {
+			row.Init() // this is the alloc-heavy method
+			row.Show()
+			c.Box.Add(row)
+		}
 	}
 }
 

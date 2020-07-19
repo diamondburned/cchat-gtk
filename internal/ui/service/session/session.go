@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
@@ -65,16 +66,45 @@ type Row struct {
 	// put commander in either a hover menu or a right click menu. maybe in the
 	// headerbar as well.
 	cmder *commander.Buffer
+
+	// Unread class enum for theming.
+	unreadClass primitives.ClassEnum
 }
 
 var rowCSS = primitives.PrepareClassCSS("session-row", `
 	.session-row:last-child {
 		border-radius: 0 0 14px 14px;
 	}
+
 	.session-row:selected {
 		background-color: alpha(@theme_selected_bg_color, 0.5);
 	}
-`)
+
+	.session-row.unread {
+		background-color: alpha(@theme_fg_color, 0.25);
+	}
+
+	.session-row.unread:selected {
+		background-color: alpha(mix(
+			@theme_fg_color,
+			@theme_selected_bg_color,
+			0.65,
+		),  0.85);
+	}
+
+	.session-row.mentioned {
+		background-color: alpha(@mentioned, 0.25);
+	}
+
+	.session-row.mentioned:selected {
+		background-color: alpha(mix(
+			@theme_fg_color,
+			@mentioned,
+			0.65,
+		),  0.85);
+	}
+
+`+button.UnreadColorDefs)
 
 var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 	.session-icon {
@@ -131,6 +161,19 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 
 	// Bind drag-and-drop events.
 	drag.BindDraggable(row, "face-smile", ctrl.MoveSession)
+
+	// Bind the unread state.
+	row.Servers.Children.SetUnreadHandler(func(unread, mentioned bool) {
+		switch {
+		// Prioritize mentions over unreads.
+		case mentioned:
+			row.unreadClass.SetClass(row, "mentioned")
+		case unread:
+			row.unreadClass.SetClass(row, "unread")
+		default:
+			row.unreadClass.SetClass(row, "read")
+		}
+	})
 
 	return row
 }

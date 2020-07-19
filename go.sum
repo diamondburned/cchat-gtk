@@ -50,8 +50,6 @@ github.com/diamondburned/cchat v0.0.43 h1:HetAujSaUSdnQgAUZgprNLARjf/MSWXpCfWdvX
 github.com/diamondburned/cchat v0.0.43/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
 github.com/diamondburned/cchat v0.0.45 h1:HMVSKx1h6lh2OenWaBTvMSK531hWaXAW7I0tKZepYug=
 github.com/diamondburned/cchat v0.0.45/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
-github.com/diamondburned/cchat-discord v0.0.0-20200718071554-360b34de2a71 h1:4alCL+MeOJuz//uhYKuzyn8RS6+yEQFwL9SGCluNRL4=
-github.com/diamondburned/cchat-discord v0.0.0-20200718071554-360b34de2a71/go.mod h1:tFB/vWkCPp2kQ7v/VkpCvM1aoB6+fvwuEU/acA/g5CY=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b h1:sq0MXjJc3yAOZvuolRxOpKQNvpMLyTmsECxQqdYgF5E=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b/go.mod h1:+bAf0m2o5qH54DmYJ/lR1HeITV53ol0JaoKyFFx3m3E=
 github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d h1:Ha/I6PMKi+B4hpWclwlXj0tUMehR7Q0TNxPczzBwzPI=
@@ -132,6 +130,7 @@ github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/lucasb-eyer/go-colorful v1.0.3 h1:QIbQXiugsb+q10B+MI+7DI1oQLdmnep86tWFlaaUAac=
 github.com/lucasb-eyer/go-colorful v1.0.3/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-colorable v0.1.6/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
+github.com/mattn/go-colorable v0.1.7 h1:bQGKb3vps/j0E9GfJQ03JyhRuxsvdAanXlT9BTw3mdw=
 github.com/mattn/go-colorable v0.1.7/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-isatty v0.0.12 h1:wuysRhFDzyxgEmMf5xjvJ2M9dZoWAXNNr5LSBS7uHXY=
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
