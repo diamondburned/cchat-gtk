@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat/text"
@@ -23,8 +24,10 @@ import (
 )
 
 const (
-	MaxWidth  = 350
-	MaxHeight = 350
+	AvatarSize   = 96
+	PopoverWidth = 250
+	MaxWidth     = 350
+	MaxHeight    = 350
 )
 
 type WidgetConnector interface {
@@ -88,7 +91,7 @@ func BindRichLabel(label Labeler) {
 		var output = label.Output()
 
 		if mention := output.IsMention(uri); mention != nil {
-			if p := popoverMentioner(label, mention); p != nil {
+			if p := popoverMentioner(label, output.Input, mention); p != nil {
 				p.SetPointingTo(ptr)
 				p.Popup()
 			}
@@ -100,30 +103,115 @@ func BindRichLabel(label Labeler) {
 	})
 }
 
-func PopoverMentioner(rel gtk.IWidget, mention text.Mentioner) {
-	if p := popoverMentioner(rel, mention); p != nil {
+func PopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) {
+	if p := popoverMentioner(rel, input, mention); p != nil {
 		p.Popup()
 	}
 }
 
-func popoverMentioner(rel gtk.IWidget, mention text.Mentioner) *gtk.Popover {
+func popoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) *gtk.Popover {
 	var info = mention.MentionInfo()
 	if info.Empty() {
 		return nil
 	}
 
+	start, end := mention.Bounds()
+	h := input[start:end]
+
+	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	box.Show()
+
+	// Do we have an image or an avatar?
+	var url string
+	var round bool
+
+	switch v := mention.(type) {
+	case text.MentionerImage:
+		url = v.Image()
+	case text.MentionerAvatar:
+		url = v.Avatar()
+		round = true
+	}
+
+	if url != "" {
+		box.PackStart(popoverImg(url, round), false, false, 8)
+	}
+
+	head, _ := gtk.LabelNew(largeText(h))
+	head.SetUseMarkup(true)
+	head.SetLineWrap(true)
+	head.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	head.SetMarginStart(8)
+	head.SetMarginEnd(8)
+	head.Show()
+	box.PackStart(head, false, false, 0)
+
+	// Left-align the label if we don't have an image.
+	if url == "" {
+		head.SetXAlign(0)
+	}
+
 	l, _ := gtk.LabelNew(markup.Render(info))
 	l.SetUseMarkup(true)
+	l.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	l.SetLineWrap(true)
 	l.SetXAlign(0)
+	l.SetMarginStart(8)
+	l.SetMarginEnd(8)
+	l.SetMarginTop(8)
+	l.SetMarginBottom(8)
 	l.Show()
 
 	// Enable images???
 	BindActivator(l)
 
+	// Make a scrolling text.
+	scr := scrollinput.NewVScroll(PopoverWidth)
+	scr.Show()
+	scr.Add(l)
+	box.PackStart(scr, false, false, 0)
+
 	p, _ := gtk.PopoverNew(rel)
-	p.Add(l)
-	p.Connect("destroy", l.Destroy)
+	p.Add(box)
+	p.SetSizeRequest(PopoverWidth, -1)
+	p.Connect("destroy", box.Destroy)
 	return p
+}
+
+func largeText(text string) string {
+	return fmt.Sprintf(
+		`<span insert-hyphens="false" size="large">%s</span>`, html.EscapeString(text),
+	)
+}
+
+// popoverImg creates a new button with an image for it, which is used for the
+// avatar in the user popover.
+func popoverImg(url string, round bool) gtk.IWidget {
+	var img *gtk.Image
+	var btn *gtk.Button
+
+	if round {
+		b, _ := roundimage.NewButton()
+		img = b.Image.Image
+		btn = b.Button
+	} else {
+		img, _ = gtk.ImageNew()
+		btn, _ = gtk.ButtonNew()
+		btn.Add(img)
+	}
+
+	img.SetSizeRequest(AvatarSize, AvatarSize)
+	img.SetHAlign(gtk.ALIGN_CENTER)
+	img.Show()
+
+	httputil.AsyncImageSized(img, url, AvatarSize, AvatarSize)
+
+	btn.SetHAlign(gtk.ALIGN_CENTER)
+	btn.SetRelief(gtk.RELIEF_NONE)
+	btn.Connect("clicked", func() { PromptOpen(url) })
+	btn.Show()
+
+	return btn
 }
 
 func BindActivator(connector WidgetConnector) {

@@ -24,11 +24,12 @@ func hyphenate(text string) string {
 // RenderOutput is the output of a render.
 type RenderOutput struct {
 	Markup   string
+	Input    string // useless to keep parts, as Go will keep all alive anyway
 	Mentions []text.Mentioner
 }
 
 // f_Mention is used to print and parse mention URIs.
-const f_Mention = "cchat://mention:%d" // %d == Mentions[i]
+const f_Mention = "cchat://mention/%d" // %d == Mentions[i]
 
 // IsMention returns the mention if the URI is correct, or nil if none.
 func (r RenderOutput) IsMention(uri string) text.Mentioner {
@@ -65,6 +66,7 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	if len(content.Segments) == 0 {
 		return RenderOutput{
 			Markup: hyphenate(html.EscapeString(content.Content)),
+			Input:  content.Content,
 		}
 	}
 
@@ -120,7 +122,7 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		if segment, ok := segment.(text.Mentioner); ok {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
-			if cfg.NoMentionLinks {
+			if !cfg.NoMentionLinks {
 				appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
 			}
 
@@ -168,6 +170,7 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 
 	return RenderOutput{
 		Markup:   hyphenate(buf.String()),
+		Input:    content.Content,
 		Mentions: mentions,
 	}
 }
