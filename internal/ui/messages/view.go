@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/compact"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/memberlist"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/typing"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -39,7 +40,7 @@ func init() {
 
 type View struct {
 	*sadface.FaceView
-	Box *gtk.Box
+	Grid *gtk.Grid
 
 	Scroller  *autoscroll.ScrolledWindow
 	InputView *input.InputView
@@ -49,6 +50,8 @@ type View struct {
 	Container container.Container
 	contType  int // msgIndex
 
+	MemberList *memberlist.Container
+
 	// Inherit some useful methods.
 	state
 }
@@ -57,6 +60,9 @@ func NewView() *View {
 	view := &View{}
 	view.Typing = typing.New()
 	view.Typing.Show()
+
+	view.MemberList = memberlist.New()
+	view.MemberList.Show()
 
 	view.MsgBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
 	view.MsgBox.PackEnd(view.Typing, false, false, 0)
@@ -68,31 +74,36 @@ func NewView() *View {
 
 	view.Scroller = autoscroll.NewScrolledWindow()
 	view.Scroller.Add(view.MsgBox)
+	view.Scroller.SetVExpand(true)
+	view.Scroller.SetHExpand(true)
 	view.Scroller.Show()
 
 	// A separator to go inbetween.
 	sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_HORIZONTAL)
+	sep.SetHExpand(true)
 	sep.Show()
 
 	view.InputView = input.NewView(view)
+	view.InputView.SetHExpand(true)
 	view.InputView.Show()
 
-	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	view.Box.PackStart(view.Scroller, true, true, 0)
-	view.Box.PackStart(sep, false, false, 0)
-	view.Box.PackStart(view.InputView, false, false, 0)
-	view.Box.Show()
+	view.Grid, _ = gtk.GridNew()
+	view.Grid.Attach(view.Scroller, 0, 0, 1, 1)
+	view.Grid.Attach(sep, 0, 1, 1, 1)
+	view.Grid.Attach(view.InputView, 0, 2, 1, 1)
+	view.Grid.Attach(view.MemberList, 1, 0, 1, 3)
+	view.Grid.Show()
 
-	primitives.AddClass(view.Box, "message-view")
+	primitives.AddClass(view.Grid, "message-view")
 
 	// Bind a file drag-and-drop box into the main view box.
-	drag.BindFileDest(view.Box, view.InputView.Attachments.AddFiles)
+	drag.BindFileDest(view.Grid, view.InputView.Attachments.AddFiles)
 
 	// placeholder logo
 	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2(128))
 	logo.Show()
 
-	view.FaceView = sadface.New(view.Box, logo)
+	view.FaceView = sadface.New(view.Grid, logo)
 	return view
 }
 
@@ -117,11 +128,12 @@ func (v *View) createMessageContainer() {
 func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 
 func (v *View) Reset() {
-	v.state.Reset()     // Reset the state variables.
-	v.Typing.Reset()    // Reset the typing state.
-	v.InputView.Reset() // Reset the input.
-	v.Container.Reset() // Clean all messages.
-	v.FaceView.Reset()  // Switch back to the main screen.
+	v.state.Reset()      // Reset the state variables.
+	v.Typing.Reset()     // Reset the typing state.
+	v.InputView.Reset()  // Reset the input.
+	v.MemberList.Reset() // Reset the member list.
+	v.Container.Reset()  // Clean all messages.
+	v.FaceView.Reset()   // Switch back to the main screen.
 
 	// Keep the scroller at the bottom.
 	v.Scroller.Bottomed = true
@@ -174,6 +186,9 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 
 			// Try setting the typing indicator if available.
 			v.Typing.TrySubscribe(server)
+
+			// Try and use the list.
+			v.MemberList.TryAsyncList(server)
 		}, nil
 	})
 }

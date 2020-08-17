@@ -91,7 +91,7 @@ func BindRichLabel(label Labeler) {
 		var output = label.Output()
 
 		if mention := output.IsMention(uri); mention != nil {
-			if p := popoverMentioner(label, output.Input, mention); p != nil {
+			if p := NewPopoverMentioner(label, output.Input, mention); p != nil {
 				p.SetPointingTo(ptr)
 				p.Popup()
 			}
@@ -104,12 +104,12 @@ func BindRichLabel(label Labeler) {
 }
 
 func PopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) {
-	if p := popoverMentioner(rel, input, mention); p != nil {
+	if p := NewPopoverMentioner(rel, input, mention); p != nil {
 		p.Popup()
 	}
 }
 
-func popoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) *gtk.Popover {
+func NewPopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) *gtk.Popover {
 	var info = mention.MentionInfo()
 	if info.Empty() {
 		return nil

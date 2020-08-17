@@ -61,6 +61,12 @@ type RenderConfig struct {
 	NoMentionLinks bool
 }
 
+// NoMentionLinks is the config to render author names. It disables author
+// mention links, as there's no way to make normal names not appear blue.
+var NoMentionLinks = RenderConfig{
+	NoMentionLinks: true,
+}
+
 func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	// Fast path.
 	if len(content.Segments) == 0 {

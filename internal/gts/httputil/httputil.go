@@ -60,12 +60,6 @@ func AsyncStream(url string, fn func(r io.Reader)) {
 }
 
 func get(ctx context.Context, url string, cached bool) (r *http.Response, err error) {
-	// if cached {
-	// 	r, err = dskcached.Get(url)
-	// } else {
-	// 	r, err = memcached.Get(url)
-	// }
-
 	q, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to make a request")

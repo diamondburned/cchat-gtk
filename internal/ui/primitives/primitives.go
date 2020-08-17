@@ -1,8 +1,7 @@
 package primitives
 
 import (
-	"path/filepath"
-	"runtime"
+	"runtime/debug"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
@@ -110,7 +109,12 @@ func NewImageIconPx(icon string, sizepx int) *gtk.Image {
 	return img
 }
 
-func SetImageIcon(img *gtk.Image, icon string, sizepx int) {
+type ImageIconSetter interface {
+	SetProperty(name string, value interface{}) error
+	SetSizeRequest(w, h int)
+}
+
+func SetImageIcon(img ImageIconSetter, icon string, sizepx int) {
 	img.SetProperty("icon-name", icon)
 	img.SetProperty("pixel-size", sizepx)
 	img.SetSizeRequest(sizepx, sizepx)
@@ -244,9 +248,7 @@ func PrepareClassCSS(class, css string) (attach func(StyleContexter)) {
 func PrepareCSS(css string) *gtk.CssProvider {
 	p, _ := gtk.CssProviderNew()
 	if err := p.LoadFromData(css); err != nil {
-		_, fn, caller, _ := runtime.Caller(1)
-		fn = filepath.Base(fn)
-		log.Error(errors.Wrapf(err, "CSS fail at %s:%d", fn, caller))
+		log.Error(errors.Wrapf(err, "CSS fail at %s", debug.Stack()))
 	}
 	return p
 }

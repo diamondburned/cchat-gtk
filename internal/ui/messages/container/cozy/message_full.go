@@ -183,14 +183,20 @@ type Avatar struct {
 }
 
 func NewAvatar() *Avatar {
-	avatar, _ := roundimage.NewButton()
+	avatar, _ := roundimage.NewEmptyButton()
 	avatar.SetSizeRequest(AvatarSize, AvatarSize)
 	avatar.SetVAlign(gtk.ALIGN_START)
 
+	img, _ := roundimage.NewStaticImage(avatar, 0)
+	img.Show()
+
+	avatar.SetImage(img.Image)
+
+	// TODO
+	// Remove static image; make it internal; make static iamge bind to something else incl button and list
+
 	// Default icon.
-	primitives.SetImageIcon(
-		avatar.Image.Image, "user-available-symbolic", AvatarSize,
-	)
+	primitives.SetImageIcon(img, "user-available-symbolic", AvatarSize)
 
 	return &Avatar{*avatar, ""}
 }

@@ -10,16 +10,33 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
 type IconerFn = func(context.Context, cchat.IconContainer) (func(), error)
 
+type RoundIconContainer interface {
+	gtk.IWidget
+	httputil.ImageContainer
+	primitives.ImageIconSetter
+	roundimage.RadiusSetter
+
+	GetStorageType() gtk.ImageType
+	GetPixbuf() *gdk.Pixbuf
+	GetAnimation() *gdk.PixbufAnimation
+}
+
+var (
+	_ RoundIconContainer = (*roundimage.Image)(nil)
+	_ RoundIconContainer = (*roundimage.StaticImage)(nil)
+)
+
 // Icon represents a rounded image container.
 type Icon struct {
 	*gtk.Revealer
-	Image *roundimage.Image
+	Image RoundIconContainer
 	procs []imgutil.Processor
 	size  int
 
@@ -34,12 +51,15 @@ const DefaultIconSize = 16
 var _ cchat.IconContainer = (*Icon)(nil)
 
 func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
+	img, _ := roundimage.NewImage(0)
+	img.Show()
+	return NewCustomIcon(img, sizepx, procs...)
+}
+
+func NewCustomIcon(img RoundIconContainer, sizepx int, procs ...imgutil.Processor) *Icon {
 	if sizepx == 0 {
 		sizepx = DefaultIconSize
 	}
-
-	img, _ := roundimage.NewImage(0)
-	img.Show()
 
 	rev, _ := gtk.RevealerNew()
 	rev.Add(img)
@@ -94,7 +114,7 @@ func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
 	i.SetRevealChild(true)
 
 	if iconName != "" {
-		primitives.SetImageIcon(i.Image.Image, iconName, iconSzPx)
+		primitives.SetImageIcon(i.Image, iconName, iconSzPx)
 	}
 }
 
@@ -172,7 +192,9 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	l := NewLabel(content)
 	l.Show()
 
-	i := NewIcon(0)
+	img, _ := roundimage.NewStaticImage(nil, 0)
+	img.Show()
+	i := NewCustomIcon(img, 0)
 	i.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
@@ -182,6 +204,8 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 
 	b, _ := gtk.ToggleButtonNew()
 	b.Add(box)
+
+	img.ConnectHandlers(b)
 
 	return &ToggleButtonImage{
 		ToggleButton:  *b,

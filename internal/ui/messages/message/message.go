@@ -190,14 +190,8 @@ func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
 	}
 }
 
-// authorRenderCfg is the config to render author names. It disables author
-// mention links, as there's no way to make normal names not appear blue.
-var authorRenderCfg = markup.RenderConfig{
-	NoMentionLinks: true,
-}
-
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
-	var out = markup.RenderCmplxWithConfig(name, authorRenderCfg)
+	var out = markup.RenderCmplxWithConfig(name, markup.NoMentionLinks)
 	m.Username.SetOutput(out)
 }
 

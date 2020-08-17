@@ -71,7 +71,9 @@ type Row struct {
 	unreadClass primitives.ClassEnum
 }
 
-var rowCSS = primitives.PrepareClassCSS("session-row", `
+var rowCSS = primitives.PrepareClassCSS("session-row",
+	button.UnreadColorDefs+`
+
 	.session-row:last-child {
 		border-radius: 0 0 14px 14px;
 	}
@@ -103,8 +105,7 @@ var rowCSS = primitives.PrepareClassCSS("session-row", `
 			0.65,
 		),  0.85);
 	}
-
-`+button.UnreadColorDefs)
+`)
 
 var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 	.session-icon {
