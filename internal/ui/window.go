@@ -12,12 +12,17 @@ type window struct {
 	MessageView *messages.View
 }
 
-func newWindow(mainctl service.Controller) *window {
+type Controller interface {
+	service.Controller
+	messages.Controller
+}
+
+func newWindow(mainctl Controller) *window {
 	services := service.NewView(mainctl)
 	services.SetSizeRequest(leftMinWidth, -1)
 	services.Show()
 
-	mesgview := messages.NewView()
+	mesgview := messages.NewView(mainctl)
 	mesgview.Show()
 
 	pane, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)

@@ -55,6 +55,14 @@ func (v *FaceView) Reset() {
 	v.Stack.SetVisibleChildName("empty")
 }
 
+// func (v *FaceView) Disable() {
+// 	v.Stack.SetSensitive(false)
+// }
+
+// func (v *FaceView) Enable() {
+// 	v.Stack.SetSensitive(true)
+// }
+
 func (v *FaceView) SetMain() {
 	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Stop()

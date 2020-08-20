@@ -57,11 +57,14 @@ func NewContainer(ctrl container.Controller) *Container {
 }
 
 func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
-	// Is the latest message of the same author? If yes, display it as a
-	// collapsed message.
-	if c.lastMessageIsAuthor(msg.Author().ID()) {
-		return NewCollapsedMessage(msg)
-	}
+	// We're not checking for a collapsed message here anymore, as the
+	// CreateMessage method will do that.
+
+	// // Is the latest message of the same author? If yes, display it as a
+	// // collapsed message.
+	// if c.lastMessageIsAuthor(msg.Author().ID()) {
+	// 	return NewCollapsedMessage(msg)
+	// }
 
 	full := NewFullMessage(msg)
 	author := msg.Author()
@@ -77,7 +80,9 @@ func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 }
 
 func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
-	if c.lastMessageIsAuthor(msg.AuthorID()) {
+	// We can do the check here since we're never using NewPresendMessage for
+	// backlog messages.
+	if c.lastMessageIsAuthor(msg.AuthorID(), 0) {
 		return NewCollapsedSendingMessage(msg)
 	}
 
@@ -88,11 +93,6 @@ func (c *Container) NewPresendMessage(msg input.PresendMessage) container.Presen
 	c.reuseAvatar(msg.AuthorID(), msg.AuthorAvatarURL(), &full.FullMessage)
 
 	return full
-}
-
-func (c *Container) lastMessageIsAuthor(id string) bool {
-	var last = c.GridStore.LastMessage()
-	return last != nil && last.AuthorID() == id
 }
 
 func (c *Container) findAuthorID(authorID string) container.GridMessage {
@@ -120,11 +120,22 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 	}
 }
 
+func (c *Container) lastMessageIsAuthor(id string, offset int) bool {
+	var last = c.GridStore.NthMessage(c.GridStore.MessagesLen() - (1 + offset))
+	return last != nil && last.AuthorID() == id
+}
+
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
 		// Create the message in the parent's handler. This handler will also
 		// wipe old messages.
 		c.GridContainer.CreateMessageUnsafe(msg)
+
+		// Should we collapse this message? Yes, if the current message's author
+		// is the same as the last author.
+		if c.lastMessageIsAuthor(msg.Author().ID(), 1) {
+			c.compact(c.GridContainer.LastMessage())
+		}
 
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
@@ -198,4 +209,38 @@ func (c *Container) uncompact(msg container.GridMessage) {
 
 	// Swap the old next message out for a new one.
 	c.GridStore.SwapMessage(full)
+}
+
+func (c *Container) PrependMessage(msg cchat.MessageCreate) {
+	gts.ExecAsync(func() {
+		c.GridContainer.PrependMessageUnsafe(msg)
+
+		// See if we need to uncollapse the second message.
+		if sec := c.NthMessage(1); sec != nil {
+			// If the author isn't the same, then ignore.
+			if sec.AuthorID() != msg.Author().ID() {
+				return
+			}
+
+			// The author is the same; collapse.
+			c.compact(sec)
+		}
+	})
+}
+
+func (c *Container) compact(msg container.GridMessage) {
+	// Exit if the message is already collapsed.
+	if collapse, ok := msg.(Collapsible); !ok || collapse.Collapsed() {
+		return
+	}
+
+	uw, ok := msg.(Unwrapper)
+	if !ok {
+		return
+	}
+
+	compact := WrapCollapsedMessage(uw.Unwrap(c.Grid))
+	message.RefreshContainer(compact, compact.GenericContainer)
+
+	c.GridStore.SwapMessage(compact)
 }

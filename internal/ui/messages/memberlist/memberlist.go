@@ -22,8 +22,9 @@ import (
 var MemberListWidth = 250
 
 type Container struct {
-	*gtk.ScrolledWindow
-	Main *gtk.Box
+	*gtk.Revealer
+	Scroll *gtk.ScrolledWindow
+	Main   *gtk.Box
 
 	// map id -> *Section
 	Sections map[string]*Section
@@ -47,11 +48,19 @@ func New() *Container {
 	sw, _ := gtk.ScrolledWindowNew(nil, nil)
 	sw.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
 	sw.Add(main)
+	sw.Show()
+
+	rev, _ := gtk.RevealerNew()
+	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
+	rev.SetTransitionDuration(50)
+	rev.SetRevealChild(false)
+	rev.Add(sw)
 
 	return &Container{
-		ScrolledWindow: sw,
-		Main:           main,
-		Sections:       map[string]*Section{},
+		Revealer: rev,
+		Scroll:   sw,
+		Main:     main,
+		Sections: map[string]*Section{},
 	}
 }
 
@@ -61,6 +70,8 @@ func (c *Container) Reset() {
 		c.stop()
 		c.stop = nil
 	}
+
+	c.Revealer.SetRevealChild(false)
 
 	for _, section := range c.Sections {
 		c.Main.Remove(section)
@@ -85,6 +96,7 @@ func (c *Container) TryAsyncList(server cchat.ServerMessage) {
 
 		return func() {
 			c.stop = f
+			c.Revealer.SetRevealChild(true)
 		}, nil
 	})
 }
@@ -363,7 +375,9 @@ func (m *Member) Update(member cchat.ListMember) {
 func (m *Member) Popup() {
 	if len(m.output.Mentions) > 0 {
 		p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
+		p.Ref() // prevent the popover from closing itself
 		p.SetPosition(gtk.POS_LEFT)
+		p.Connect("closed", p.Unref)
 		p.Popup()
 	}
 }

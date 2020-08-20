@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/pkg/errors"
 )
 
 type GridStore struct {
@@ -38,18 +39,6 @@ func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
 	}
 }
 
-func (c *GridStore) Reset() {
-	c.Grid.GetChildren().Foreach(func(v interface{}) {
-		// Unsafe assertion ftw.
-		w := v.(gtk.IWidget).ToWidget()
-		c.Grid.Remove(w)
-		w.Destroy()
-	})
-
-	c.messages = map[string]*gridMessage{}
-	c.messageIDs = []string{}
-}
-
 func (c *GridStore) MessagesLen() int {
 	return len(c.messages)
 }
@@ -64,6 +53,34 @@ func (c *GridStore) findIndex(idnonce string) int {
 	return -1
 }
 
+type CoordinateTranslator interface {
+	TranslateCoordinates(dest gtk.IWidget, srcX int, srcY int) (destX int, destY int, e error)
+}
+
+var _ CoordinateTranslator = (*gtk.Widget)(nil)
+
+func (c *GridStore) TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y int) {
+	i := c.findIndex(msg.ID())
+	if i < 0 {
+		return 0
+	}
+
+	m, _ := c.messages[c.messageIDs[i]]
+	w, _ := m.Focusable().(CoordinateTranslator)
+
+	// x is not needed.
+	_, y, err := w.TranslateCoordinates(parent, 0, 0)
+	if err != nil {
+		log.Error(errors.Wrap(err, "Failed to translate coords while focusing"))
+		return
+	}
+
+	// log.Println("X:", x)
+	// log.Println("Y:", y)
+
+	return y
+}
+
 // Swap changes the message with the ID to the given message. This provides a
 // low level API for edits that need a new Attach method.
 //
@@ -75,12 +92,21 @@ func (c *GridStore) SwapMessage(msg GridMessage) bool {
 		return false
 	}
 
+	// Wrap msg inside a *gridMessage if it's not already.
+	mg, ok := msg.(*gridMessage)
+	if !ok {
+		mg = &gridMessage{GridMessage: msg}
+	}
+
 	// Add a row at index. The actual row we want to delete will be shifted
 	// downwards.
 	c.Grid.InsertRow(ix)
 
 	// Let the new message be attached on top of the to-be-replaced message.
-	msg.Attach(c.Grid, ix)
+	mg.Attach(c.Grid, ix)
+
+	// Set the message into the map.
+	c.messages[mg.ID()] = mg
 
 	// Delete the to-be-replaced message, which we have shifted downwards
 	// earlier, so we add 1.
@@ -146,20 +172,22 @@ func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessag
 	return nil
 }
 
-// FirstMessage returns the first message.
-func (c *GridStore) FirstMessage() GridMessage {
-	if len(c.messageIDs) > 0 {
-		return c.messages[c.messageIDs[0]].GridMessage
+// NthMessage returns the nth message.
+func (c *GridStore) NthMessage(n int) GridMessage {
+	if len(c.messageIDs) > 0 && n >= 0 && n < len(c.messageIDs) {
+		return c.messages[c.messageIDs[n]].GridMessage
 	}
 	return nil
 }
 
+// FirstMessage returns the first message.
+func (c *GridStore) FirstMessage() GridMessage {
+	return c.NthMessage(0)
+}
+
 // LastMessage returns the latest message.
 func (c *GridStore) LastMessage() GridMessage {
-	if l := len(c.messageIDs); l > 0 {
-		return c.messages[c.messageIDs[l-1]].GridMessage
-	}
-	return nil
+	return c.NthMessage(c.MessagesLen() - 1)
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
@@ -226,6 +254,25 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 	c.messages[msgc.Nonce()] = msgc
 
 	return presend
+}
+
+func (c *GridStore) PrependMessageUnsafe(msg cchat.MessageCreate) {
+	msgc := &gridMessage{
+		GridMessage: c.Construct.NewMessage(msg),
+	}
+
+	c.Grid.InsertRow(0)
+	msgc.Attach(c.Grid, 0)
+
+	// Prepend the message ID.
+	c.messageIDs = append(c.messageIDs, "")
+	copy(c.messageIDs[1:], c.messageIDs)
+	c.messageIDs[0] = msgc.ID()
+
+	// Set the message into the map.
+	c.messages[msgc.ID()] = msgc
+
+	c.Controller.BindMenu(msgc)
 }
 
 func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {

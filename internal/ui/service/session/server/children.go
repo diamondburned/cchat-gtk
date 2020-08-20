@@ -89,6 +89,9 @@ func (c *Children) Reset() {
 	if c.Box != nil {
 		// Remove old servers from the list.
 		for _, row := range c.Rows {
+			if row.IsHollow() {
+				continue
+			}
 			c.Box.Remove(row)
 		}
 	}

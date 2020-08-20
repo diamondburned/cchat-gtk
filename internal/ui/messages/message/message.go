@@ -210,3 +210,7 @@ func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
 func (m *GenericContainer) AttachMenu(newItems []menu.Item) {
 	m.MenuItems = newItems
 }
+
+func (m *GenericContainer) Focusable() gtk.IWidget {
+	return m.Content
+}

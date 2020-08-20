@@ -3,22 +3,28 @@
 package main
 
 import (
-	"os"
-	"runtime/pprof"
-
 	_ "net/http/pprof"
 
 	_ "github.com/ianlancetaylor/cgosymbolizer"
 )
 
+import "C"
+
+const ProfileAddr = "localhost:49583"
+
 func init() {
+	C.HeapProfilerStart()
+	destructor = func() { C.HeapProfilerStop() }
+
+	// runtime.SetBlockProfileRate(1)
+
 	// go func() {
-	// 	if err := http.ListenAndServe("localhost:42069", nil); err != nil {
+	// 	log.Println("Listening to profiler at", ProfileAddr)
+
+	// 	if err := http.ListenAndServe(ProfileAddr, nil); err != nil {
 	// 		log.Error(errors.Wrap(err, "Failed to start profiling HTTP server"))
 	// 	}
 	// }()
-
-	// runtime.SetBlockProfileRate(1)
 
 	// f, _ := os.Create("/tmp/cchat.pprof")
 	// p := pprof.Lookup("block")
@@ -33,13 +39,13 @@ func init() {
 	// 	f.Close()
 	// }
 
-	f, _ := os.Create("/tmp/cchat.pprof")
-	if err := pprof.StartCPUProfile(f); err != nil {
-		panic(err)
-	}
+	// f, _ := os.Create("/tmp/cchat.pprof")
+	// if err := pprof.StartCPUProfile(f); err != nil {
+	// 	panic(err)
+	// }
 
-	destructor = func() {
-		pprof.StopCPUProfile()
-		f.Close()
-	}
+	// destructor = func() {
+	// 	pprof.StopCPUProfile()
+	// 	f.Close()
+	// }
 }

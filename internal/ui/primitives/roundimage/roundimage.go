@@ -19,7 +19,7 @@ const (
 // supports a full circle for rounding.
 type Button struct {
 	*gtk.Button
-	Image *Image
+	Image Imager
 }
 
 var roundButtonCSS = primitives.PrepareClassCSS("round-button", `
@@ -47,7 +47,21 @@ func NewEmptyButton() (*Button, error) {
 	return &Button{Button: b}, nil
 }
 
-func (b *Button) SetImage(img *Image) {
+// NewCustomButton creates a new rounded button with the given Imager. If the
+// given Imager implements the Connector interface (aka *StaticImage), then the
+// function will implicitly connect its handlers to the button.
+func NewCustomButton(img Imager) (*Button, error) {
+	b, _ := NewEmptyButton()
+	b.SetImage(img)
+
+	if connector, ok := img.(Connector); ok {
+		connector.ConnectHandlers(b)
+	}
+
+	return b, nil
+}
+
+func (b *Button) SetImage(img Imager) {
 	b.Image = img
 	b.Button.SetImage(img)
 }
@@ -56,13 +70,34 @@ type RadiusSetter interface {
 	SetRadius(float64)
 }
 
+type Connector interface {
+	ConnectHandlers(connector primitives.Connector)
+}
+
+type Imager interface {
+	gtk.IWidget
+	RadiusSetter
+
+	// Embed setters.
+	httputil.ImageContainerSizer
+
+	GetPixbuf() *gdk.Pixbuf
+	GetAnimation() *gdk.PixbufAnimation
+
+	GetImage() *gtk.Image
+}
+
 // StaticImage is an image that only plays a GIF if it's hovered on top of.
 type StaticImage struct {
 	*Image
 	animation *gdk.PixbufAnimation
 }
 
-var _ httputil.ImageContainer = (*StaticImage)(nil)
+var (
+	_ Imager                  = (*StaticImage)(nil)
+	_ Connector               = (*StaticImage)(nil)
+	_ httputil.ImageContainer = (*StaticImage)(nil)
+)
 
 func NewStaticImage(parent primitives.Connector, radius float64) (*StaticImage, error) {
 	i, err := NewImage(radius)
@@ -110,6 +145,8 @@ type Image struct {
 	Radius float64
 }
 
+var _ Imager = (*Image)(nil)
+
 // NewImage creates a new round image. If radius is 0, then it will be half the
 // dimensions. If the radius is less than 0, then nothing is rounded.
 func NewImage(radius float64) (*Image, error) {
@@ -124,6 +161,10 @@ func NewImage(radius float64) (*Image, error) {
 	i.Connect("draw", image.drawer)
 
 	return image, nil
+}
+
+func (i *Image) GetImage() *gtk.Image {
+	return i.Image
 }
 
 func (i *Image) SetRadius(r float64) {

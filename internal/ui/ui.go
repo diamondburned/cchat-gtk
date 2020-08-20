@@ -133,15 +133,19 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 
 	app.header.SetBreadcrumber(srv)
 
+	// Assert that server is also a list, then join the server.
+	app.window.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage))
+}
+
+func (app *App) OnMessageBusy() {
 	// Disable the server list because we don't want the user to switch around
 	// while we're loading.
-	app.window.Services.SetSensitive(false)
+	gts.App.Window.SetSensitive(false)
+}
 
-	// Assert that server is also a list, then join the server.
-	app.window.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage), func() {
-		// Re-enable the server list.
-		app.window.Services.SetSensitive(true)
-	})
+func (app *App) OnMessageDone() {
+	// Re-enable the server list.
+	gts.App.Window.SetSensitive(true)
 }
 
 func (app *App) AuthenticateSession(list *service.List, ssvc *service.Service) {

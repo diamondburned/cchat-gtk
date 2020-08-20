@@ -316,9 +316,11 @@ func (r *Row) SetSelected(selected bool) {
 }
 
 func (r *Row) GetActive() bool {
-	AssertUnhollow(r)
+	if !r.IsHollow() {
+		return r.Button.GetActive()
+	}
 
-	return r.Button.GetActive()
+	return false
 }
 
 // SetRevealChild reveals the list of servers. It does nothing if there are no

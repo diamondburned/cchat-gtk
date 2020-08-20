@@ -59,6 +59,10 @@ func (c *CollapsedMessage) Attach(grid *gtk.Grid, row int) {
 	container.AttachRow(grid, row, c.Timestamp, c.Content)
 }
 
+func (c *CollapsedMessage) Focusable() gtk.IWidget {
+	return c.Timestamp
+}
+
 type CollapsedSendingMessage struct {
 	*CollapsedMessage
 	message.PresendContainer

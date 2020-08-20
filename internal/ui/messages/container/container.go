@@ -15,6 +15,8 @@ const BacklogLimit = 35
 
 type GridMessage interface {
 	message.Container
+	// Focusable should return a widget that can be focused.
+	Focusable() gtk.IWidget
 	// Attach should only be called once.
 	Attach(grid *gtk.Grid, row int)
 	// AttachMenu should override the stored constructor.
@@ -39,18 +41,28 @@ type Container interface {
 
 	// Thread-safe methods.
 	cchat.MessagesContainer
+	cchat.MessagePrepender
 
 	// Thread-unsafe methods.
 	CreateMessageUnsafe(cchat.MessageCreate)
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
+	PrependMessageUnsafe(cchat.MessageCreate)
 
-	Reset()
-
+	// FirstMessage returns the first message in the buffer. Nil is returned if
+	// there's nothing.
+	FirstMessage() GridMessage
+	// TranslateCoordinates is used for scrolling to the message.
+	TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y int)
 	// AddPresendMessage adds and displays an unsent message.
 	AddPresendMessage(msg input.PresendMessage) PresendGridMessage
 	// LatestMessageFrom returns the last message ID with that author.
 	LatestMessageFrom(authorID string) (msgID string, ok bool)
+
+	// UI methods.
+
+	SetFocusHAdjustment(*gtk.Adjustment)
+	SetFocusVAdjustment(*gtk.Adjustment)
 }
 
 // Controller is for menu actions.
@@ -131,4 +143,8 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
+}
+
+func (c *GridContainer) PrependMessage(msg cchat.MessageCreate) {
+	gts.ExecAsync(func() { c.PrependMessageUnsafe(msg) })
 }

@@ -187,24 +187,27 @@ func largeText(text string) string {
 // popoverImg creates a new button with an image for it, which is used for the
 // avatar in the user popover.
 func popoverImg(url string, round bool) gtk.IWidget {
-	var img *gtk.Image
 	var btn *gtk.Button
+	var img *gtk.Image
+	var idl httputil.ImageContainerSizer
 
 	if round {
 		b, _ := roundimage.NewButton()
-		img = b.Image.Image
+		img = b.Image.GetImage()
+		idl = b.Image
 		btn = b.Button
 	} else {
 		img, _ = gtk.ImageNew()
 		btn, _ = gtk.ButtonNew()
 		btn.Add(img)
+		idl = img
 	}
 
 	img.SetSizeRequest(AvatarSize, AvatarSize)
 	img.SetHAlign(gtk.ALIGN_CENTER)
 	img.Show()
 
-	httputil.AsyncImageSized(img, url, AvatarSize, AvatarSize)
+	httputil.AsyncImageSized(idl, url, AvatarSize, AvatarSize)
 
 	btn.SetHAlign(gtk.ALIGN_CENTER)
 	btn.SetRelief(gtk.RELIEF_NONE)

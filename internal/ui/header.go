@@ -7,10 +7,11 @@ import (
 	"github.com/diamondburned/cchat-gtk/icons"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
 )
 
 type header struct {
@@ -51,7 +52,8 @@ func newHeader() *header {
 	}
 }
 
-const BreadcrumbSlash = `<span rise="-1024" size="x-large">/</span>`
+// const BreadcrumbSlash = `<span rise="-1024" size="x-large">❭</span>`
+const BreadcrumbSlash = " 〉"
 
 func (h *header) SetBreadcrumber(b traverse.Breadcrumber) {
 	if b == nil {
@@ -60,6 +62,13 @@ func (h *header) SetBreadcrumber(b traverse.Breadcrumber) {
 	}
 
 	var crumb = b.Breadcrumb()
+
+	if len(crumb) > 0 {
+		h.left.svcname.SetText(crumb[0])
+	} else {
+		h.left.svcname.SetText("")
+	}
+
 	for i := range crumb {
 		crumb[i] = html.EscapeString(crumb[i])
 	}
@@ -104,6 +113,7 @@ func (a *appMenu) SetSizeRequest(w, h int) {
 type headerLeft struct {
 	*gtk.Box
 	appmenu *appMenu
+	svcname *gtk.Label
 	sesmenu *actions.MenuButton
 }
 
@@ -115,17 +125,25 @@ func newHeaderLeft() *headerLeft {
 	sep.Show()
 	primitives.AddClass(sep, "titlebutton")
 
+	svcname, _ := gtk.LabelNew("")
+	svcname.SetXAlign(0)
+	svcname.SetEllipsize(pango.ELLIPSIZE_END)
+	svcname.Show()
+	svcname.SetMarginStart(14)
+
 	sesmenu := actions.NewMenuButton()
 	sesmenu.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	box.PackStart(appmenu, false, false, 0)
 	box.PackStart(sep, false, false, 0)
+	box.PackStart(svcname, true, true, 0)
 	box.PackStart(sesmenu, false, false, 5)
 
 	return &headerLeft{
 		Box:     box,
 		appmenu: appmenu,
+		svcname: svcname,
 		sesmenu: sesmenu,
 	}
 }

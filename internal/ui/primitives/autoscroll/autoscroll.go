@@ -11,6 +11,7 @@ type ScrolledWindow struct {
 func NewScrolledWindow() *ScrolledWindow {
 	gtksw, _ := gtk.ScrolledWindowNew(nil, nil)
 	gtksw.SetProperty("propagate-natural-height", true)
+	gtksw.SetProperty("window-placement", gtk.CORNER_BOTTOM_LEFT)
 
 	sw := &ScrolledWindow{*gtksw, *gtksw.GetVAdjustment(), true} // bottomed by default
 	sw.Connect("size-allocate", func(_ *gtk.ScrolledWindow) {

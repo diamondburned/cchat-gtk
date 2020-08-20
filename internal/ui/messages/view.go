@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"time"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/icons"
@@ -38,6 +39,15 @@ func init() {
 	))
 }
 
+type Controller interface {
+	// OnMessageBusy is called when the message buffer is busy. This happens
+	// when it's loading messages.
+	OnMessageBusy()
+	// OnMessageDone is called after OnMessageBusy, when the message buffer is
+	// done with loading.
+	OnMessageDone()
+}
+
 type View struct {
 	*sadface.FaceView
 	Grid *gtk.Grid
@@ -54,10 +64,12 @@ type View struct {
 
 	// Inherit some useful methods.
 	state
+
+	ctrl Controller
 }
 
-func NewView() *View {
-	view := &View{}
+func NewView(c Controller) *View {
+	view := &View{ctrl: c}
 	view.Typing = typing.New()
 	view.Typing.Show()
 
@@ -68,15 +80,25 @@ func NewView() *View {
 	view.MsgBox.PackEnd(view.Typing, false, false, 0)
 	view.MsgBox.Show()
 
-	// Create the message container, which will use PackEnd to add the widget on
-	// TOP of the typing indicator.
-	view.createMessageContainer()
-
 	view.Scroller = autoscroll.NewScrolledWindow()
 	view.Scroller.Add(view.MsgBox)
 	view.Scroller.SetVExpand(true)
 	view.Scroller.SetHExpand(true)
 	view.Scroller.Show()
+
+	view.MsgBox.SetFocusHAdjustment(view.Scroller.GetHAdjustment())
+	view.MsgBox.SetFocusVAdjustment(view.Scroller.GetVAdjustment())
+
+	// Create the message container, which will use PackEnd to add the widget on
+	// TOP of the typing indicator.
+	view.createMessageContainer()
+
+	// Fetch the message backlog when the user has scrolled to the top.
+	view.Scroller.Connect("edge-reached", func(_ *gtk.ScrolledWindow, p gtk.PositionType) {
+		if p == gtk.POS_TOP {
+			view.FetchBacklog()
+		}
+	})
 
 	// A separator to go inbetween.
 	sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_HORIZONTAL)
@@ -121,6 +143,9 @@ func (v *View) createMessageContainer() {
 		v.Container = compact.NewContainer(v)
 	}
 
+	v.Container.SetFocusHAdjustment(v.Scroller.GetHAdjustment())
+	v.Container.SetFocusVAdjustment(v.Scroller.GetVAdjustment())
+
 	// Add the new message container.
 	v.MsgBox.PackEnd(v.Container, true, true, 0)
 }
@@ -132,25 +157,23 @@ func (v *View) Reset() {
 	v.Typing.Reset()     // Reset the typing state.
 	v.InputView.Reset()  // Reset the input.
 	v.MemberList.Reset() // Reset the member list.
-	v.Container.Reset()  // Clean all messages.
 	v.FaceView.Reset()   // Switch back to the main screen.
 
 	// Keep the scroller at the bottom.
 	v.Scroller.Bottomed = true
 
-	// Recreate the message container if the type is different.
-	if v.contType != msgIndex {
-		v.createMessageContainer()
-	}
+	// Reallocate the entire message container.
+	v.createMessageContainer()
 }
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func()) {
+func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
 	// Reset before setting.
 	v.Reset()
 
 	// Set the screen to loading.
 	v.FaceView.SetLoading()
+	v.ctrl.OnMessageBusy()
 
 	// Bind the state.
 	v.state.bind(session, server)
@@ -171,12 +194,12 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 			err = errors.Wrap(err, "Failed to join server")
 			// Even if we're erroring out, we're running the done() callback
 			// anyway.
-			return func() { done(); v.SetError(err) }, err
+			return func() { v.ctrl.OnMessageDone(); v.SetError(err) }, err
 		}
 
 		return func() {
 			// Run the done() callback.
-			done()
+			v.ctrl.OnMessageDone()
 
 			// Set the screen to the main one.
 			v.FaceView.SetMain()
@@ -190,6 +213,34 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, done func
 			// Try and use the list.
 			v.MemberList.TryAsyncList(server)
 		}, nil
+	})
+}
+
+func (v *View) FetchBacklog() {
+	var backlogger = v.state.Backlogger()
+	if backlogger == nil {
+		return
+	}
+
+	var firstMsg = v.Container.FirstMessage()
+	if firstMsg == nil {
+		return
+	}
+
+	// Set the window as busy. TODO: loading circles.
+	v.ctrl.OnMessageBusy()
+
+	var done = func() {
+		v.ctrl.OnMessageDone()
+
+		// Restore scrolling.
+		y := v.Container.TranslateCoordinates(v.MsgBox, firstMsg)
+		v.Scroller.GetVAdjustment().SetValue(float64(y))
+	}
+
+	gts.Async(func() (func(), error) {
+		err := backlogger.MessagesBefore(context.Background(), firstMsg.ID(), v.Container)
+		return done, errors.Wrap(err, "Failed to get messages before ID")
 	})
 }
 
@@ -290,10 +341,13 @@ type state struct {
 	session cchat.Session
 	server  cchat.Server
 
-	actioner cchat.ServerMessageActioner
+	actioner   cchat.ServerMessageActioner
+	backlogger cchat.ServerMessageBacklogger
 
 	current func() // stop callback
 	author  string
+
+	lastBacklogged time.Time
 }
 
 func (s *state) Reset() {
@@ -318,10 +372,30 @@ func (s *state) SessionID() string {
 	return ""
 }
 
+const backloggingFreq = time.Second * 3
+
+// Backlogger returns the backlogger instance if it's allowed to fetch more
+// backlogs.
+func (s *state) Backlogger() cchat.ServerMessageBacklogger {
+	if s.backlogger == nil || s.current == nil {
+		return nil
+	}
+
+	var now = time.Now()
+
+	if s.lastBacklogged.Add(backloggingFreq).After(now) {
+		return nil
+	}
+
+	s.lastBacklogged = now
+	return s.backlogger
+}
+
 func (s *state) bind(session cchat.Session, server ServerMessage) {
 	s.session = session
 	s.server = server
 	s.actioner, _ = server.(cchat.ServerMessageActioner)
+	s.backlogger, _ = server.(cchat.ServerMessageBacklogger)
 }
 
 func (s *state) setcurrent(fn func()) {

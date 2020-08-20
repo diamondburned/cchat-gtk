@@ -114,8 +114,24 @@ func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	m.HeaderBox.Remove(m.Timestamp)
 	m.MainBox.Remove(m.Content)
 
+	// Hide the avatar.
+	m.Avatar.Hide()
+
+	// Remove the message from the grid.
+	grid.Remove(m.Avatar)
+	grid.Remove(m.MainBox)
+
 	// Return after removing.
 	return m.GenericContainer
+}
+
+func (m *FullMessage) Attach(grid *gtk.Grid, row int) {
+	m.Avatar.Show()
+	container.AttachRow(grid, row, m.Avatar, m.MainBox)
+}
+
+func (m *FullMessage) Focusable() gtk.IWidget {
+	return m.Avatar
 }
 
 func (m *FullMessage) UpdateTimestamp(t time.Time) {
@@ -136,17 +152,12 @@ func (m *FullMessage) UpdateAuthor(author cchat.MessageAuthor) {
 // CopyAvatarPixbuf sets the pixbuf into the given container. This shares the
 // same pixbuf, but gtk.Image should take its own reference from the pixbuf.
 func (m *FullMessage) CopyAvatarPixbuf(dst httputil.ImageContainer) {
-	switch img := m.Avatar.Image; img.GetStorageType() {
+	switch img := m.Avatar.Image; img.GetImage().GetStorageType() {
 	case gtk.IMAGE_PIXBUF:
 		dst.SetFromPixbuf(img.GetPixbuf())
 	case gtk.IMAGE_ANIMATION:
 		dst.SetFromAnimation(img.GetAnimation())
 	}
-}
-
-func (m *FullMessage) Attach(grid *gtk.Grid, row int) {
-	m.Avatar.Show()
-	container.AttachRow(grid, row, m.Avatar, m.MainBox)
 }
 
 func (m *FullMessage) AttachMenu(items []menu.Item) {
@@ -183,17 +194,12 @@ type Avatar struct {
 }
 
 func NewAvatar() *Avatar {
-	avatar, _ := roundimage.NewEmptyButton()
-	avatar.SetSizeRequest(AvatarSize, AvatarSize)
-	avatar.SetVAlign(gtk.ALIGN_START)
-
-	img, _ := roundimage.NewStaticImage(avatar, 0)
+	img, _ := roundimage.NewStaticImage(nil, 0)
 	img.Show()
 
-	avatar.SetImage(img.Image)
-
-	// TODO
-	// Remove static image; make it internal; make static iamge bind to something else incl button and list
+	avatar, _ := roundimage.NewCustomButton(img)
+	avatar.SetSizeRequest(AvatarSize, AvatarSize)
+	avatar.SetVAlign(gtk.ALIGN_START)
 
 	// Default icon.
 	primitives.SetImageIcon(img, "user-available-symbolic", AvatarSize)
