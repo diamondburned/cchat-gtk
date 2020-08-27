@@ -39,6 +39,7 @@ github.com/danieljoos/wincred v1.0.2 h1:zf4bhty2iLuwgjgpraD2E9UbvO+fe54XXGJbOwe2
 github.com/danieljoos/wincred v1.0.2/go.mod h1:SnuYRW9lp1oJrZX/dXJqr0cPK5gYXqx3EJbmjhLdK9U=
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 h1:y5HC9v93H5EPKqaS1UYVg1uYah5Xf51mBfIoWehClUQ=
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964/go.mod h1:Xd9hchkHSWYkEqJwUGisez3G1QY8Ryz0sdWrLPMGjLk=
+github.com/dave/jennifer v1.4.0/go.mod h1:fIb+770HOpJ2fmN9EPPKOqm1vMGhB+TwXKMZhrIygKg=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -80,12 +81,16 @@ github.com/diamondburned/cchat-discord v0.0.0-20200820222309-c85ad033d174 h1:EgE
 github.com/diamondburned/cchat-discord v0.0.0-20200820222309-c85ad033d174/go.mod h1:gz+UVcC3VON4j8DjpLwH3xKQyqiDT4fyap8V5Rn+ACg=
 github.com/diamondburned/cchat-discord v0.0.0-20200820222718-68cfafc4c318 h1:mRGZ2/Cjgw8O4l2ZOfdYhNUbO9VGBQCfLpxO5QCUoyo=
 github.com/diamondburned/cchat-discord v0.0.0-20200820222718-68cfafc4c318/go.mod h1:rhUseXyWXTVw0Da8edbQMHU9I4LRQ2zcRB3zRqg/oe4=
+github.com/diamondburned/cchat-discord v0.0.0-20200821041521-647c854d7b5e h1:higtJiL7t6owP2dVAwJxItnpsD1MUypWDVant2uYv6g=
+github.com/diamondburned/cchat-discord v0.0.0-20200821041521-647c854d7b5e/go.mod h1:rhUseXyWXTVw0Da8edbQMHU9I4LRQ2zcRB3zRqg/oe4=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b h1:sq0MXjJc3yAOZvuolRxOpKQNvpMLyTmsECxQqdYgF5E=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b/go.mod h1:+bAf0m2o5qH54DmYJ/lR1HeITV53ol0JaoKyFFx3m3E=
 github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d h1:Ha/I6PMKi+B4hpWclwlXj0tUMehR7Q0TNxPczzBwzPI=
 github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a h1:wEldljb421/Jp84RNb0zBfqmiWt/TTQzUE6R1ap6UuQ=
 github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
+github.com/diamondburned/handy v0.0.0-20200827040421-5b4a15843526 h1:GnTwaD+RKiCJiJ9yhcUb6M5o4VwFExTqmcl8Dg+EVdw=
+github.com/diamondburned/handy v0.0.0-20200827040421-5b4a15843526/go.mod h1:V0qyhW4v6KPFwtDpXdBm5aWH7zWEyrzZpcB6MPnKArQ=
 github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972 h1:OWxllHbUptXzDias6YI4MM0R3o50q8MfhkkwVIlfiNo=
 github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972/go.mod h1:kBQKaukR/LyCfhED99/T4/XxUMDNEEzf1Fx6vreD3RQ=
 github.com/diamondburned/ningen v0.1.1-0.20200717072304-e483f86c08e6 h1:YN0cj0aOCa+tKmx0aD5qsbSYaIJnyrA0/+eygMKP+/w=
@@ -182,6 +187,7 @@ github.com/mattn/go-colorable v0.1.7 h1:bQGKb3vps/j0E9GfJQ03JyhRuxsvdAanXlT9BTw3
 github.com/mattn/go-colorable v0.1.7/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
 github.com/mattn/go-isatty v0.0.12 h1:wuysRhFDzyxgEmMf5xjvJ2M9dZoWAXNNr5LSBS7uHXY=
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
+github.com/mitchellh/go-wordwrap v1.0.0/go.mod h1:ZXFpozHsX6DPmq2I0TCekCxypsnAUbP2oI0UX1GXzOo=
 github.com/peterbourgon/diskv v2.0.1+incompatible h1:UBdAOUP5p4RWqPBg048CAvpKN+vxiaj6gdUUzhl4XmI=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

@@ -115,6 +115,9 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 		app.lastSelector = nil
 	}
 
+	// TODO
+	// reset view when setservers top level called
+
 	// TODO: restore last message box
 	app.window.MessageView.Reset()
 	app.header.SetBreadcrumber(ses)
