@@ -49,8 +49,12 @@ type Controller interface {
 }
 
 type View struct {
-	*sadface.FaceView
-	Grid *gtk.Grid
+	*gtk.Box
+
+	Header *Header
+
+	FaceView *sadface.FaceView
+	Grid     *gtk.Grid
 
 	Scroller  *autoscroll.ScrolledWindow
 	InputView *input.InputView
@@ -126,6 +130,15 @@ func NewView(c Controller) *View {
 	logo.Show()
 
 	view.FaceView = sadface.New(view.Grid, logo)
+	view.FaceView.Show()
+
+	view.Header = NewHeader()
+	view.Header.Show()
+
+	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	view.Box.PackStart(view.Header, false, false, 0)
+	view.Box.PackStart(view.FaceView, true, true, 0)
+
 	return view
 }
 
@@ -153,6 +166,7 @@ func (v *View) createMessageContainer() {
 func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 
 func (v *View) Reset() {
+	v.Header.Reset()     // Reset the header.
 	v.state.Reset()      // Reset the state variables.
 	v.Typing.Reset()     // Reset the typing state.
 	v.InputView.Reset()  // Reset the input.
@@ -194,7 +208,7 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
 			err = errors.Wrap(err, "Failed to join server")
 			// Even if we're erroring out, we're running the done() callback
 			// anyway.
-			return func() { v.ctrl.OnMessageDone(); v.SetError(err) }, err
+			return func() { v.ctrl.OnMessageDone(); v.FaceView.SetError(err) }, err
 		}
 
 		return func() {

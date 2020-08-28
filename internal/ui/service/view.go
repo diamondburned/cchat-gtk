@@ -23,8 +23,12 @@ type Controller interface {
 }
 
 type View struct {
-	*gtk.Box   // 2 panes, but left-most hard-coded
-	Controller // inherit main controller
+	*gtk.Box
+
+	Header *Header
+
+	BottomPane *gtk.Box // 2 panes, but left-most hard-coded
+	Controller          // inherit main controller
 
 	Services   *List
 	ServerView *gtk.ScrolledWindow
@@ -40,9 +44,9 @@ func NewView(ctrller Controller) *View {
 	view.Services = NewList(view)
 	view.Services.Show()
 
-	// Make a separator.
-	// sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	// sep.Show()
+	view.Header = NewHeader()
+	view.Header.AppMenuBindSize(view.Services)
+	view.Header.Show()
 
 	// Make a stack for the middle panel.
 	view.ServerStack = singlestack.NewStack()
@@ -50,18 +54,21 @@ func NewView(ctrller Controller) *View {
 	view.ServerStack.SetTransitionDuration(50)
 	view.ServerStack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
 	view.ServerStack.SetHomogeneous(true)
-	view.ServerStack.SetHExpand(true)
 	view.ServerStack.Show()
 
 	view.ServerView, _ = gtk.ScrolledWindowNew(nil, nil)
 	view.ServerView.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-	view.ServerView.SetHExpand(true)
 	view.ServerView.Add(view.ServerStack)
 	view.ServerView.Show()
 
-	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	view.Box.PackStart(view.Services, false, false, 0)
-	view.Box.PackStart(view.ServerView, true, true, 0)
+	view.BottomPane, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	view.BottomPane.PackStart(view.Services, false, false, 0)
+	view.BottomPane.PackStart(view.ServerView, true, true, 0)
+	view.BottomPane.Show()
+
+	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	view.Box.PackStart(view.Header, false, false, 0)
+	view.Box.PackStart(view.BottomPane, true, true, 0)
 	view.Box.Show()
 
 	return view
@@ -88,6 +95,24 @@ func (v *View) SessionSelected(svc *Service, srow *session.Row) {
 	// reference anyway. In fact, cchat REQUIRES us to do so.
 	v.ServerStack.SetVisibleChild(srow.Servers)
 
-	// Call the controller's method.
+	v.Header.SetSessionMenu(srow)
+	v.Header.SetBreadcrumber(srow)
 	v.Controller.SessionSelected(svc, srow)
+}
+
+// RowSelected is called when a row is selected. It updates the header then
+// calls the application's RowSelected method.
+func (v *View) RowSelected(srow *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
+	v.Header.SetBreadcrumber(srv)
+	v.Controller.RowSelected(srow, srv, smsg)
+}
+
+func (v *View) OnSessionRemove(s *Service, r *session.Row) {
+	v.Header.SetBreadcrumber(nil)
+	v.Controller.OnSessionRemove(s, r)
+}
+
+func (v *View) OnSessionDisconnect(s *Service, r *session.Row) {
+	v.Header.SetBreadcrumber(nil)
+	v.Controller.OnSessionDisconnect(s, r)
 }

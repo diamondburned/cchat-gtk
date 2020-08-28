@@ -45,7 +45,6 @@ func NewList(vctl ViewController) *List {
 	svlist.ListBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	svlist.ListBox.Show()
 	svlist.ListBox.SetHAlign(gtk.ALIGN_START)
-	svlist.ListBox.SetHExpand(false)
 	listCSS(svlist.ListBox)
 
 	svlist.ScrolledWindow, _ = gtk.ScrolledWindowNew(nil, nil)

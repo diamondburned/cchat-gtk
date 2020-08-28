@@ -14,6 +14,7 @@ type MenuButton struct {
 
 func NewMenuButton() *MenuButton {
 	b, _ := gtk.MenuButtonNew()
+	b.SetVAlign(gtk.ALIGN_CENTER)
 	b.SetSensitive(false)
 
 	return &MenuButton{

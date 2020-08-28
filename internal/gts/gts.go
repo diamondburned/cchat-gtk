@@ -8,6 +8,7 @@ import (
 
 	"github.com/diamondburned/cchat-gtk/internal/gts/throttler"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/handy"
 	"github.com/disintegration/imaging"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
@@ -21,10 +22,20 @@ var Args = append([]string{}, os.Args...)
 
 var App struct {
 	*gtk.Application
-	Window *gtk.ApplicationWindow
-	Header *gtk.HeaderBar
-
+	Window    *handy.ApplicationWindow
 	Throttler *throttler.State
+}
+
+// Windower is the interface for a window.
+type Windower interface {
+	gtk.IWidget
+	gtk.IWindow
+	throttler.Connector
+}
+
+func AddWindow(w Windower) {
+	App.AddWindow(w)
+	App.Throttler.Connect(w)
 }
 
 // Clipboard is initialized on init().
@@ -39,7 +50,8 @@ func NewModalDialog() (*gtk.Dialog, error) {
 	}
 	d.SetModal(true)
 	d.SetTransientFor(App.Window)
-	App.Throttler.Connect(d)
+
+	AddWindow(d)
 
 	return d, nil
 }
@@ -75,72 +87,42 @@ func init() {
 	App.Throttler = throttler.Bind(App.Application)
 }
 
-// // AppMenuWidget returns the box that holds the app menu.
-// func AppMenuWidget() (widget *gtk.Widget) {
-// 	App.Header.For().Foreach(func(v interface{}) {
-// 		// If we've already found the widget, then stop finding.
-// 		if widget != nil {
-// 			return
-// 		}
-
-// 		// Cast the interface to a widget.
-// 		curr := v.(gtk.IWidget).ToWidget()
-
-// 		log.Println("testing")
-
-// 		// Check if the widget has a class named "left".
-// 		if sctx, _ := curr.GetStyleContext(); sctx.HasClass("left") {
-// 			log.Println("has class .left")
-// 			widget = curr
-// 		}
-// 	})
-
-// 	return
-// }
-
-type Window interface {
-	Window() gtk.IWidget
-	Header() gtk.IWidget
+type MainApplication interface {
+	gtk.IWidget
 	Menu() *glib.MenuModel
 	Icon() *gdk.Pixbuf
 	Close()
 }
 
-func Main(wfn func() Window) {
+func Main(wfn func() MainApplication) {
 	App.Application.Connect("activate", func() {
+		handy.Init()
+
 		// Load all CSS onto the default screen.
 		loadProviders(getDefaultScreen())
 
-		App.Header, _ = gtk.HeaderBarNew()
-		// Right buttons only.
-		App.Header.SetDecorationLayout(":minimize,close")
-		App.Header.SetShowCloseButton(true)
-		App.Header.SetProperty("spacing", 0)
+		// App.Header, _ = gtk.HeaderBarNew()
+		// // Right buttons only.
+		// App.Header.SetDecorationLayout(":minimize,close")
+		// App.Header.SetShowCloseButton(true)
+		// App.Header.SetProperty("spacing", 0)
 
-		b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-		App.Header.SetCustomTitle(b)
-
-		App.Window, _ = gtk.ApplicationWindowNew(App.Application)
+		App.Window = handy.ApplicationWindowNew()
 		App.Window.SetDefaultSize(1000, 500)
-		App.Window.SetTitlebar(App.Header)
+		App.Window.Show()
+		AddWindow(&App.Window.Window)
+
+		App.Throttler.Connect(&App.Window.Window)
 
 		// Execute the function later, because we need it to run after
 		// initialization.
 		w := wfn()
-		App.Application.SetAppMenu(w.Menu())
-
+		App.Window.Add(w)
 		App.Window.SetIcon(w.Icon())
-		App.Window.Add(w.Window())
-		App.Window.Show()
-
-		App.Header.Add(w.Header())
-		App.Header.Show()
-
-		// Connect extra actions.
-		AddAppAction("quit", App.Window.Destroy)
+		// App.Application.SetAppMenu(w.Menu())
 
 		// Connect the destructor.
-		App.Window.Connect("destroy", func() {
+		App.Window.Window.Connect("destroy", func() {
 			// Hide the application window.
 			App.Window.Hide()
 
@@ -154,6 +136,9 @@ func Main(wfn func() Window) {
 				w.Close()
 			})
 		})
+
+		// Connect extra actions.
+		AddAppAction("quit", App.Window.Destroy)
 	})
 
 	// Use a special function to run the application. Exit with the appropriate

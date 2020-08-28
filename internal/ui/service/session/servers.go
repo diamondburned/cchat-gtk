@@ -8,13 +8,14 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
 
 const FaceSize = 48 // gtk.ICON_SIZE_DIALOG
+const ListWidth = 200
 
 // Servers wraps around a list of servers inherited from Children. It's the
 // container that's displayed on the right of the service sidebar.
@@ -34,7 +35,7 @@ var toplevelCSS = primitives.PrepareClassCSS("top-level", `
 func NewServers(p traverse.Breadcrumber, ctrl server.Controller) *Servers {
 	c := server.NewChildren(p, ctrl)
 	c.SetMarginStart(0) // children is top level; there is no main row
-	c.SetHExpand(true)  // fill
+	c.SetVExpand(true)
 	c.Show()
 	toplevelCSS(c)
 

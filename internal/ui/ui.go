@@ -11,9 +11,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
-	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
@@ -51,36 +51,40 @@ func clamp(n, min, max int) int {
 }
 
 type App struct {
-	window *window
-	header *header
+	handy.Leaflet
+	HeaderGroup *handy.HeaderGroup
+
+	Services    *service.View
+	MessageView *messages.View
 
 	// used to keep track of what row to disconnect before switching
 	lastSelector func(bool)
 }
 
 var (
-	_ gts.Window         = (*App)(nil)
-	_ service.Controller = (*App)(nil)
+	_ gts.MainApplication = (*App)(nil)
+	_ service.Controller  = (*App)(nil)
+	_ messages.Controller = (*App)(nil)
 )
 
 func NewApplication() *App {
 	app := &App{}
-	app.window = newWindow(app)
-	app.header = newHeader()
 
-	// Resize the app icon with the left-most sidebar.
-	services := app.window.Services.Services
-	services.Connect("size-allocate", func() {
-		app.header.left.appmenu.SetSizeRequest(services.GetAllocatedWidth(), -1)
-	})
+	app.Services = service.NewView(app)
+	app.Services.SetSizeRequest(leftMinWidth, -1)
+	app.Services.Show()
 
-	// Resize the left-side header w/ the left-side pane.
-	app.window.Services.ServerView.Connect("size-allocate", func() {
-		// Get the current width of the left sidebar.
-		width := app.window.GetPosition()
-		// Set the left-side header's size.
-		app.header.left.SetSizeRequest(width, -1)
-	})
+	app.MessageView = messages.NewView(app)
+	app.MessageView.Show()
+
+	app.HeaderGroup = handy.HeaderGroupNew()
+	app.HeaderGroup.AddHeaderBar(&app.Services.Header.HeaderBar)
+	app.HeaderGroup.AddHeaderBar(&app.MessageView.Header.HeaderBar)
+
+	app.Leaflet = *handy.LeafletNew()
+	app.Leaflet.Add(app.Services)
+	app.Leaflet.Add(app.MessageView)
+	app.Leaflet.Show()
 
 	// Bind the preferences action for our GAction button in the header popover.
 	// The action name for this is "app.preferences".
@@ -89,16 +93,17 @@ func NewApplication() *App {
 	return app
 }
 
+// Services methods.
+
 func (app *App) AddService(svc cchat.Service) {
-	app.window.Services.AddService(svc)
+	app.Services.AddService(svc)
 }
 
 // OnSessionRemove resets things before the session is removed.
 func (app *App) OnSessionRemove(s *service.Service, r *session.Row) {
 	// Reset the message view if it's what we're showing.
-	if app.window.MessageView.SessionID() == r.ID() {
-		app.window.MessageView.Reset()
-		app.header.SetBreadcrumber(nil)
+	if app.MessageView.SessionID() == r.ID() {
+		app.MessageView.Reset()
 	}
 }
 
@@ -119,9 +124,7 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 	// reset view when setservers top level called
 
 	// TODO: restore last message box
-	app.window.MessageView.Reset()
-	app.header.SetBreadcrumber(ses)
-	app.header.SetSessionMenu(ses)
+	app.MessageView.Reset()
 }
 
 func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
@@ -134,11 +137,11 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 	app.lastSelector = srv.SetSelected
 	app.lastSelector(true)
 
-	app.header.SetBreadcrumber(srv)
-
 	// Assert that server is also a list, then join the server.
-	app.window.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage))
+	app.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage))
 }
+
+// MessageView methods.
 
 func (app *App) OnMessageBusy() {
 	// Disable the server list because we don't want the user to switch around
@@ -163,7 +166,7 @@ func (app *App) Close() {
 	// Disconnect everything. This blocks the main thread, so by the time we're
 	// done, the application would exit immediately. There's no need to update
 	// the GUI.
-	for _, s := range app.window.AllServices() {
+	for _, s := range app.Services.Services.Services {
 		var service = s.Service().Name()
 
 		for _, session := range s.BodyList.Sessions() {
@@ -180,18 +183,10 @@ func (app *App) Close() {
 	}
 }
 
-func (app *App) Header() gtk.IWidget {
-	return app.header
-}
-
-func (app *App) Window() gtk.IWidget {
-	return app.window
-}
-
 func (app *App) Icon() *gdk.Pixbuf {
 	return icons.Logo256(0)
 }
 
 func (app *App) Menu() *glib.MenuModel {
-	return &app.header.menu.MenuModel
+	return app.Services.Header.MenuModel
 }

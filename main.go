@@ -16,7 +16,7 @@ import (
 var destructor = func() {}
 
 func main() {
-	gts.Main(func() gts.Window {
+	gts.Main(func() gts.MainApplication {
 		var app = ui.NewApplication()
 
 		// Load all cchat services.

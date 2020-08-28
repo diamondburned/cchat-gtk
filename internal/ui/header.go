@@ -9,43 +9,33 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
 
 type header struct {
-	*gtk.Box
 	left  *headerLeft // middle-ish
 	right *headerRight
 	menu  *glib.Menu
 }
 
 func newHeader() *header {
-	left := newHeaderLeft()
-	left.Show()
-
-	right := newHeaderRight()
-	right.Show()
-
-	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	separator.Show()
-
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(left, false, false, 0)
-	box.PackStart(separator, false, false, 0)
-	box.PackStart(right, true, true, 0)
-	box.Show()
-
 	menu := glib.MenuNew()
 	menu.Append("Preferences", "app.preferences")
 	menu.Append("Quit", "app.quit")
 
+	left := newHeaderLeft()
 	left.appmenu.SetMenuModel(&menu.MenuModel)
 
-	// TODO
+	right := newHeaderRight()
+
+	group := handy.HeaderGroupNew()
+	group.AddHeaderBar(&left.HeaderBar)
+	group.AddHeaderBar(&right.HeaderBar)
+
 	return &header{
-		box,
 		left,
 		right,
 		menu,
@@ -111,60 +101,84 @@ func (a *appMenu) SetSizeRequest(w, h int) {
 }
 
 type headerLeft struct {
-	*gtk.Box
+	handy.HeaderBar
+
 	appmenu *appMenu
 	svcname *gtk.Label
 	sesmenu *actions.MenuButton
 }
 
+var serviceNameCSS = primitives.PrepareClassCSS("service-name", `
+	.service-name {
+		margin-left: 14px;
+	}
+`)
+
+var sessionMenuCSS = primitives.PrepareClassCSS("session-menu", `
+	.session-menu {
+		margin: 0 5px;
+	}
+`)
+
 func newHeaderLeft() *headerLeft {
 	appmenu := newAppMenu()
 	appmenu.Show()
 
-	sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
-	sep.Show()
-	primitives.AddClass(sep, "titlebutton")
+	// sep, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
+	// sep.Show()
+	// primitives.AddClass(sep, "titlebutton")
 
-	svcname, _ := gtk.LabelNew("")
+	svcname, _ := gtk.LabelNew("cchat-gtk")
 	svcname.SetXAlign(0)
 	svcname.SetEllipsize(pango.ELLIPSIZE_END)
 	svcname.Show()
-	svcname.SetMarginStart(14)
+	serviceNameCSS(svcname)
 
 	sesmenu := actions.NewMenuButton()
 	sesmenu.Show()
+	sessionMenuCSS(sesmenu)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(appmenu, false, false, 0)
-	box.PackStart(sep, false, false, 0)
-	box.PackStart(svcname, true, true, 0)
-	box.PackStart(sesmenu, false, false, 5)
+	header := handy.HeaderBarNew()
+	header.SetShowCloseButton(true)
+	header.PackStart(appmenu)
+	// box.PackStart(sep, false, false, 0)
+	header.PackStart(svcname)
+	header.PackStart(sesmenu)
 
 	return &headerLeft{
-		Box:     box,
-		appmenu: appmenu,
-		svcname: svcname,
-		sesmenu: sesmenu,
+		HeaderBar: *header,
+		appmenu:   appmenu,
+		svcname:   svcname,
+		sesmenu:   sesmenu,
 	}
 }
 
 type headerRight struct {
-	*gtk.Box
+	handy.HeaderBar
+
 	breadcrumb *gtk.Label
 }
+
+var rightBreadcrumbCSS = primitives.PrepareClassCSS("right-breadcrumb", `
+	.right-breadcrumb {
+		margin: 0 14px;
+	}
+`)
 
 func newHeaderRight() *headerRight {
 	bc, _ := gtk.LabelNew(BreadcrumbSlash)
 	bc.SetUseMarkup(true)
 	bc.SetXAlign(0.0)
 	bc.Show()
+	rightBreadcrumbCSS(bc)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(bc, true, true, 14)
-	box.Show()
+	header := handy.HeaderBarNew()
+	header.SetShowCloseButton(true)
+	header.PackStart(bc)
+	header.Show()
 
 	return &headerRight{
-		Box:        box,
+		HeaderBar:  *header,
 		breadcrumb: bc,
 	}
 }
