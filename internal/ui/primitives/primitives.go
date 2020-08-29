@@ -2,9 +2,11 @@ package primitives
 
 import (
 	"runtime/debug"
+	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -115,8 +117,20 @@ type ImageIconSetter interface {
 }
 
 func SetImageIcon(img ImageIconSetter, icon string, sizepx int) {
-	img.SetProperty("icon-name", icon)
-	img.SetProperty("pixel-size", sizepx)
+	// Prioritize SetSize()
+	if setter, ok := img.(interface{ SetSize(int) }); ok {
+		setter.SetSize(sizepx)
+	} else {
+		img.SetProperty("pixel-size", sizepx)
+	}
+
+	// Prioritize SetIconName().
+	if setter, ok := img.(interface{ SetIconName(string) }); ok {
+		setter.SetIconName(icon)
+	} else {
+		img.SetProperty("icon-name", icon)
+	}
+
 	img.SetSizeRequest(sizepx, sizepx)
 }
 
@@ -260,4 +274,29 @@ func AttachCSS(ctx StyleContexter, prov *gtk.CssProvider) {
 
 func InlineCSS(ctx StyleContexter, css string) {
 	AttachCSS(ctx, PrepareCSS(css))
+}
+
+// LeafletOnFold binds a callback to a leaflet that would be called when the
+// leaflet's folded state changes.
+func LeafletOnFold(leaflet *handy.Leaflet, foldedFn func(folded bool)) {
+	var lastFold = leaflet.GetFolded()
+	foldedFn(lastFold)
+
+	// Give each callback a 500ms wait for animations to complete.
+	const dt = 500 * time.Millisecond
+	var last = time.Now()
+
+	leaflet.ConnectAfter("size-allocate", func() {
+		// Ignore if this event is too recent.
+		if now := time.Now(); now.Add(-dt).Before(last) {
+			return
+		} else {
+			last = now
+		}
+
+		if folded := leaflet.GetFolded(); folded != lastFold {
+			lastFold = folded
+			foldedFn(folded)
+		}
+	})
 }

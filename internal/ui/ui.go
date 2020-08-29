@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
@@ -29,6 +30,9 @@ func init() {
 		
 		/* Hack to fix the input bar being high in Adwaita */
 		.input-field * { min-height: 0 }
+
+		/* Hide all scroll undershoots */
+		undershoot { background-size: 0 }
 	`)
 }
 
@@ -71,10 +75,12 @@ func NewApplication() *App {
 	app := &App{}
 
 	app.Services = service.NewView(app)
-	app.Services.SetSizeRequest(leftMinWidth, -1)
+	app.Services.SetSizeRequest(leftCurrentWidth, -1)
+	app.Services.SetHExpand(false)
 	app.Services.Show()
 
 	app.MessageView = messages.NewView(app)
+	app.MessageView.SetHExpand(true)
 	app.MessageView.Show()
 
 	app.HeaderGroup = handy.HeaderGroupNew()
@@ -82,6 +88,7 @@ func NewApplication() *App {
 	app.HeaderGroup.AddHeaderBar(&app.MessageView.Header.HeaderBar)
 
 	app.Leaflet = *handy.LeafletNew()
+	app.Leaflet.SetTransitionType(handy.LeafletTransitionTypeUnder)
 	app.Leaflet.Add(app.Services)
 	app.Leaflet.Add(app.MessageView)
 	app.Leaflet.Show()
@@ -89,6 +96,8 @@ func NewApplication() *App {
 	// Bind the preferences action for our GAction button in the header popover.
 	// The action name for this is "app.preferences".
 	gts.AddAppAction("preferences", preferences.SpawnPreferenceDialog)
+
+	primitives.LeafletOnFold(&app.Leaflet, app.MessageView.SetFolded)
 
 	return app
 }
@@ -128,6 +137,14 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 }
 
 func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
+	// Change to the message view.
+	app.Leaflet.SetVisibleChild(app.MessageView)
+
+	// Assert that the new server is not the same one.
+	if app.MessageView.ServerID() == srv.Server.ID() {
+		return
+	}
+
 	// Is there an old row that we should deactivate?
 	if app.lastSelector != nil {
 		app.lastSelector(false)
@@ -137,11 +154,14 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 	app.lastSelector = srv.SetSelected
 	app.lastSelector(true)
 
-	// Assert that server is also a list, then join the server.
-	app.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage))
+	app.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage), srv)
 }
 
 // MessageView methods.
+
+func (app *App) GoBack() {
+	app.Leaflet.Navigate(handy.NavigationDirectionBack)
+}
 
 func (app *App) OnMessageBusy() {
 	// Disable the server list because we don't want the user to switch around

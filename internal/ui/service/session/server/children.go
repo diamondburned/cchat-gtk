@@ -69,6 +69,7 @@ func (c *Children) Init() {
 	if c.IsHollow() {
 		c.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 		c.Box.SetMarginStart(ChildrenMargin)
+		c.Box.SetHExpand(true)
 		childrenCSS(c.Box)
 
 		// Check if we're still loading. This is effectively restoring the
@@ -180,6 +181,24 @@ func (c *Children) LoadAll() {
 			c.Box.Add(row)
 		}
 	}
+
+	// Check if we have icons.
+	var hasIcon bool
+
+	for _, row := range c.Rows {
+		if row.HasIcon() {
+			hasIcon = true
+			break
+		}
+	}
+
+	// If we have an icon, then show all other possibly empty icons. HdyAvatar
+	// will generate a placeholder.
+	if hasIcon {
+		for _, row := range c.Rows {
+			row.UseEmptyIcon()
+		}
+	}
 }
 
 // saveSelectedRow saves the current selected row and returns a callback that
@@ -198,6 +217,7 @@ func (c *Children) saveSelectedRow() (restore func()) {
 		if oldID != "" {
 			for _, row := range c.Rows {
 				if row.Server.ID() == oldID {
+					row.Init()
 					row.Button.SetActive(true)
 				}
 			}

@@ -77,12 +77,12 @@ func NewContainer() *Container {
 
 func (u *Container) SetRevealChild(reveal bool) {
 	// Only reveal if showUser is true.
-	u.Revealer.SetRevealChild(reveal && showUser)
+	u.Revealer.SetRevealChild(reveal && u.shouldReveal())
 }
 
 // shouldReveal returns whether or not the container should reveal.
 func (u *Container) shouldReveal() bool {
-	return !u.label.GetLabel().Empty() && showUser
+	return (!u.label.GetLabel().Empty() || u.avatar.URL() != "") && showUser
 }
 
 func (u *Container) Reset() {
@@ -96,7 +96,7 @@ func (u *Container) Update(session cchat.Session, sender cchat.ServerMessageSend
 	// Set the fallback username.
 	u.label.SetLabelUnsafe(session.Name())
 	// Reveal the name if it's not empty.
-	u.SetRevealChild(u.shouldReveal())
+	u.SetRevealChild(true)
 
 	// Does sender (aka Server) implement ServerNickname? If yes, use it.
 	if nicknamer, ok := sender.(cchat.ServerNickname); ok {
@@ -120,7 +120,7 @@ func (u *Container) SetLabel(content text.Rich) {
 		u.label.SetLabelUnsafe(content)
 
 		// Reveal if the name is not empty.
-		u.SetRevealChild(u.shouldReveal())
+		u.SetRevealChild(true)
 	})
 }
 
@@ -131,9 +131,7 @@ func (u *Container) SetIcon(url string) {
 
 		// Reveal if the icon URL is not empty. We don't touch anything if the
 		// URL is empty, as the name might not be.
-		if url != "" {
-			u.SetRevealChild(true)
-		}
+		u.SetRevealChild(true)
 	})
 }
 

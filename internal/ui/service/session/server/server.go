@@ -5,6 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
@@ -109,7 +110,7 @@ func (r *ServerRow) Init() {
 
 	case cchat.ServerMessage:
 		primitives.AddClass(r, "server-message")
-		r.Button.SetClickedIfTrue(func() { r.ctrl.RowSelected(r, server) })
+		r.Button.SetClicked(func(bool) { r.ctrl.RowSelected(r, server) })
 	}
 }
 
@@ -152,6 +153,7 @@ func (r *ServerRow) SetUnreadUnsafe(unread, mentioned bool) {
 
 type Row struct {
 	*gtk.Box
+	Avatar *roundimage.Avatar
 	Button *button.ToggleButtonImage
 
 	parentcrumb traverse.Breadcrumber
@@ -181,7 +183,14 @@ func (r *Row) Init(name text.Rich) {
 		return
 	}
 
-	r.Button = button.NewToggleButtonImage(name)
+	r.Avatar = roundimage.NewAvatar(IconSize)
+	r.Avatar.SetText(name.Content)
+	r.Avatar.Show()
+
+	btn := rich.NewCustomToggleButtonImage(r.Avatar, name)
+	btn.Show()
+
+	r.Button = button.WrapToggleButtonImage(btn)
 	r.Button.Box.SetHAlign(gtk.ALIGN_START)
 	r.Button.SetRelief(gtk.RELIEF_NONE)
 	r.Button.Show()
@@ -191,10 +200,6 @@ func (r *Row) Init(name text.Rich) {
 
 	// Ensure errors are displayed.
 	r.childrenSetErr(r.childrenErr)
-}
-
-func (r *Row) Breadcrumb() traverse.Breadcrumb {
-	return traverse.TryBreadcrumb(r.parentcrumb, r.Button.GetText())
 }
 
 // SetHollowServerList sets the row to a hollow server list (children) and
@@ -255,10 +260,31 @@ func (r *Row) childrenSetErr(err error) {
 	}
 }
 
+// UseEmptyIcon forces the row to show a placeholder icon.
+func (r *ServerRow) UseEmptyIcon() {
+	AssertUnhollow(r)
+
+	r.Button.Image.SetSize(IconSize)
+	r.Button.Image.SetRevealChild(true)
+}
+
+// HasIcon returns true if the current row has an icon.
+func (r *ServerRow) HasIcon() bool {
+	return !r.IsHollow() && r.Button.Image.GetRevealChild()
+}
+
+func (r *Row) Breadcrumb() traverse.Breadcrumb {
+	if r.IsHollow() {
+		return nil
+	}
+	return traverse.TryBreadcrumb(r.parentcrumb, r.Button.GetText())
+}
+
 func (r *Row) SetLabelUnsafe(name text.Rich) {
 	AssertUnhollow(r)
 
 	r.Button.SetLabelUnsafe(name)
+	r.Avatar.SetText(name.Content)
 }
 
 func (r *Row) SetIconer(v interface{}) {

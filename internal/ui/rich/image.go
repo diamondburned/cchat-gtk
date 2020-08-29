@@ -135,6 +135,9 @@ func (i *Icon) SetIcon(url string) {
 }
 
 func (i *Icon) AsyncSetIconer(iconer cchat.Icon, errwrap string) {
+	// Reveal to show the placeholder.
+	i.SetRevealChild(true)
+
 	AsyncUse(i.r, func(ctx context.Context) (interface{}, func(), error) {
 		ni := &nullIcon{}
 		f, err := iconer.Icon(ctx, ni)
@@ -161,8 +164,11 @@ type EventIcon struct {
 
 func NewEventIcon(sizepx int, pp ...imgutil.Processor) *EventIcon {
 	icn := NewIcon(sizepx, pp...)
-	icn.Show()
+	return WrapEventIcon(icn)
+}
 
+func WrapEventIcon(icn *Icon) *EventIcon {
+	icn.Show()
 	evb, _ := gtk.EventBoxNew()
 	evb.Add(icn)
 
@@ -189,11 +195,15 @@ var (
 )
 
 func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
+	img, _ := roundimage.NewStaticImage(nil, 0)
+	img.Show()
+	return NewCustomToggleButtonImage(img, content)
+}
+
+func NewCustomToggleButtonImage(img RoundIconContainer, content text.Rich) *ToggleButtonImage {
 	l := NewLabel(content)
 	l.Show()
 
-	img, _ := roundimage.NewStaticImage(nil, 0)
-	img.Show()
 	i := NewCustomIcon(img, 0)
 	i.Show()
 
@@ -205,7 +215,9 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	b, _ := gtk.ToggleButtonNew()
 	b.Add(box)
 
-	img.ConnectHandlers(b)
+	if connector, ok := img.(roundimage.Connector); ok {
+		connector.ConnectHandlers(b)
+	}
 
 	return &ToggleButtonImage{
 		ToggleButton:  *b,

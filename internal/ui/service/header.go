@@ -91,7 +91,7 @@ func NewHeader() *Header {
 	header.PackStart(appmenu)
 	header.PackStart(sep)
 	header.PackStart(svcname)
-	header.PackStart(sesmenu)
+	header.PackEnd(sesmenu)
 
 	// Hack to hide the title.
 	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)

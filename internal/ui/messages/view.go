@@ -20,6 +20,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -40,6 +42,8 @@ func init() {
 }
 
 type Controller interface {
+	// GoBack tells the main leaflet to go back to the services list.
+	GoBack()
 	// OnMessageBusy is called when the message buffer is busy. This happens
 	// when it's loading messages.
 	OnMessageBusy()
@@ -54,8 +58,9 @@ type View struct {
 	Header *Header
 
 	FaceView *sadface.FaceView
-	Grid     *gtk.Grid
+	Leaflet  *handy.Leaflet
 
+	LeftBox   *gtk.Box
 	Scroller  *autoscroll.ScrolledWindow
 	InputView *input.InputView
 
@@ -64,20 +69,29 @@ type View struct {
 	Container container.Container
 	contType  int // msgIndex
 
-	MemberList *memberlist.Container
+	MemberList *memberlist.Container // right box
 
 	// Inherit some useful methods.
 	state
 
-	ctrl Controller
+	ctrl         Controller
+	parentFolded bool // folded state
 }
+
+var messageStack = primitives.PrepareClassCSS("message-stack", `
+	.message-stack {
+		background-color: mix(@theme_bg_color, @theme_fg_color, 0.03);
+	}
+`)
+
+var messageScroller = primitives.PrepareClassCSS("message-scroller", ``)
 
 func NewView(c Controller) *View {
 	view := &View{ctrl: c}
 	view.Typing = typing.New()
 	view.Typing.Show()
 
-	view.MemberList = memberlist.New()
+	view.MemberList = memberlist.New(view)
 	view.MemberList.Show()
 
 	view.MsgBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
@@ -89,6 +103,7 @@ func NewView(c Controller) *View {
 	view.Scroller.SetVExpand(true)
 	view.Scroller.SetHExpand(true)
 	view.Scroller.Show()
+	messageScroller(view.Scroller)
 
 	view.MsgBox.SetFocusHAdjustment(view.Scroller.GetHAdjustment())
 	view.MsgBox.SetFocusVAdjustment(view.Scroller.GetVAdjustment())
@@ -113,27 +128,51 @@ func NewView(c Controller) *View {
 	view.InputView.SetHExpand(true)
 	view.InputView.Show()
 
-	view.Grid, _ = gtk.GridNew()
-	view.Grid.Attach(view.Scroller, 0, 0, 1, 1)
-	view.Grid.Attach(sep, 0, 1, 1, 1)
-	view.Grid.Attach(view.InputView, 0, 2, 1, 1)
-	view.Grid.Attach(view.MemberList, 1, 0, 1, 3)
-	view.Grid.Show()
+	view.LeftBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	view.LeftBox.PackStart(view.Scroller, true, true, 0)
+	view.LeftBox.PackStart(sep, false, false, 0)
+	view.LeftBox.PackStart(view.InputView, false, false, 0)
+	view.LeftBox.Show()
 
-	primitives.AddClass(view.Grid, "message-view")
+	view.Leaflet = handy.LeafletNew()
+	view.Leaflet.Add(view.LeftBox)
+	view.Leaflet.Add(view.MemberList)
+	view.Leaflet.SetVisibleChild(view.LeftBox)
+	view.Leaflet.Show()
+	primitives.AddClass(view.Leaflet, "message-view")
 
 	// Bind a file drag-and-drop box into the main view box.
-	drag.BindFileDest(view.Grid, view.InputView.Attachments.AddFiles)
+	drag.BindFileDest(view.LeftBox, view.InputView.Attachments.AddFiles)
 
 	// placeholder logo
 	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2(128))
 	logo.Show()
 
-	view.FaceView = sadface.New(view.Grid, logo)
+	view.FaceView = sadface.New(view.Leaflet, logo)
 	view.FaceView.Show()
+	messageStack(view.FaceView)
 
 	view.Header = NewHeader()
 	view.Header.Show()
+	view.Header.OnBackPressed(view.ctrl.GoBack)
+	view.Header.OnShowMembersToggle(func(show bool) {
+		// If the leaflet is folded, then we should always reveal the child. Its
+		// visibility should be determined by the leaflet's state.
+		if view.parentFolded {
+			view.MemberList.SetRevealChild(true)
+			if show {
+				view.Leaflet.SetVisibleChild(view.MemberList)
+			} else {
+				view.Leaflet.SetVisibleChild(view.LeftBox)
+			}
+		} else {
+			// Leaflet's visible child does not matter if it's not folded,
+			// though we should still set the visible child to LeftBox in case
+			// that changes.
+			view.MemberList.SetRevealChild(show)
+			view.Leaflet.SetVisibleChild(view.LeftBox)
+		}
+	})
 
 	view.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	view.Box.PackStart(view.Header, false, false, 0)
@@ -173,6 +212,9 @@ func (v *View) Reset() {
 	v.MemberList.Reset() // Reset the member list.
 	v.FaceView.Reset()   // Switch back to the main screen.
 
+	// Bring the leaflet view back to the message.
+	v.Leaflet.SetVisibleChild(v.LeftBox)
+
 	// Keep the scroller at the bottom.
 	v.Scroller.Bottomed = true
 
@@ -180,8 +222,45 @@ func (v *View) Reset() {
 	v.createMessageContainer()
 }
 
+func (v *View) SetFolded(folded bool) {
+	v.parentFolded = folded
+
+	// Change to a mini breadcrumb if we're collapsed.
+	v.Header.SetMiniBreadcrumb(folded)
+
+	// Show the right back button if we're collapsed.
+	v.Header.SetShowBackButton(folded)
+
+	// Hide the username in the input bar if we're collapsed.
+	v.InputView.Username.SetRevealChild(!folded)
+
+	// Hide the member list automatically on folded.
+	if folded {
+		v.Header.ShowMembers.SetActive(false)
+	}
+}
+
+// MemberListUpdated is called everytime the member list is updated.
+func (v *View) MemberListUpdated(c *memberlist.Container) {
+	// We can show the members list if it's not empty.
+	var empty = c.IsEmpty()
+	v.Header.SetCanShowMembers(!empty)
+
+	// If the member list is now empty, then hide the entire thing.
+	if empty {
+		// We can set active to false, which would trigger the above callback
+		// and hide the member list.
+		v.Header.ShowMembers.SetActive(false)
+	} else {
+		// Restore visibility.
+		if !v.Leaflet.GetFolded() && v.Header.ShowMembers.GetActive() {
+			c.SetRevealChild(true)
+		}
+	}
+}
+
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
+func (v *View) JoinServer(session cchat.Session, server ServerMessage, bc traverse.Breadcrumber) {
 	// Reset before setting.
 	v.Reset()
 
@@ -221,6 +300,9 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage) {
 			// Set the cancel handler.
 			v.state.setcurrent(s)
 
+			// Set the headerbar's breadcrumb.
+			v.Header.SetBreadcrumber(bc)
+
 			// Try setting the typing indicator if available.
 			v.Typing.TrySubscribe(server)
 
@@ -253,7 +335,10 @@ func (v *View) FetchBacklog() {
 	}
 
 	gts.Async(func() (func(), error) {
-		err := backlogger.MessagesBefore(context.Background(), firstMsg.ID(), v.Container)
+		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
+		defer cancel()
+
+		err := backlogger.MessagesBefore(ctx, firstMsg.ID(), v.Container)
 		return done, errors.Wrap(err, "Failed to get messages before ID")
 	})
 }
@@ -382,6 +467,14 @@ func (s *state) hasActions() bool {
 func (s *state) SessionID() string {
 	if s.session != nil {
 		return s.session.ID()
+	}
+	return ""
+}
+
+// ServerID returns the server ID, or an empty string if there's no server.
+func (s *state) ServerID() string {
+	if s.server != nil {
+		return s.server.ID()
 	}
 	return ""
 }

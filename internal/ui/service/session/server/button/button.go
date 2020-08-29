@@ -14,7 +14,7 @@ const UnreadColorDefs = `
 `
 
 type ToggleButtonImage struct {
-	rich.ToggleButtonImage
+	*rich.ToggleButtonImage
 
 	extraMenu []menu.Item
 	menu      *menu.LazyMenu
@@ -57,10 +57,14 @@ var serverButtonCSS = primitives.PrepareClassCSS("server-button", `
 
 func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 	b := rich.NewToggleButtonImage(content)
+	return WrapToggleButtonImage(b)
+}
+
+func WrapToggleButtonImage(b *rich.ToggleButtonImage) *ToggleButtonImage {
 	b.Show()
 
 	tb := &ToggleButtonImage{
-		ToggleButtonImage: *b,
+		ToggleButtonImage: b,
 
 		clicked: func(bool) {},
 		menu:    menu.NewLazyMenu(b.ToggleButton),
@@ -73,7 +77,8 @@ func NewToggleButtonImage(content text.Rich) *ToggleButtonImage {
 
 func (b *ToggleButtonImage) SetSelected(selected bool) {
 	// Set the clickability the opposite as the boolean.
-	b.SetSensitive(!selected)
+	// b.SetSensitive(!selected)
+	b.SetInconsistent(selected)
 
 	if selected {
 		primitives.AddClass(b, "selected-server")

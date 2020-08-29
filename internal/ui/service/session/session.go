@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
@@ -51,7 +52,8 @@ type Servicer interface {
 // Row represents a session row entry in the session List.
 type Row struct {
 	*gtk.ListBoxRow
-	icon *rich.EventIcon // nilable
+	avatar *roundimage.Avatar
+	icon   *rich.EventIcon // nilable
 
 	parentcrumb traverse.Breadcrumber
 
@@ -112,6 +114,7 @@ var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 		padding: 4px;
 		margin:  0;
 	}
+
 	.session-icon.failed {
 		background-color: alpha(red, 0.45);
 	}
@@ -136,7 +139,14 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 		parentcrumb: parent,
 	}
 
-	row.icon = rich.NewEventIcon(IconSize)
+	row.avatar = roundimage.NewAvatar(IconSize)
+	row.avatar.SetText(name.Content)
+	row.avatar.Show()
+
+	icon := rich.NewCustomIcon(row.avatar, IconSize)
+	icon.Show()
+
+	row.icon = rich.WrapEventIcon(icon)
 	row.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
 	row.icon.Show()
 	rowIconCSS(row.icon.Icon)
@@ -295,6 +305,7 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.sessionID = ses.ID()
 	r.SetTooltipMarkup(markup.Render(ses.Name()))
 	r.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
+	r.avatar.SetText(ses.Name().Content)
 
 	// If the session has an icon, then use it.
 	if iconer, ok := ses.(cchat.Icon); ok {

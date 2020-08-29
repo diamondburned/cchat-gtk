@@ -10,20 +10,15 @@ import (
 
 const FaceSize = 56
 
-type WidgetUnreferencer interface {
-	gtk.IWidget
-	Unref()
-}
-
 type FaceView struct {
 	gtk.Stack
-	placeholder WidgetUnreferencer
+	placeholder gtk.IWidget
 
 	Face    *Container
 	Loading *Spinner
 }
 
-func New(parent gtk.IWidget, placeholder WidgetUnreferencer) *FaceView {
+func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
 	c := NewContainer()
 	c.Show()
 
@@ -54,14 +49,6 @@ func (v *FaceView) Reset() {
 	v.Loading.Spinner.Stop()
 	v.Stack.SetVisibleChildName("empty")
 }
-
-// func (v *FaceView) Disable() {
-// 	v.Stack.SetSensitive(false)
-// }
-
-// func (v *FaceView) Enable() {
-// 	v.Stack.SetSensitive(true)
-// }
 
 func (v *FaceView) SetMain() {
 	v.ensurePlaceholderDestroyed()
@@ -104,7 +91,6 @@ type Spinner struct {
 func NewSpinner() *Spinner {
 	s, _ := gtk.SpinnerNew()
 	s.SetSizeRequest(FaceSize, FaceSize)
-	s.Start()
 	s.Show()
 
 	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)

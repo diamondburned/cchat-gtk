@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
@@ -96,14 +97,16 @@ func NewService(svc cchat.Service, svclctrl ListController) *Service {
 
 	// TODO: have it so the button changes to the session avatar when collapsed
 
-	// TODO: libhandy avatar generation?
-	service.Icon = rich.NewIcon(IconSize)
+	avatar := roundimage.NewAvatar(IconSize)
+	avatar.SetText(svc.Name().String())
+	avatar.Show()
+
+	service.Icon = rich.NewCustomIcon(avatar, IconSize)
 	service.Icon.Show()
 	// potentially nonstandard
 	service.Icon.SetPlaceholderIcon("text-html-symbolic", IconSize)
 	// TODO: hover for name. We use tooltip for now.
 	service.Icon.SetTooltipMarkup(markup.Render(svc.Name()))
-	// TODO: add a padding
 	serviceIconCSS(service.Icon)
 
 	if iconer, ok := svc.(cchat.Icon); ok {

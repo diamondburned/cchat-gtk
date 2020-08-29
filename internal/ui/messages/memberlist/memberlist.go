@@ -21,16 +21,21 @@ import (
 
 var MemberListWidth = 250
 
+type Controller interface {
+	MemberListUpdated(c *Container)
+}
+
 type Container struct {
 	*gtk.Revealer
 	Scroll *gtk.ScrolledWindow
 	Main   *gtk.Box
+	ctrl   Controller
+
+	// states
 
 	// map id -> *Section
 	Sections map[string]*Section
-
-	// states
-	stop func()
+	stop     func()
 }
 
 var memberListCSS = primitives.PrepareClassCSS("member-list", `
@@ -39,7 +44,7 @@ var memberListCSS = primitives.PrepareClassCSS("member-list", `
 	}
 `)
 
-func New() *Container {
+func New(ctrl Controller) *Container {
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
 	main.SetSizeRequest(250, -1)
 	main.Show()
@@ -52,7 +57,7 @@ func New() *Container {
 
 	rev, _ := gtk.RevealerNew()
 	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
-	rev.SetTransitionDuration(50)
+	rev.SetTransitionDuration(75)
 	rev.SetRevealChild(false)
 	rev.Add(sw)
 
@@ -60,8 +65,14 @@ func New() *Container {
 		Revealer: rev,
 		Scroll:   sw,
 		Main:     main,
+		ctrl:     ctrl,
 		Sections: map[string]*Section{},
 	}
+}
+
+// IsEmpty returns whether or not the member view container is empty.
+func (c *Container) IsEmpty() bool {
+	return len(c.Sections) == 0
 }
 
 // Reset removes all old sections.
@@ -94,10 +105,7 @@ func (c *Container) TryAsyncList(server cchat.ServerMessage) {
 			return nil, errors.Wrap(err, "Failed to list members")
 		}
 
-		return func() {
-			c.stop = f
-			c.Revealer.SetRevealChild(true)
-		}, nil
+		return func() { c.stop = f }, nil
 	})
 }
 
@@ -138,6 +146,8 @@ func (c *Container) SetSectionsUnsafe(sections []cchat.MemberListSection) {
 		c.Main.Add(section)
 		c.Sections[section.ID] = section
 	}
+
+	c.ctrl.MemberListUpdated(c)
 }
 
 func (c *Container) SetMemberUnsafe(sectionID string, member cchat.ListMember) {

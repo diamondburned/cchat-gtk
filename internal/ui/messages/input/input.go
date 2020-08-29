@@ -33,7 +33,7 @@ var textCSS = primitives.PrepareCSS(`
 	}
 
 	.message-input, .message-input * {
-		background-color: transparent;
+		background-color: mix(@theme_bg_color, @theme_fg_color, 0.03);
 	}
 
 	.message-input * {
@@ -44,6 +44,12 @@ var textCSS = primitives.PrepareCSS(`
 
 	.message-input:focus * {
 	    border-color: @theme_selected_bg_color;
+	}
+`)
+
+var inputBoxCSS = primitives.PrepareClassCSS("input-box", `
+	.input-box {
+		background-color: @theme_bg_color;
 	}
 `)
 
@@ -67,8 +73,6 @@ func NewView(ctrl Controller) *InputView {
 	// Bind the input callback later.
 	f := NewField(text, ctrl)
 	f.Show()
-
-	primitives.AddClass(f, "input-field")
 
 	return &InputView{f, c}
 }
@@ -120,8 +124,17 @@ func (s *fieldState) Reset() {
 	*s = fieldState{}
 }
 
-var inputFieldCSS = primitives.PrepareCSS(`
-	.input-field { margin: 3px 5px }
+var inputFieldCSS = primitives.PrepareClassCSS("input-field", `
+	.input-field {
+		margin: 3px 5px;
+		margin-top: 1px;
+	}
+`)
+
+var scrolledInputCSS = primitives.PrepareClassCSS("scrolled-input", `
+	.scrolled-input {
+		margin: 0 5px;
+	}
 `)
 
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
@@ -133,7 +146,7 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 
 	field.TextScroll = scrollinput.NewV(text, 150)
 	field.TextScroll.Show()
-	primitives.AddClass(field.TextScroll, "scrolled-input")
+	scrolledInputCSS(field.TextScroll)
 
 	field.attach, _ = gtk.ButtonNewFromIconName("mail-attachment-symbolic", gtk.ICON_SIZE_BUTTON)
 	field.attach.SetRelief(gtk.RELIEF_NONE)
@@ -146,15 +159,13 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field.send.Show()
 	primitives.AddClass(field.send, "send-button")
 
-	// Keep this number the same as size-allocate below -------v
-	field.FieldBox, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
+	field.FieldBox, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	field.FieldBox.PackStart(field.Username, false, false, 0)
 	field.FieldBox.PackStart(field.attach, false, false, 0)
 	field.FieldBox.PackStart(field.TextScroll, true, true, 0)
 	field.FieldBox.PackStart(field.send, false, false, 0)
 	field.FieldBox.Show()
-	primitives.AddClass(field.FieldBox, "input-field")
-	primitives.AttachCSS(field.FieldBox, inputFieldCSS)
+	inputFieldCSS(field.FieldBox)
 
 	field.Attachments = attachment.New()
 	field.Attachments.Show()
@@ -163,6 +174,7 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field.Box.PackStart(field.Attachments, false, false, 0)
 	field.Box.PackStart(field.FieldBox, false, false, 0)
 	field.Box.Show()
+	inputBoxCSS(field.Box)
 
 	text.SetFocusHAdjustment(field.TextScroll.GetHAdjustment())
 	text.SetFocusVAdjustment(field.TextScroll.GetVAdjustment())
@@ -178,7 +190,7 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field.Username.Connect("size-allocate", func(w gtk.IWidget) {
 		// Calculate the left width: from the left of the message box to the
 		// right of the attach button, covering the username container.
-		var leftWidth = 5*2 + field.attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
+		var leftWidth = 5 + field.attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
 		// Set the autocompleter's left margin to be the same.
 		field.Attachments.SetMarginStart(leftWidth)
 	})

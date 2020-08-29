@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/singlestack"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
@@ -55,6 +56,7 @@ func NewView(ctrller Controller) *View {
 	view.ServerStack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
 	view.ServerStack.SetHomogeneous(true)
 	view.ServerStack.Show()
+	primitives.AddClass(view.ServerStack, "server-stack")
 
 	view.ServerView, _ = gtk.ScrolledWindowNew(nil, nil)
 	view.ServerView.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)

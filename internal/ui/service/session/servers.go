@@ -29,7 +29,10 @@ type Servers struct {
 }
 
 var toplevelCSS = primitives.PrepareClassCSS("top-level", `
-	.top-level { margin: 0 3px }
+	.top-level {
+		margin:   0 3px;
+		margin-top: 3px;
+	}
 `)
 
 func NewServers(p traverse.Breadcrumber, ctrl server.Controller) *Servers {
