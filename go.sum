@@ -40,6 +40,7 @@ github.com/danieljoos/wincred v1.0.2/go.mod h1:SnuYRW9lp1oJrZX/dXJqr0cPK5gYXqx3E
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 h1:y5HC9v93H5EPKqaS1UYVg1uYah5Xf51mBfIoWehClUQ=
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964/go.mod h1:Xd9hchkHSWYkEqJwUGisez3G1QY8Ryz0sdWrLPMGjLk=
 github.com/dave/jennifer v1.4.0/go.mod h1:fIb+770HOpJ2fmN9EPPKOqm1vMGhB+TwXKMZhrIygKg=
+github.com/dave/jennifer v1.4.1/go.mod h1:7jEdnm+qBcxl8PC0zyp7vxcpSRnzXSt9r39tpTVGlwA=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -89,6 +90,16 @@ github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d h1:Ha/I6PMKi+B
 github.com/diamondburned/gotk3 v0.0.0-20200630065217-97aeb06d705d/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a h1:wEldljb421/Jp84RNb0zBfqmiWt/TTQzUE6R1ap6UuQ=
 github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
+github.com/diamondburned/gspell v0.0.0-20200829065821-c501924bc87c h1:H1eixeq/t1gjKCozGXT36uiDWA0X8Xis4E44WpS+AO4=
+github.com/diamondburned/gspell v0.0.0-20200829065821-c501924bc87c/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
+github.com/diamondburned/gspell v0.0.0-20200829070727-5b147f3f7bfb h1:xzmSVFakYqZ8gtJ/iGtancrNHY49t9woKnM/WRP6JcY=
+github.com/diamondburned/gspell v0.0.0-20200829070727-5b147f3f7bfb/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
+github.com/diamondburned/gspell v0.0.0-20200829071312-d910720ee38b h1:zOfRizc1RdR6m2nmB3l+XjX48N4XLgIlQ/D6ZBJMmFc=
+github.com/diamondburned/gspell v0.0.0-20200829071312-d910720ee38b/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
+github.com/diamondburned/gspell v0.0.0-20200829071551-d44933c5efb8 h1:Pv/C48jFIlC4jEsTLJijys+kyUT+4NKEtx0WjOMCcaw=
+github.com/diamondburned/gspell v0.0.0-20200829071551-d44933c5efb8/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
+github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894 h1:QgI21deaQbCUMnxKkQQUXzQolnAe1dMIXAWwqAyOp2g=
+github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
 github.com/diamondburned/handy v0.0.0-20200827040421-5b4a15843526 h1:GnTwaD+RKiCJiJ9yhcUb6M5o4VwFExTqmcl8Dg+EVdw=
 github.com/diamondburned/handy v0.0.0-20200827040421-5b4a15843526/go.mod h1:V0qyhW4v6KPFwtDpXdBm5aWH7zWEyrzZpcB6MPnKArQ=
 github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4 h1:qF5VHC35+GyCjUmKz+1O94xpFc0JQd4Ui3h+I955pJw=

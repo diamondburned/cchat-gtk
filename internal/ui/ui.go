@@ -37,11 +37,7 @@ func init() {
 }
 
 // constraints for the left panel
-const (
-	leftMinWidth     = 200
-	leftCurrentWidth = 275
-	leftMaxWidth     = 400
-)
+const leftCurrentWidth = 300
 
 func clamp(n, min, max int) int {
 	switch {

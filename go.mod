@@ -10,6 +10,7 @@ require (
 	github.com/diamondburned/cchat v0.0.49
 	github.com/diamondburned/cchat-discord v0.0.0-20200821041521-647c854d7b5e
 	github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b
+	github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972
 	github.com/disintegration/imaging v1.6.2

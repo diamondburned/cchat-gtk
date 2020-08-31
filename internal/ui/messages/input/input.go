@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
+	"github.com/diamondburned/gspell"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -96,8 +97,9 @@ type Field struct {
 	Username *username.Container
 
 	TextScroll *gtk.ScrolledWindow
-	text       *gtk.TextView   // const
-	buffer     *gtk.TextBuffer // const
+	text       *gtk.TextView    // const
+	speller    *gspell.TextView // const
+	buffer     *gtk.TextBuffer  // const
 
 	send   *gtk.Button
 	attach *gtk.Button
@@ -140,6 +142,8 @@ var scrolledInputCSS = primitives.PrepareClassCSS("scrolled-input", `
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field := &Field{text: text, ctrl: ctrl}
 	field.buffer, _ = text.GetBuffer()
+	field.speller = gspell.GetFromGtkTextView(text)
+	field.speller.BasicSetup()
 
 	field.Username = username.NewContainer()
 	field.Username.Show()

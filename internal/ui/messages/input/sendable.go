@@ -20,7 +20,7 @@ import (
 var globalID uint64
 
 // generateNonce creates a nonce that should prevent collision. This function
-// will always return a 24-byte long string.
+// will always return a 16-byte long string.
 func (f *Field) generateNonce() string {
 	raw := fmt.Sprintf(
 		"cchat-gtk/%s/%X/%X",
@@ -75,18 +75,23 @@ func (f *Field) sendInput() {
 
 	// Clear the input field after sending.
 	f.clearText()
+
+	// Refocus the textbox.
+	f.text.GrabFocus()
 }
 
 func (f *Field) SendMessage(data PresendMessage) {
 	// presend message into the container through the controller
 	var onErr = f.ctrl.AddPresendMessage(data)
 
-	go func(sender cchat.ServerMessageSender) {
+	// Copy the sender to prevent race conditions.
+	var sender = f.Sender
+	gts.Async(func() (func(), error) {
 		if err := sender.SendMessage(data); err != nil {
-			gts.ExecAsync(func() { onErr(err) })
-			log.Error(errors.Wrap(err, "Failed to send message"))
+			return func() { onErr(err) }, errors.Wrap(err, "Failed to send message")
 		}
-	}(f.Sender)
+		return nil, nil
+	})
 }
 
 type SendMessageData struct {
