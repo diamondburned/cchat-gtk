@@ -6,7 +6,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat/services"
-	"github.com/pkg/errors"
 
 	_ "github.com/diamondburned/cchat-discord"
 	_ "github.com/diamondburned/cchat-mock"
@@ -33,9 +32,7 @@ func main() {
 		}
 
 		// Restore the configs.
-		if err := config.Restore(); err != nil {
-			log.Error(errors.Wrap(err, "Failed to restore config"))
-		}
+		config.Restore()
 
 		return app
 	})

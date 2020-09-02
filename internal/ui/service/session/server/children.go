@@ -5,6 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/loading"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/savepath"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -180,6 +181,9 @@ func (c *Children) LoadAll() {
 			row.Show()
 			c.Box.Add(row)
 		}
+
+		// Restore expansion if possible.
+		savepath.Restore(row, row.Button)
 	}
 
 	// Check if we have icons.
@@ -227,6 +231,6 @@ func (c *Children) saveSelectedRow() (restore func()) {
 	}
 }
 
-func (c *Children) Breadcrumb() traverse.Breadcrumb {
-	return traverse.TryBreadcrumb(c.Parent)
+func (c *Children) ParentBreadcrumb() traverse.Breadcrumber {
+	return c.Parent
 }

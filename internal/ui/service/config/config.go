@@ -1,3 +1,5 @@
+// Package config contains UI widgets and renderers for cchat's Configurator
+// interface.
 package config
 
 import (

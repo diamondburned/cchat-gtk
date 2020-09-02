@@ -217,8 +217,12 @@ func (r *Row) Reset() {
 	r.cmder = nil
 }
 
-func (r *Row) Breadcrumb() traverse.Breadcrumb {
-	return traverse.TryBreadcrumb(r.parentcrumb, r.Session.Name().Content)
+func (r *Row) ParentBreadcrumb() traverse.Breadcrumber {
+	return r.parentcrumb
+}
+
+func (r *Row) Breadcrumb() string {
+	return r.Session.Name().Content
 }
 
 // Activate executes whatever needs to be done. If the row has failed, then this

@@ -208,8 +208,12 @@ func (s *Service) MoveSession(id, movingID string) {
 	s.SaveAllSessions()
 }
 
-func (s *Service) Breadcrumb() traverse.Breadcrumb {
-	return traverse.TryBreadcrumb(nil, s.service.Name().Content)
+func (s *Service) Breadcrumb() string {
+	return s.service.Name().Content
+}
+
+func (s *Service) ParentBreadcrumb() traverse.Breadcrumber {
+	return nil
 }
 
 func (s *Service) SaveAllSessions() {

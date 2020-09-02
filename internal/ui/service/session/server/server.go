@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/savepath"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
@@ -24,7 +25,19 @@ func AssertUnhollow(hollower interface{ IsHollow() bool }) {
 }
 
 type ServerRow struct {
-	*Row
+	*gtk.Box
+	Avatar *roundimage.Avatar
+	Button *button.ToggleButtonImage
+
+	parentcrumb traverse.Breadcrumber
+
+	// non-nil if server list and the function returns error
+	childrenErr error
+
+	childrev   *gtk.Revealer
+	children   *Children
+	serverList cchat.ServerList
+
 	ctrl   Controller
 	Server cchat.Server
 
@@ -49,7 +62,7 @@ var serverCSS = primitives.PrepareClassCSS("server", `
 // hollow children containers and rows for the given server.
 func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl Controller) *ServerRow {
 	var serverRow = &ServerRow{
-		Row:          NewHollowRow(p),
+		parentcrumb:  p,
 		ctrl:         ctrl,
 		Server:       sv,
 		cancelUnread: func() {},
@@ -84,12 +97,30 @@ func (r *ServerRow) Init() {
 	}
 
 	// Initialize the row, which would fill up the button and others as well.
-	r.Row.Init(r.Server.Name())
-	r.Row.SetIconer(r.Server)
-	serverCSS(r.Row)
+	r.Avatar = roundimage.NewAvatar(IconSize)
+	r.Avatar.SetText(r.Server.Name().Content)
+	r.Avatar.Show()
+
+	btn := rich.NewCustomToggleButtonImage(r.Avatar, r.Server.Name())
+	btn.Show()
+
+	r.Button = button.WrapToggleButtonImage(btn)
+	r.Button.Box.SetHAlign(gtk.ALIGN_START)
+	r.Button.SetRelief(gtk.RELIEF_NONE)
+	r.Button.Show()
+
+	r.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	r.Box.PackStart(r.Button, false, false, 0)
+	serverCSS(r.Box)
+
+	// Ensure errors are displayed.
+	r.childrenSetErr(r.childrenErr)
+
+	// Try to set an icon.
+	r.SetIconer(r.Server)
 
 	// Connect the destroyer, if any.
-	r.Row.Connect("destroy", r.cancelUnread)
+	r.Connect("destroy", r.cancelUnread)
 
 	// Restore the read state.
 	r.Button.SetUnreadUnsafe(r.unread, r.mentioned) // update with state
@@ -151,60 +182,13 @@ func (r *ServerRow) SetUnreadUnsafe(unread, mentioned bool) {
 	traverse.TrySetUnread(r.parentcrumb, r.Server.ID(), r.unread, r.mentioned)
 }
 
-type Row struct {
-	*gtk.Box
-	Avatar *roundimage.Avatar
-	Button *button.ToggleButtonImage
-
-	parentcrumb traverse.Breadcrumber
-
-	// non-nil if server list and the function returns error
-	childrenErr error
-
-	childrev   *gtk.Revealer
-	children   *Children
-	serverList cchat.ServerList
-}
-
-func NewHollowRow(parent traverse.Breadcrumber) *Row {
-	return &Row{
-		parentcrumb: parent,
-	}
-}
-
-func (r *Row) IsHollow() bool {
+func (r *ServerRow) IsHollow() bool {
 	return r.Box == nil
-}
-
-// Init initializes the row from its initial hollow state. It does nothing after
-// the first call.
-func (r *Row) Init(name text.Rich) {
-	if !r.IsHollow() {
-		return
-	}
-
-	r.Avatar = roundimage.NewAvatar(IconSize)
-	r.Avatar.SetText(name.Content)
-	r.Avatar.Show()
-
-	btn := rich.NewCustomToggleButtonImage(r.Avatar, name)
-	btn.Show()
-
-	r.Button = button.WrapToggleButtonImage(btn)
-	r.Button.Box.SetHAlign(gtk.ALIGN_START)
-	r.Button.SetRelief(gtk.RELIEF_NONE)
-	r.Button.Show()
-
-	r.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	r.Box.PackStart(r.Button, false, false, 0)
-
-	// Ensure errors are displayed.
-	r.childrenSetErr(r.childrenErr)
 }
 
 // SetHollowServerList sets the row to a hollow server list (children) and
 // recursively create
-func (r *Row) SetHollowServerList(list cchat.ServerList, ctrl Controller) {
+func (r *ServerRow) SetHollowServerList(list cchat.ServerList, ctrl Controller) {
 	r.serverList = list
 
 	r.children = NewHollowChildren(r, ctrl)
@@ -230,7 +214,7 @@ func (r *Row) SetHollowServerList(list cchat.ServerList, ctrl Controller) {
 }
 
 // Reset clears off all children servers. It's a no-op if there are none.
-func (r *Row) Reset() {
+func (r *ServerRow) Reset() {
 	if r.children != nil {
 		// Remove everything from the children container.
 		r.children.Reset()
@@ -244,7 +228,7 @@ func (r *Row) Reset() {
 	r.children = nil
 }
 
-func (r *Row) childrenSetErr(err error) {
+func (r *ServerRow) childrenSetErr(err error) {
 	// Update the state and only use this state field.
 	r.childrenErr = err
 
@@ -273,21 +257,29 @@ func (r *ServerRow) HasIcon() bool {
 	return !r.IsHollow() && r.Button.Image.GetRevealChild()
 }
 
-func (r *Row) Breadcrumb() traverse.Breadcrumb {
-	if r.IsHollow() {
-		return nil
-	}
-	return traverse.TryBreadcrumb(r.parentcrumb, r.Button.GetText())
+func (r *ServerRow) ParentBreadcrumb() traverse.Breadcrumber {
+	return r.parentcrumb
 }
 
-func (r *Row) SetLabelUnsafe(name text.Rich) {
+func (r *ServerRow) Breadcrumb() string {
+	if r.IsHollow() {
+		return ""
+	}
+	return r.Button.GetText()
+}
+
+func (r *ServerRow) ID() cchat.ID {
+	return r.Server.ID()
+}
+
+func (r *ServerRow) SetLabelUnsafe(name text.Rich) {
 	AssertUnhollow(r)
 
 	r.Button.SetLabelUnsafe(name)
 	r.Avatar.SetText(name.Content)
 }
 
-func (r *Row) SetIconer(v interface{}) {
+func (r *ServerRow) SetIconer(v interface{}) {
 	AssertUnhollow(r)
 
 	if iconer, ok := v.(cchat.Icon); ok {
@@ -297,7 +289,7 @@ func (r *Row) SetIconer(v interface{}) {
 }
 
 // SetLoading is called by the parent struct.
-func (r *Row) SetLoading() {
+func (r *ServerRow) SetLoading() {
 	AssertUnhollow(r)
 
 	r.SetSensitive(false)
@@ -307,7 +299,7 @@ func (r *Row) SetLoading() {
 // SetFailed is shared between the parent struct and the children list. This is
 // because both of those errors share the same appearance, just different
 // callbacks.
-func (r *Row) SetFailed(err error, retry func()) {
+func (r *ServerRow) SetFailed(err error, retry func()) {
 	AssertUnhollow(r)
 
 	r.SetSensitive(true)
@@ -318,7 +310,7 @@ func (r *Row) SetFailed(err error, retry func()) {
 
 // SetDone is shared between the parent struct and the children list. This is
 // because both will use the same SetFailed.
-func (r *Row) SetDone() {
+func (r *ServerRow) SetDone() {
 	AssertUnhollow(r)
 
 	r.Button.SetNormal()
@@ -326,7 +318,7 @@ func (r *Row) SetDone() {
 	r.SetTooltipText("")
 }
 
-func (r *Row) SetNormalExtraMenu(items []menu.Item) {
+func (r *ServerRow) SetNormalExtraMenu(items []menu.Item) {
 	AssertUnhollow(r)
 
 	r.Button.SetNormalExtraMenu(items)
@@ -335,13 +327,13 @@ func (r *Row) SetNormalExtraMenu(items []menu.Item) {
 }
 
 // SetSelected is used for highlighting the current message server.
-func (r *Row) SetSelected(selected bool) {
+func (r *ServerRow) SetSelected(selected bool) {
 	AssertUnhollow(r)
 
 	r.Button.SetSelected(selected)
 }
 
-func (r *Row) GetActive() bool {
+func (r *ServerRow) GetActive() bool {
 	if !r.IsHollow() {
 		return r.Button.GetActive()
 	}
@@ -351,7 +343,7 @@ func (r *Row) GetActive() bool {
 
 // SetRevealChild reveals the list of servers. It does nothing if there are no
 // servers, meaning if Row does not represent a ServerList.
-func (r *Row) SetRevealChild(reveal bool) {
+func (r *ServerRow) SetRevealChild(reveal bool) {
 	AssertUnhollow(r)
 
 	// Do the above noop check.
@@ -371,11 +363,14 @@ func (r *Row) SetRevealChild(reveal bool) {
 	// to call Servers on this. Now, we already know that there are hollow
 	// servers in the children container.
 	r.children.LoadAll()
+
+	// Save the path.
+	savepath.Update(r, reveal)
 }
 
 // GetRevealChild returns whether or not the server list is expanded, or always
 // false if there is no server list.
-func (r *Row) GetRevealChild() bool {
+func (r *ServerRow) GetRevealChild() bool {
 	AssertUnhollow(r)
 
 	if r.childrev != nil {

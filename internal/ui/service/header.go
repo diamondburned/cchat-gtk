@@ -112,7 +112,7 @@ func (h *Header) SetBreadcrumber(b traverse.Breadcrumber) {
 		return
 	}
 
-	if crumb := b.Breadcrumb(); len(crumb) > 0 {
+	if crumb := traverse.TryBreadcrumb(b); len(crumb) > 0 {
 		h.SvcName.SetText(crumb[0])
 	} else {
 		h.SvcName.SetText("")

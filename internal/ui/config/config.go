@@ -90,7 +90,25 @@ func Save() error {
 }
 
 // Restore the global config. IsNotExist is not an error and will not be
-// returned.
-func Restore() error {
-	return UnmarshalFromFile(ConfigFile, &sections)
+// logged.
+func Restore() {
+	if err := UnmarshalFromFile(ConfigFile, &sections); err != nil {
+		log.Error(errors.Wrap(err, "Failed to unmarshal main config.json"))
+	}
+
+	log.Printlnf("To restore: %#v", toRestore)
+
+	for path, v := range toRestore {
+		if err := UnmarshalFromFile(path, v); err != nil {
+			log.Error(errors.Wrapf(err, "Failed to unmarshal %s", path))
+		}
+	}
+}
+
+var toRestore = map[string]interface{}{}
+
+// RegisterConfig adds the config filename into the registry of value pointers
+// to unmarshal configs to.
+func RegisterConfig(filename string, jsonValue interface{}) {
+	toRestore[filename] = jsonValue
 }

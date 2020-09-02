@@ -148,7 +148,7 @@ func (h *Header) SetBreadcrumber(b traverse.Breadcrumber) {
 		return
 	}
 
-	h.breadcrumbs = b.Breadcrumb()
+	h.breadcrumbs = traverse.TryBreadcrumb(b)
 	if len(h.breadcrumbs) < 2 {
 		return
 	}

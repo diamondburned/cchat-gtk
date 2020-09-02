@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -33,12 +34,37 @@ func __init() {
 	}
 }
 
+// PrettyMarshal pretty marshals v into dst as formatted JSON.
+func PrettyMarshal(dst io.Writer, v interface{}) error {
+	enc := json.NewEncoder(dst)
+	enc.SetIndent("", "\t")
+	return enc.Encode(v)
+}
+
 // DirPath returns the config directory.
 func DirPath() string {
 	// Ensure that files and folders are initialized.
 	__initonce.Do(__init)
 
 	return dirPath
+}
+
+// SaveToFile saves the given bytes into the given filename. The filename will
+// be prepended with the config directory.
+func SaveToFile(file string, v []byte) error {
+	file = filepath.Join(DirPath(), file)
+
+	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_SYNC|os.O_TRUNC, 0644)
+	if err != nil {
+		return errors.Wrap(err, "Failed to open file")
+	}
+	defer f.Close()
+
+	if _, err := f.Write(v); err != nil {
+		return errors.Wrap(err, "Failed to write")
+	}
+
+	return nil
 }
 
 // MarshalToFile marshals the given interface into the given filename. The
@@ -52,10 +78,7 @@ func MarshalToFile(file string, from interface{}) error {
 	}
 	defer f.Close()
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "\t")
-
-	if err := enc.Encode(from); err != nil {
+	if err := PrettyMarshal(f, from); err != nil {
 		return errors.Wrap(err, "Failed to marshal given struct")
 	}
 

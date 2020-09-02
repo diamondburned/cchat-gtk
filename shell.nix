@@ -1,16 +1,6 @@
 { pkgs ? import <nixpkgs> {} }:
 
-# let hunspell = pkgs.hunspellWithDicts(with pkgs.hunspellDicts; [
-# 		en-us
-# 		en-us-large
-# 	]);
-
-let hunspellWrapper = pkgs.hunspellWithDicts(with pkgs.hunspellDicts; [
-		en-us
-		en-us-large
-	]);
-
-	libhandy = pkgs.libhandy.overrideAttrs(old: {
+let libhandy = pkgs.libhandy.overrideAttrs(old: {
 		name = "libhandy-0.90.0";
 		src  = builtins.fetchGit {
 			url = "https://gitlab.gnome.org/GNOME/libhandy.git";
@@ -29,8 +19,8 @@ in pkgs.stdenv.mkDerivation rec {
 	version = "0.0.2";
 
 	buildInputs =
-		[ libhandy hunspellWrapper ]
-		++ (with pkgs; [ enchant2 gnome3.gspell gnome3.glib gnome3.gtk ]);
+		[ libhandy ]
+		++ (with pkgs; [ gnome3.gspell gnome3.glib gnome3.gtk ]);
 
 	nativeBuildInputs = with pkgs; [
 		pkgconfig go
