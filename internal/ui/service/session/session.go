@@ -92,7 +92,7 @@ var rowCSS = primitives.PrepareClassCSS("session-row",
 		background-color: alpha(mix(
 			@theme_fg_color,
 			@theme_selected_bg_color,
-			0.65,
+			0.65
 		),  0.85);
 	}
 
@@ -104,7 +104,7 @@ var rowCSS = primitives.PrepareClassCSS("session-row",
 		background-color: alpha(mix(
 			@theme_fg_color,
 			@mentioned,
-			0.65,
+			0.65
 		),  0.85);
 	}
 `)
