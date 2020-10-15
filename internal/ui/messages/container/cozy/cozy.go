@@ -70,10 +70,10 @@ func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 	author := msg.Author()
 
 	// Try and reuse an existing avatar if the author has one.
-	if avatarURL, ok := author.(cchat.MessageAuthorAvatar); ok {
+	if avatarURL := author.Avatar(); avatarURL != "" {
 		// Try reusing the avatar, but fetch it from the interndet if we can't
 		// reuse. The reuse function does this for us.
-		c.reuseAvatar(author.ID(), avatarURL.Avatar(), full)
+		c.reuseAvatar(author.ID(), author.Avatar(), full)
 	}
 
 	return full

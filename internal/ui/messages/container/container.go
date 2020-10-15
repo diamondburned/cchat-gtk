@@ -41,7 +41,6 @@ type Container interface {
 
 	// Thread-safe methods.
 	cchat.MessagesContainer
-	cchat.MessagePrepender
 
 	// Thread-unsafe methods.
 	CreateMessageUnsafe(cchat.MessageCreate)
@@ -73,7 +72,7 @@ type Controller interface {
 	Bottomed() bool
 	// AuthorEvent is called on message create/update. This is used to update
 	// the typer state.
-	AuthorEvent(a cchat.MessageAuthor)
+	AuthorEvent(a cchat.Author)
 }
 
 // Constructor is an interface for making custom message implementations which

@@ -10,7 +10,6 @@ import (
 	"github.com/alecthomas/chroma/styles"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
-	"github.com/diamondburned/cchat/text"
 )
 
 var (
@@ -40,15 +39,14 @@ func Tokenize(language, source string) chroma.Iterator {
 	return i
 }
 
-func Segments(appendmap *attrmap.AppendMap, src string, seg text.Codeblocker) {
-	var start, end = seg.Bounds()
+func Segments(appendmap *attrmap.AppendMap, src string, start, end int, lang string) {
 	appendmap.Span(
 		start, end,
 		`font_family="monospace"`,
 		`insert_hyphens="false"`, // all my homies hate hyphens
 	)
 
-	if i := Tokenize(seg.CodeblockLanguage(), src[start:end]); i != nil {
+	if i := Tokenize(lang, src[start:end]); i != nil {
 		fmtter.segments(appendmap, start, i)
 	}
 }

@@ -46,7 +46,7 @@ func (f *Field) sendInput() {
 	// Are we editing anything?
 	if id := f.editingID; f.Editable(id) && id != "" {
 		go func() {
-			if err := f.editor.EditMessage(id, text); err != nil {
+			if err := f.editor.Edit(id, text); err != nil {
 				log.Error(errors.Wrap(err, "Failed to edit message"))
 			}
 		}()
@@ -87,7 +87,7 @@ func (f *Field) SendMessage(data PresendMessage) {
 	// Copy the sender to prevent race conditions.
 	var sender = f.Sender
 	gts.Async(func() (func(), error) {
-		if err := sender.SendMessage(data); err != nil {
+		if err := sender.Send(data); err != nil {
 			return func() { onErr(err) }, errors.Wrap(err, "Failed to send message")
 		}
 		return nil, nil
@@ -104,11 +104,13 @@ type SendMessageData struct {
 	files     []attachment.File
 }
 
+var _ cchat.SendableMessage = (*SendMessageData)(nil)
+
 type PresendMessage interface {
 	cchat.MessageHeader // returns nonce and time
 	cchat.SendableMessage
-	cchat.MessageNonce
-	cchat.SendableMessageAttachments
+	cchat.Noncer
+	cchat.Attachments
 
 	// These methods are reserved for internal use.
 
@@ -145,12 +147,20 @@ func (s SendMessageData) AuthorAvatarURL() string {
 	return s.authorURL
 }
 
+func (s SendMessageData) AsNoncer() cchat.Noncer {
+	return s
+}
+
 func (s SendMessageData) Nonce() string {
 	return s.nonce
 }
 
 func (s SendMessageData) Files() []attachment.File {
 	return s.files
+}
+
+func (s SendMessageData) AsAttachments() cchat.Attachments {
+	return s
 }
 
 func (s SendMessageData) Attachments() []cchat.MessageAttachment {

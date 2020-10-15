@@ -12,9 +12,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
-	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
@@ -35,9 +35,9 @@ type Servicer interface {
 	// SessionSelected is called when the row is clicked. The parent container
 	// should change the views to show this session's *Servers.
 	SessionSelected(*Row)
-	// RowSelected is called when a server that can display messages (aka
-	// implements ServerMessage) is called.
-	RowSelected(*Row, *server.ServerRow, cchat.ServerMessage)
+	// MessengerSelected is called when a server that can display messages (aka
+	// implements Messenger) is called.
+	MessengerSelected(*Row, *server.ServerRow)
 	// RestoreSession is called with the session ID to ask the controller to
 	// restore it from keyring information.
 	RestoreSession(*Row, string) // ID string, async
@@ -312,7 +312,7 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.avatar.SetText(ses.Name().Content)
 
 	// If the session has an icon, then use it.
-	if iconer, ok := ses.(cchat.Icon); ok {
+	if iconer := ses.AsIconer(); iconer != nil {
 		r.icon.Icon.AsyncSetIconer(iconer, "Failed to set session icon")
 	}
 
@@ -330,11 +330,10 @@ func (r *Row) SetSession(ses cchat.Session) {
 	// Set the commander, if any. The function will return nil if the assertion
 	// returns nil. As such, we assert with an ignored ok bool, allowing cmd to
 	// be nil.
-	cmd, _ := ses.(commander.SessionCommander)
-	r.cmder = commander.NewBuffer(r.svcctrl.Service(), cmd)
-
-	// Show the command button if the session actually supports the commander.
-	if r.cmder != nil {
+	if cmder := ses.AsCommander(); cmder != nil {
+		r.cmder = commander.NewBuffer(ses.Name().String(), cmder)
+		// Show the command button if the session actually supports the
+		// commander.
 		r.ActionsMenu.AddAction("Command Prompt", r.ShowCommander)
 	}
 
@@ -342,8 +341,8 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.Servers.SetList(ses)
 }
 
-func (r *Row) RowSelected(sr *server.ServerRow, smsg cchat.ServerMessage) {
-	r.svcctrl.RowSelected(r, sr, smsg)
+func (r *Row) MessengerSelected(sr *server.ServerRow) {
+	r.svcctrl.MessengerSelected(r, sr)
 }
 
 // RemoveSession removes itself from the session list.
@@ -351,10 +350,15 @@ func (r *Row) RemoveSession() {
 	// Remove the session off the list.
 	r.svcctrl.RemoveSession(r)
 
+	var session = r.Session
+	if session == nil {
+		return
+	}
+
 	// Asynchrously disconnect.
 	go func() {
-		if err := r.Session.Disconnect(); err != nil {
-			log.Error(errors.Wrap(err, "Non-fatal, failed to disconnect removed session"))
+		if err := session.Disconnect(); err != nil {
+			log.Error(errors.Wrap(err, "non-fatal; failed to disconnect removed session"))
 		}
 	}()
 }

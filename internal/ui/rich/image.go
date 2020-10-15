@@ -134,7 +134,7 @@ func (i *Icon) SetIcon(url string) {
 	gts.ExecAsync(func() { i.SetIconUnsafe(url) })
 }
 
-func (i *Icon) AsyncSetIconer(iconer cchat.Icon, errwrap string) {
+func (i *Icon) AsyncSetIconer(iconer cchat.Iconer, errwrap string) {
 	// Reveal to show the placeholder.
 	i.SetRevealChild(true)
 

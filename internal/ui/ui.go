@@ -132,7 +132,7 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 	app.MessageView.Reset()
 }
 
-func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
+func (app *App) MessengerSelected(ses *session.Row, srv *server.ServerRow) {
 	// Change to the message view.
 	app.Leaflet.SetVisibleChild(app.MessageView)
 
@@ -150,7 +150,7 @@ func (app *App) RowSelected(ses *session.Row, srv *server.ServerRow, smsg cchat.
 	app.lastSelector = srv.SetSelected
 	app.lastSelector(true)
 
-	app.MessageView.JoinServer(ses.Session, smsg.(messages.ServerMessage), srv)
+	app.MessageView.JoinServer(ses.Session, srv.Server, srv)
 }
 
 // MessageView methods.

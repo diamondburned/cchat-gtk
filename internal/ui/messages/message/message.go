@@ -21,7 +21,7 @@ type Container interface {
 	AvatarURL() string // avatar
 	Nonce() string
 
-	UpdateAuthor(cchat.MessageAuthor)
+	UpdateAuthor(cchat.Author)
 	UpdateAuthorName(text.Rich)
 	UpdateContent(c text.Rich, edited bool)
 	UpdateTimestamp(time.Time)
@@ -79,11 +79,8 @@ func NewContainer(msg cchat.MessageCreate) *GenericContainer {
 	c := NewEmptyContainer()
 	c.id = msg.ID()
 	c.time = msg.Time()
+	c.nonce = msg.Nonce()
 	c.authorID = msg.Author().ID()
-
-	if noncer, ok := msg.(cchat.MessageNonce); ok {
-		c.nonce = noncer.Nonce()
-	}
 
 	return c
 }
@@ -180,14 +177,10 @@ func (m *GenericContainer) UpdateTimestamp(t time.Time) {
 	m.Timestamp.SetTooltipText(t.Format(time.Stamp))
 }
 
-func (m *GenericContainer) UpdateAuthor(author cchat.MessageAuthor) {
+func (m *GenericContainer) UpdateAuthor(author cchat.Author) {
 	m.authorID = author.ID()
+	m.avatarURL = author.Avatar()
 	m.UpdateAuthorName(author.Name())
-
-	// Set the avatar URL for future access on-demand.
-	if avatarer, ok := author.(cchat.MessageAuthorAvatar); ok {
-		m.avatarURL = avatarer.Avatar()
-	}
 }
 
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {

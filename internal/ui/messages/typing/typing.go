@@ -71,17 +71,17 @@ func (c *Container) Reset() {
 	c.SetRevealChild(false)
 }
 
-func (c *Container) RemoveAuthor(author cchat.MessageAuthor) {
+func (c *Container) RemoveAuthor(author cchat.Author) {
 	c.state.removeTyper(author.ID())
 }
 
-func (c *Container) TrySubscribe(svmsg cchat.ServerMessage) bool {
-	ti, ok := svmsg.(cchat.ServerMessageTypingIndicator)
-	if !ok {
+func (c *Container) TrySubscribe(svmsg cchat.Messenger) bool {
+	var tindicator = svmsg.AsTypingIndicator()
+	if tindicator == nil {
 		return false
 	}
 
-	c.state.Subscribe(ti)
+	c.state.Subscribe(tindicator)
 	return true
 }
 

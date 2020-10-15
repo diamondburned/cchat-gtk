@@ -93,9 +93,9 @@ func (c *Container) Reset() {
 
 // TryAsyncList tries to set the member list from the given server. It does type
 // assertions and handles asynchronicity. Reset must be called before this.
-func (c *Container) TryAsyncList(server cchat.ServerMessage) {
-	ls, ok := server.(cchat.ServerMessageMemberLister)
-	if !ok {
+func (c *Container) TryAsyncList(server cchat.Messenger) {
+	ls := server.AsMemberLister()
+	if ls == nil {
 		return
 	}
 
@@ -109,7 +109,7 @@ func (c *Container) TryAsyncList(server cchat.ServerMessage) {
 	})
 }
 
-func (c *Container) SetSections(sections []cchat.MemberListSection) {
+func (c *Container) SetSections(sections []cchat.MemberSection) {
 	gts.ExecAsync(func() { c.SetSectionsUnsafe(sections) })
 }
 
@@ -121,7 +121,7 @@ func (c *Container) RemoveMember(sectionID string, id string) {
 	gts.ExecAsync(func() { c.RemoveMemberUnsafe(sectionID, id) })
 }
 
-func (c *Container) SetSectionsUnsafe(sections []cchat.MemberListSection) {
+func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
 	var newSections = make([]*Section, len(sections))
 
 	for i, section := range sections {
@@ -191,7 +191,7 @@ var sectionBodyCSS = primitives.PrepareClassCSS("section-body", `
 	}
 `)
 
-func NewSection(sect cchat.MemberListSection) *Section {
+func NewSection(sect cchat.MemberSection) *Section {
 	header := rich.NewLabel(text.Rich{})
 	header.Show()
 	sectionHeaderCSS(header)
@@ -359,7 +359,7 @@ func NewMember(member cchat.ListMember) *Member {
 func (m *Member) Update(member cchat.ListMember) {
 	m.ListBoxRow.SetName(member.Name().Content)
 
-	if iconer, ok := member.(cchat.Icon); ok {
+	if iconer := member.AsIconer(); iconer != nil {
 		m.Avatar.AsyncSetIconer(iconer, "Failed to get member list icon")
 	}
 
@@ -370,7 +370,7 @@ func (m *Member) Update(member cchat.ListMember) {
 		statusColors(member.Status()), m.output.Markup,
 	))
 
-	if bot := member.Secondary(); !bot.Empty() {
+	if bot := member.Secondary(); !bot.IsEmpty() {
 		txt.WriteByte('\n')
 		txt.WriteString(fmt.Sprintf(
 			`<span alpha="85%%"><sup>%s</sup></span>`,
@@ -392,15 +392,15 @@ func (m *Member) Popup() {
 	}
 }
 
-func statusColors(status cchat.UserStatus) uint32 {
+func statusColors(status cchat.Status) uint32 {
 	switch status {
-	case cchat.OnlineStatus:
+	case cchat.StatusOnline:
 		return 0x43B581
-	case cchat.BusyStatus:
+	case cchat.StatusBusy:
 		return 0xF04747
-	case cchat.IdleStatus:
+	case cchat.StatusIdle:
 		return 0xFAA61A
-	case cchat.OfflineStatus:
+	case cchat.StatusOffline:
 		fallthrough
 	default:
 		return 0x747F8D

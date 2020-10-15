@@ -20,8 +20,8 @@ import (
 const IconSize = 48
 
 type ListController interface {
-	// RowSelected is called when a server message row is clicked.
-	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
+	// MessengerSelected is called when a server message row is clicked.
+	MessengerSelected(*session.Row, *server.ServerRow)
 	// SessionSelected tells the view to change the session view.
 	SessionSelected(*Service, *session.Row)
 	// AuthenticateSession tells View to call to the parent's authenticator.
@@ -109,7 +109,7 @@ func NewService(svc cchat.Service, svclctrl ListController) *Service {
 	service.Icon.SetTooltipMarkup(markup.Render(svc.Name()))
 	serviceIconCSS(service.Icon)
 
-	if iconer, ok := svc.(cchat.Icon); ok {
+	if iconer := svc.AsIconer(); iconer != nil {
 		service.Icon.AsyncSetIconer(iconer, "Failed to set service icon")
 	}
 
@@ -156,6 +156,10 @@ func (s *Service) AuthenticateSession() {
 }
 
 func (s *Service) AddLoadingSession(id, name string) *session.Row {
+	if srow := s.BodyList.Session(id); srow != nil {
+		return srow
+	}
+
 	srow := session.NewLoading(s, id, name, s)
 	srow.Show()
 
@@ -163,7 +167,13 @@ func (s *Service) AddLoadingSession(id, name string) *session.Row {
 	return srow
 }
 
+// AddSession adds the given session. It returns nil if the session already
+// exists with the given ID.
 func (s *Service) AddSession(ses cchat.Session) *session.Row {
+	if srow := s.BodyList.Session(ses.ID()); srow != nil {
+		return srow
+	}
+
 	srow := session.New(s, ses, s)
 	srow.Show()
 
@@ -187,19 +197,15 @@ func (s *Service) OnSessionDisconnect(row *session.Row) {
 	}
 
 	s.svclctrl.OnSessionDisconnect(s, row)
-
-	// WHY WAS THIS HERE?!?!?!
-	// s.BodyList.RemoveSessionRow(row.Session.ID())
-	// s.SaveAllSessions()
 }
 
-func (s *Service) RowSelected(r *session.Row, sv *server.ServerRow, m cchat.ServerMessage) {
-	s.svclctrl.RowSelected(r, sv, m)
+func (s *Service) MessengerSelected(r *session.Row, sv *server.ServerRow) {
+	s.svclctrl.MessengerSelected(r, sv)
 }
 
 func (s *Service) RemoveSession(row *session.Row) {
 	s.svclctrl.OnSessionRemove(s, row)
-	s.BodyList.RemoveSessionRow(row.Session.ID())
+	s.BodyList.RemoveSessionRow(row.ID())
 	s.SaveAllSessions()
 }
 
@@ -230,13 +236,13 @@ func (s *Service) SaveAllSessions() {
 }
 
 func (s *Service) RestoreSession(row *session.Row, id string) {
-	rs, ok := s.service.(cchat.SessionRestorer)
-	if !ok {
+	rs := s.service.AsSessionRestorer()
+	if rs == nil {
 		return
 	}
 
 	if k := keyring.RestoreSession(s.service, id); k != nil {
-		restoreAsync(row, rs, *k)
+		row.RestoreSession(rs, *k)
 		return
 	}
 
@@ -248,19 +254,14 @@ func (s *Service) RestoreSession(row *session.Row, id string) {
 
 // restoreAll restores all sessions.
 func (s *Service) restoreAll() {
-	rs, ok := s.service.(cchat.SessionRestorer)
-	if !ok {
+	rs := s.service.AsSessionRestorer()
+	if rs == nil {
 		return
 	}
 
 	// Session is not a pointer, so we can pass it into arguments safely.
 	for _, ses := range keyring.RestoreSessions(s.service) {
 		row := s.AddLoadingSession(ses.ID, ses.Name)
-		restoreAsync(row, rs, ses)
+		row.RestoreSession(rs, ses)
 	}
-}
-
-// restoreAsync asynchronously restores a single session.
-func restoreAsync(r *session.Row, res cchat.SessionRestorer, k keyring.Session) {
-	r.RestoreSession(res, k)
 }

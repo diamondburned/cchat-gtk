@@ -11,7 +11,7 @@ import (
 )
 
 type Controller interface {
-	RowSelected(*ServerRow, cchat.ServerMessage)
+	MessengerSelected(*ServerRow)
 }
 
 // Children is a children server with a reference to the parent. By default, a
@@ -167,6 +167,56 @@ func (c *Children) SetServers(servers []cchat.Server) {
 		// Since the root node is always unhollow, calls to this function will
 		// pass the hollow test and unhollow its children nodes. That should not
 		// happen.
+	})
+}
+
+func (c *Children) findID(id cchat.ID) (int, *ServerRow) {
+	for i, row := range c.Rows {
+		if row.Server.ID() == id {
+			return i, row
+		}
+	}
+	return -1, nil
+}
+
+func (c *Children) insertAt(row *ServerRow, i int) {
+	c.Rows = append(c.Rows[:i], append([]*ServerRow{row}, c.Rows[i:]...)...)
+
+	if !c.IsHollow() {
+		c.Box.Add(row)
+		c.Box.ReorderChild(row, i)
+	}
+}
+
+func (c *Children) UpdateServer(update cchat.ServerUpdate) {
+	gts.ExecAsync(func() {
+		prevID, replace := update.PreviousID()
+
+		// TODO: I don't think this code unhollows a new server.
+		var newServer = NewHollowServer(c, update, c.rowctrl)
+		var i, oldRow = c.findID(prevID)
+
+		// If we're appending a new row, then replace is false.
+		if !replace {
+			// Increment the old row's index so we know where to insert.
+			c.insertAt(newServer, i+1)
+			return
+		}
+
+		// Only update the server if the old row was found.
+		if oldRow == nil {
+			return
+		}
+
+		c.Rows[i] = newServer
+
+		if !c.IsHollow() {
+			// Update the UI as well.
+			// TODO: check if this reorder is correct.
+			c.Box.Remove(oldRow)
+			c.Box.Add(newServer)
+			c.Box.ReorderChild(newServer, i)
+		}
 	})
 }
 

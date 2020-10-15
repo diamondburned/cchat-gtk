@@ -25,7 +25,7 @@ type Servers struct {
 	spinner  *spinner.Boxed // non-nil if loading.
 
 	// state
-	ServerList cchat.ServerList
+	ServerList cchat.Lister
 }
 
 var toplevelCSS = primitives.PrepareClassCSS("top-level", `
@@ -72,7 +72,7 @@ func (s *Servers) IsLoading() bool {
 
 // SetList indicates that the server list has been loaded. Unlike
 // server.Children, this method will load immediately.
-func (s *Servers) SetList(slist cchat.ServerList) {
+func (s *Servers) SetList(slist cchat.Lister) {
 	primitives.RemoveChildren(s)
 	s.ServerList = slist
 	s.load()

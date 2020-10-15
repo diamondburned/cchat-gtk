@@ -139,14 +139,10 @@ func (m *FullMessage) UpdateTimestamp(t time.Time) {
 	m.Timestamp.SetText(humanize.TimeAgoLong(t))
 }
 
-func (m *FullMessage) UpdateAuthor(author cchat.MessageAuthor) {
+func (m *FullMessage) UpdateAuthor(author cchat.Author) {
 	// Call the parent's method to update the labels.
 	m.GenericContainer.UpdateAuthor(author)
-
-	// If the author has an avatar:
-	if avatarer, ok := author.(cchat.MessageAuthorAvatar); ok {
-		m.Avatar.SetURL(avatarer.Avatar())
-	}
+	m.Avatar.SetURL(author.Avatar())
 }
 
 // CopyAvatarPixbuf sets the pixbuf into the given container. This shares the

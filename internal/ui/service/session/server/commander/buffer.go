@@ -1,27 +1,23 @@
 package commander
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/gotk3/gotk3/gtk"
 )
 
-type SessionCommander interface {
-	cchat.Session
-	cchat.Commander
-}
-
+// Buffer represents an unbuffered API around the text buffer.
 type Buffer struct {
 	*gtk.TextBuffer
-	svcname string
-	cmder   SessionCommander
+	name  string
+	cmder cchat.Commander
 }
 
 // NewBuffer creates a new buffer with the given SessionCommander, or returns
 // nil if cmder is nil.
-func NewBuffer(svc cchat.Service, cmder SessionCommander) *Buffer {
+func NewBuffer(name string, cmder cchat.Commander) *Buffer {
 	if cmder == nil {
 		return nil
 	}
@@ -33,7 +29,7 @@ func NewBuffer(svc cchat.Service, cmder SessionCommander) *Buffer {
 	b.CreateTag("system", map[string]interface{}{
 		"foreground": "#808080",
 	})
-	return &Buffer{b, svc.Name().Content, cmder}
+	return &Buffer{b, name, cmder}
 }
 
 // WriteError is not thread-safe.
@@ -46,15 +42,19 @@ func (b *Buffer) WriteSystem(bytes []byte) {
 	b.InsertWithTagByName(b.GetEndIter(), string(bytes), "system")
 }
 
-// Printlnf is not thread-safe.
-func (b *Buffer) Printlnf(f string, v ...interface{}) {
+// Systemlnf is not thread-safe.
+func (b *Buffer) Systemlnf(f string, v ...interface{}) {
 	b.WriteSystem([]byte(fmt.Sprintf(f+"\n", v...)))
 }
 
-// Write is thread-safe.
-func (b *Buffer) Write(bytes []byte) (int, error) {
-	gts.ExecAsync(func() { b.Insert(b.GetEndIter(), string(bytes)) })
-	return len(bytes), nil
+func (b *Buffer) WriteOutput(output []byte) {
+	var iter = b.GetEndIter()
+
+	b.Insert(iter, string(output))
+
+	if !bytes.HasSuffix(output, []byte("\n")) {
+		b.Insert(iter, "\n")
+	}
 }
 
 func (b *Buffer) ShowDialog() {

@@ -10,7 +10,7 @@ import (
 )
 
 type ViewController interface {
-	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
+	MessengerSelected(*session.Row, *server.ServerRow)
 	SessionSelected(*Service, *session.Row)
 	AuthenticateSession(*List, *Service)
 	OnSessionRemove(*Service, *session.Row)

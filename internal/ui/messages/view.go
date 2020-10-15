@@ -260,7 +260,7 @@ func (v *View) MemberListUpdated(c *memberlist.Container) {
 }
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server ServerMessage, bc traverse.Breadcrumber) {
+func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc traverse.Breadcrumber) {
 	// Reset before setting.
 	v.Reset()
 
@@ -268,21 +268,25 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, bc traver
 	v.FaceView.SetLoading()
 	v.ctrl.OnMessageBusy()
 
-	// Bind the state.
-	v.state.bind(session, server)
+	// Get the messenger once.
+	var messenger = server.AsMessenger()
+	// Exit if this server is not a messenger.
+	if messenger == nil {
+		return
+	}
 
-	// Skipping ok check because sender can be nil. Without the empty
-	// check, Go will panic.
-	sender, _ := server.(cchat.ServerMessageSender)
+	// Bind the state.
+	v.state.bind(session, server, messenger)
+
 	// We're setting this variable before actually calling JoinServer. This is
 	// because new messages created by JoinServer will use this state for things
 	// such as determinining if it's deletable or not.
-	v.InputView.SetSender(session, sender)
+	v.InputView.SetMessenger(session, messenger)
 
 	gts.Async(func() (func(), error) {
 		// We can use a background context here, as the user can't go anywhere
 		// that would require cancellation anyway. This is done in ui.go.
-		s, err := server.JoinServer(context.Background(), v.Container)
+		s, err := messenger.JoinServer(context.Background(), v.Container)
 		if err != nil {
 			err = errors.Wrap(err, "Failed to join server")
 			// Even if we're erroring out, we're running the done() callback
@@ -304,10 +308,10 @@ func (v *View) JoinServer(session cchat.Session, server ServerMessage, bc traver
 			v.Header.SetBreadcrumber(bc)
 
 			// Try setting the typing indicator if available.
-			v.Typing.TrySubscribe(server)
+			v.Typing.TrySubscribe(messenger)
 
 			// Try and use the list.
-			v.MemberList.TryAsyncList(server)
+			v.MemberList.TryAsyncList(messenger)
 		}, nil
 	})
 }
@@ -338,7 +342,7 @@ func (v *View) FetchBacklog() {
 		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
 		defer cancel()
 
-		err := backlogger.MessagesBefore(ctx, firstMsg.ID(), v.Container)
+		err := backlogger.Backlog(ctx, firstMsg.ID(), v.Container)
 		return done, errors.Wrap(err, "Failed to get messages before ID")
 	})
 }
@@ -361,7 +365,7 @@ func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
 }
 
 // AuthorEvent should be called on message create/update/delete.
-func (v *View) AuthorEvent(author cchat.MessageAuthor) {
+func (v *View) AuthorEvent(author cchat.Author) {
 	// Remove the author from the typing list if it's not nil.
 	if author != nil {
 		v.Typing.RemoveAuthor(author)
@@ -381,7 +385,7 @@ func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendG
 	}
 
 	go func() {
-		if err := sender.SendMessage(msg); err != nil {
+		if err := sender.Send(msg); err != nil {
 			// Set the message's state to errored again, but we don't need to
 			// rebind the menu.
 			gts.ExecAsync(func() { presend.SetSentError(err) })
@@ -404,7 +408,7 @@ func (v *View) BindMenu(msg container.GridMessage) {
 
 	// Do we have any custom actions? If yes, append it.
 	if v.hasActions() {
-		var actions = v.actioner.MessageActions(msg.ID())
+		var actions = v.actioner.Actions(msg.ID())
 		var items = make([]menu.Item, len(actions))
 
 		for i, action := range actions {
@@ -424,7 +428,7 @@ func (v *View) makeActionItem(action, msgID string) menu.Item {
 		go func() {
 			// Run, get the error, and try to log it. The logger will ignore nil
 			// errors.
-			err := v.state.actioner.DoMessageAction(action, msgID)
+			err := v.state.actioner.Do(action, msgID)
 			log.Error(errors.Wrap(err, "Failed to do action "+action))
 		}()
 	})
@@ -433,15 +437,15 @@ func (v *View) makeActionItem(action, msgID string) menu.Item {
 // ServerMessage combines Server and ServerMessage from cchat.
 type ServerMessage interface {
 	cchat.Server
-	cchat.ServerMessage
+	cchat.Messenger
 }
 
 type state struct {
 	session cchat.Session
 	server  cchat.Server
 
-	actioner   cchat.ServerMessageActioner
-	backlogger cchat.ServerMessageBacklogger
+	actioner   cchat.Actioner
+	backlogger cchat.Backlogger
 
 	current func() // stop callback
 	author  string
@@ -483,7 +487,7 @@ const backloggingFreq = time.Second * 3
 
 // Backlogger returns the backlogger instance if it's allowed to fetch more
 // backlogs.
-func (s *state) Backlogger() cchat.ServerMessageBacklogger {
+func (s *state) Backlogger() cchat.Backlogger {
 	if s.backlogger == nil || s.current == nil {
 		return nil
 	}
@@ -498,11 +502,11 @@ func (s *state) Backlogger() cchat.ServerMessageBacklogger {
 	return s.backlogger
 }
 
-func (s *state) bind(session cchat.Session, server ServerMessage) {
+func (s *state) bind(session cchat.Session, server cchat.Server, msgr cchat.Messenger) {
 	s.session = session
 	s.server = server
-	s.actioner, _ = server.(cchat.ServerMessageActioner)
-	s.backlogger, _ = server.(cchat.ServerMessageBacklogger)
+	s.actioner = msgr.AsActioner()
+	s.backlogger = msgr.AsBacklogger()
 }
 
 func (s *state) setcurrent(fn func()) {

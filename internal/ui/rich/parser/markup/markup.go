@@ -25,14 +25,20 @@ func hyphenate(text string) string {
 type RenderOutput struct {
 	Markup   string
 	Input    string // useless to keep parts, as Go will keep all alive anyway
-	Mentions []text.Mentioner
+	Mentions []MentionSegment
+}
+
+// MentionSegment is a type that satisfies both Segment and Mentioner.
+type MentionSegment struct {
+	text.Segment
+	text.Mentioner
 }
 
 // f_Mention is used to print and parse mention URIs.
 const f_Mention = "cchat://mention/%d" // %d == Mentions[i]
 
 // IsMention returns the mention if the URI is correct, or nil if none.
-func (r RenderOutput) IsMention(uri string) text.Mentioner {
+func (r RenderOutput) IsMention(uri string) text.Segment {
 	var i int
 
 	if _, err := fmt.Sscanf(uri, f_Mention, &i); err != nil {
@@ -98,34 +104,36 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	var appended = attrmap.NewAppendedMap()
 
 	// map to store mentions
-	var mentions []text.Mentioner
+	var mentions []MentionSegment
 
 	// Parse all segments.
 	for _, segment := range content.Segments {
 		start, end := segment.Bounds()
 
-		if segment, ok := segment.(text.Linker); ok {
-			appended.Anchor(start, end, segment.Link())
+		if linker := segment.AsLinker(); linker != nil {
+			appended.Anchor(start, end, linker.Link())
 		}
 
-		if segment, ok := segment.(text.Imager); ok {
-			// Ends don't matter with images.
-			appended.Open(start, composeImageMarkup(segment))
+		// Only inline images if start == end per specification.
+		if start == end {
+			if imager := segment.AsImager(); imager != nil {
+				appended.Open(start, composeImageMarkup(imager))
+			}
+
+			if avatarer := segment.AsAvatarer(); avatarer != nil {
+				// Ends don't matter with images.
+				appended.Open(start, composeAvatarMarkup(avatarer))
+			}
 		}
 
-		if segment, ok := segment.(text.Avatarer); ok {
-			// Ends don't matter with images.
-			appended.Open(start, composeAvatarMarkup(segment))
-		}
-
-		if segment, ok := segment.(text.Colorer); ok {
-			appended.Span(start, end, fmt.Sprintf("color=\"#%06X\"", segment.Color()))
+		if colorer := segment.AsColorer(); colorer != nil {
+			appended.Span(start, end, colorAttrs(colorer.Color(), false)...)
 		}
 
 		// Mentioner needs to be before colorer, as we'd want the below color
 		// segment to also highlight the full mention as well as make the
 		// padding part of the hyperlink.
-		if segment, ok := segment.(text.Mentioner); ok {
+		if mentioner := segment.AsMentioner(); mentioner != nil {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
 			if !cfg.NoMentionLinks {
@@ -133,32 +141,35 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 			}
 
 			// Add the mention segment into the list regardless of hyperlinks.
-			mentions = append(mentions, segment)
+			mentions = append(mentions, MentionSegment{
+				Segment:   segment,
+				Mentioner: mentioner,
+			})
 
-			if segment, ok := segment.(text.Colorer); ok {
-				// Add a dimmed background highlight and pad the button-like
-				// link.
-				appended.Span(
-					start, end,
-					"bgalpha=\"10%\"",
-					fmt.Sprintf("bgcolor=\"#%06X\"", segment.Color()),
-				)
-				appended.Pad(start, end)
+			if colorer := segment.AsColorer(); colorer != nil {
+				// Only pad the name and add a dimmed background if the bounds
+				// do not cover the whole segment.
+				var cover = (start == 0) && (end == len(content.Content))
+				appended.Span(start, end, colorAttrs(colorer.Color(), !cover)...)
+				if !cover {
+					appended.Pad(start, end)
+				}
 			}
 		}
 
-		if segment, ok := segment.(text.Attributor); ok {
-			appended.Span(start, end, markupAttr(segment.Attribute()))
+		if attributor := segment.AsAttributor(); attributor != nil {
+			appended.Span(start, end, markupAttr(attributor.Attribute()))
 		}
 
-		if segment, ok := segment.(text.Codeblocker); ok {
+		if codeblocker := segment.AsCodeblocker(); codeblocker != nil {
+			start, end := segment.Bounds()
 			// Syntax highlight the codeblock.
-			hl.Segments(&appended, content.Content, segment)
+			hl.Segments(&appended, content.Content, start, end, codeblocker.CodeblockLanguage())
 		}
 
 		// TODO: make this not shit. Maybe make it somehow not rely on green
 		// arrows. Or maybe.
-		if _, ok := segment.(text.Quoteblocker); ok {
+		if segment.AsQuoteblocker() != nil {
 			appended.Span(start, end, `color="#789922"`)
 		}
 	}
@@ -181,19 +192,37 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	}
 }
 
-func color(c uint32, bg bool) []string {
-	var hex = fmt.Sprintf("#%06X", c)
+// splitRGBA splits the given rgba integer into rgb and a.
+func splitRGBA(rgba uint32) (rgb, a uint32) {
+	rgb = rgba >> 8 // extract the RGB bits
+	a = rgba & 0xFF // extract the A bits
+	return
+}
 
-	var attrs = []string{
-		fmt.Sprintf(`color="%s"`, hex),
+// colorAttrs renders the given color into a list of attributes.
+func colorAttrs(c uint32, bg bool) []string {
+	// Split the RGBA color value to calculate.
+	rgb, a := splitRGBA(c)
+
+	// Render the hex representation beforehand.
+	hex := fmt.Sprintf("#%06X", rgb)
+
+	attrs := make([]string, 1, 4)
+	attrs[0] = fmt.Sprintf(`color="%s"`, hex)
+
+	// If we have an alpha that isn't solid (100%), then write it.
+	if a < 0xFF {
+		// Calculate alpha percentage.
+		perc := a * 100 / 255
+		attrs = append(attrs, fmt.Sprintf(`fgalpha="%d%%"`, perc))
 	}
 
+	// Draw a faded background if we explicitly requested for one.
 	if bg {
-		attrs = append(
-			attrs,
-			`bgalpha="10%"`,
-			fmt.Sprintf(`bgcolor="%s"`, hex),
-		)
+		// Calculate how faded the background should be for visual purposes.
+		perc := a * 10 / 255 // always 10% or less.
+		attrs = append(attrs, fmt.Sprintf(`bgalpha="%d%%"`, perc))
+		attrs = append(attrs, fmt.Sprintf(`bgcolor="%s"`, hex))
 	}
 
 	return attrs
@@ -274,25 +303,25 @@ func markupAttr(attr text.Attribute) string {
 	}
 
 	var attrs = make([]string, 0, 1)
-	if attr.Has(text.AttrBold) {
+	if attr.Has(text.AttributeBold) {
 		attrs = append(attrs, `weight="bold"`)
 	}
-	if attr.Has(text.AttrItalics) {
+	if attr.Has(text.AttributeItalics) {
 		attrs = append(attrs, `style="italic"`)
 	}
-	if attr.Has(text.AttrUnderline) {
+	if attr.Has(text.AttributeUnderline) {
 		attrs = append(attrs, `underline="single"`)
 	}
-	if attr.Has(text.AttrStrikethrough) {
+	if attr.Has(text.AttributeStrikethrough) {
 		attrs = append(attrs, `strikethrough="true"`)
 	}
-	if attr.Has(text.AttrSpoiler) {
+	if attr.Has(text.AttributeSpoiler) {
 		attrs = append(attrs, `alpha="35%"`) // no fancy click here
 	}
-	if attr.Has(text.AttrMonospace) {
+	if attr.Has(text.AttributeMonospace) {
 		attrs = append(attrs, `font_family="monospace"`)
 	}
-	if attr.Has(text.AttrDimmed) {
+	if attr.Has(text.AttributeDimmed) {
 		attrs = append(attrs, `alpha="35%"`)
 	}
 

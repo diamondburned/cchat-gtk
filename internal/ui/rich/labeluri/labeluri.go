@@ -90,8 +90,8 @@ func BindRichLabel(label Labeler) {
 	bind(label, func(uri string, ptr gdk.Rectangle) bool {
 		var output = label.Output()
 
-		if mention := output.IsMention(uri); mention != nil {
-			if p := NewPopoverMentioner(label, output.Input, mention); p != nil {
+		if segment := output.IsMention(uri); segment != nil {
+			if p := NewPopoverMentioner(label, output.Input, segment); p != nil {
 				p.SetPointingTo(ptr)
 				p.Popup()
 			}
@@ -103,19 +103,24 @@ func BindRichLabel(label Labeler) {
 	})
 }
 
-func PopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) {
+func PopoverMentioner(rel gtk.IWidget, input string, mention text.Segment) {
 	if p := NewPopoverMentioner(rel, input, mention); p != nil {
 		p.Popup()
 	}
 }
 
-func NewPopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) *gtk.Popover {
-	var info = mention.MentionInfo()
-	if info.Empty() {
+func NewPopoverMentioner(rel gtk.IWidget, input string, segment text.Segment) *gtk.Popover {
+	var mention = segment.AsMentioner()
+	if mention == nil {
 		return nil
 	}
 
-	start, end := mention.Bounds()
+	var info = mention.MentionInfo()
+	if info.IsEmpty() {
+		return nil
+	}
+
+	start, end := segment.Bounds()
 	h := input[start:end]
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
@@ -125,12 +130,11 @@ func NewPopoverMentioner(rel gtk.IWidget, input string, mention text.Mentioner) 
 	var url string
 	var round bool
 
-	switch v := mention.(type) {
-	case text.MentionerImage:
-		url = v.Image()
-	case text.MentionerAvatar:
-		url = v.Avatar()
+	if avatarer := segment.AsAvatarer(); avatarer != nil {
+		url = avatarer.Avatar()
 		round = true
+	} else if imager := segment.AsImager(); imager != nil {
+		url = imager.Image()
 	}
 
 	if url != "" {

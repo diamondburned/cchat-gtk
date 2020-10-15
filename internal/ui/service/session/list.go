@@ -84,7 +84,20 @@ func (sl *List) Sessions() []*Row {
 	return rows
 }
 
+// Session returns the session row with the given ID. A nil Row is returned if
+// none is found.
+func (sl *List) Session(id string) *Row {
+	row, _ := sl.sessions[id]
+	return row
+}
+
+// AddSessionRow adds the given row as a session into the list.
 func (sl *List) AddSessionRow(id string, row *Row) {
+	// !!! IMPORTANT !!! Guarantee that there is NO collision.
+	if _, ok := sl.sessions[id]; ok {
+		panic("BUG: Duplicate session; AddSessionRow caller did not check Session.")
+	}
+
 	// Insert the row RIGHT BEFORE the add button.
 	sl.ListBox.Insert(row, len(sl.sessions))
 	// Set the map, which increases the length by 1.

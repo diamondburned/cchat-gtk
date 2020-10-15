@@ -3,14 +3,18 @@ package server
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/savepath"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -26,20 +30,23 @@ func AssertUnhollow(hollower interface{ IsHollow() bool }) {
 
 type ServerRow struct {
 	*gtk.Box
-	Avatar *roundimage.Avatar
-	Button *button.ToggleButtonImage
+	Avatar      *roundimage.Avatar
+	Button      *button.ToggleButtonImage
+	ActionsMenu *actions.Menu
+
+	Server cchat.Server
+	ctrl   Controller
 
 	parentcrumb traverse.Breadcrumber
+
+	cmder *commander.Buffer
 
 	// non-nil if server list and the function returns error
 	childrenErr error
 
 	childrev   *gtk.Revealer
 	children   *Children
-	serverList cchat.ServerList
-
-	ctrl   Controller
-	Server cchat.Server
+	serverList cchat.Lister
 
 	// State that's updated even when stale. Initializations will use these.
 	unread    bool
@@ -68,13 +75,18 @@ func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl Controller) 
 		cancelUnread: func() {},
 	}
 
-	switch sv := sv.(type) {
-	case cchat.ServerList:
-		serverRow.SetHollowServerList(sv, ctrl)
+	var (
+		lister    = sv.AsLister()
+		messenger = sv.AsMessenger()
+	)
+
+	switch {
+	case lister != nil:
+		serverRow.SetHollowServerList(lister, ctrl)
 		serverRow.children.SetUnreadHandler(serverRow.SetUnreadUnsafe)
 
-	case cchat.ServerMessage:
-		if unreader, ok := sv.(cchat.ServerMessageUnreadIndicator); ok {
+	case messenger != nil:
+		if unreader := messenger.AsUnreadIndicator(); unreader != nil {
 			gts.Async(func() (func(), error) {
 				c, err := unreader.UnreadIndicate(serverRow)
 				if err != nil {
@@ -125,8 +137,29 @@ func (r *ServerRow) Init() {
 	// Restore the read state.
 	r.Button.SetUnreadUnsafe(r.unread, r.mentioned) // update with state
 
-	switch server := r.Server.(type) {
-	case cchat.ServerList:
+	// Make the Actions menu.
+	r.ActionsMenu = actions.NewMenu("server")
+	r.ActionsMenu.InsertActionGroup(r)
+
+	if cmder := r.Server.AsCommander(); cmder != nil {
+		r.cmder = commander.NewBuffer(r.Server.Name().String(), cmder)
+		r.ActionsMenu.AddAction("Command Prompt", r.cmder.ShowDialog)
+	}
+
+	// Bind right clicks and show a popover menu on such event.
+	r.Button.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			r.ActionsMenu.Popover(r).Popup()
+		}
+	})
+
+	var (
+		lister    = r.Server.AsLister()
+		messenger = r.Server.AsMessenger()
+	)
+
+	switch {
+	case lister != nil:
 		primitives.AddClass(r, "server-list")
 		r.children.Init()
 		r.children.Show()
@@ -139,9 +172,9 @@ func (r *ServerRow) Init() {
 		r.Box.PackStart(r.childrev, false, false, 0)
 		r.Button.SetClicked(r.SetRevealChild)
 
-	case cchat.ServerMessage:
+	case messenger != nil:
 		primitives.AddClass(r, "server-message")
-		r.Button.SetClicked(func(bool) { r.ctrl.RowSelected(r, server) })
+		r.Button.SetClicked(func(bool) { r.ctrl.MessengerSelected(r) })
 	}
 }
 
@@ -188,7 +221,7 @@ func (r *ServerRow) IsHollow() bool {
 
 // SetHollowServerList sets the row to a hollow server list (children) and
 // recursively create
-func (r *ServerRow) SetHollowServerList(list cchat.ServerList, ctrl Controller) {
+func (r *ServerRow) SetHollowServerList(list cchat.Lister, ctrl Controller) {
 	r.serverList = list
 
 	r.children = NewHollowChildren(r, ctrl)
@@ -196,6 +229,9 @@ func (r *ServerRow) SetHollowServerList(list cchat.ServerList, ctrl Controller) 
 
 	go func() {
 		var err = list.Servers(r.children)
+		if err != nil {
+			log.Error(errors.Wrap(err, "Failed to get servers"))
+		}
 
 		gts.ExecAsync(func() {
 			// Announce that we're not loading anymore.
@@ -224,6 +260,7 @@ func (r *ServerRow) Reset() {
 	}
 
 	// Reset the state.
+	r.ActionsMenu.Reset()
 	r.serverList = nil
 	r.children = nil
 }
@@ -279,10 +316,11 @@ func (r *ServerRow) SetLabelUnsafe(name text.Rich) {
 	r.Avatar.SetText(name.Content)
 }
 
-func (r *ServerRow) SetIconer(v interface{}) {
+// SetIconer takes in a Namer for AsIconer.
+func (r *ServerRow) SetIconer(v cchat.Namer) {
 	AssertUnhollow(r)
 
-	if iconer, ok := v.(cchat.Icon); ok {
+	if iconer := v.AsIconer(); iconer != nil {
 		r.Button.Image.SetSize(IconSize)
 		r.Button.Image.AsyncSetIconer(iconer, "Error getting server icon URL")
 	}

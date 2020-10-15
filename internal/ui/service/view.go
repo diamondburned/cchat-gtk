@@ -12,8 +12,8 @@ import (
 type Controller interface {
 	// SessionSelected is called when
 	SessionSelected(svc *Service, srow *session.Row)
-	// RowSelected is wrapped around session's MessageRowSelected.
-	RowSelected(*session.Row, *server.ServerRow, cchat.ServerMessage)
+	// MessengerSelected is wrapped around session's MessengerSelected.
+	MessengerSelected(*session.Row, *server.ServerRow)
 	// AuthenticateSession is called to spawn the authentication dialog.
 	AuthenticateSession(*List, *Service)
 	// OnSessionRemove is called to remove a session. This should also clear out
@@ -102,11 +102,11 @@ func (v *View) SessionSelected(svc *Service, srow *session.Row) {
 	v.Controller.SessionSelected(svc, srow)
 }
 
-// RowSelected is called when a row is selected. It updates the header then
-// calls the application's RowSelected method.
-func (v *View) RowSelected(srow *session.Row, srv *server.ServerRow, smsg cchat.ServerMessage) {
+// MessengerSelected is called when a row is selected. It updates the header
+// then calls the application's RowSelected method.
+func (v *View) MessengerSelected(srow *session.Row, srv *server.ServerRow) {
 	v.Header.SetBreadcrumber(srv)
-	v.Controller.RowSelected(srow, srv, smsg)
+	v.Controller.MessengerSelected(srow, srv)
 }
 
 func (v *View) OnSessionRemove(s *Service, r *session.Row) {

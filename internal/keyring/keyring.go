@@ -27,14 +27,8 @@ type Session struct {
 func ConvertSession(ses cchat.Session) *Session {
 	var name = ses.Name().Content
 
-	saver, ok := ses.(cchat.SessionSaver)
-	if !ok {
-		return nil
-	}
-
-	s, err := saver.Save()
-	if err != nil {
-		log.Error(errors.Wrapf(err, "Failed to save session ID %s (%s)", ses.ID(), name))
+	saver := ses.AsSessionSaver()
+	if saver == nil {
 		return nil
 	}
 
@@ -47,7 +41,7 @@ func ConvertSession(ses cchat.Session) *Session {
 	return &Session{
 		ID:   ses.ID(),
 		Name: name,
-		Data: s,
+		Data: saver.SaveSession(),
 	}
 }
 

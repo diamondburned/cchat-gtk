@@ -1,8 +1,6 @@
 package commander
 
 import (
-	"fmt"
-	"io"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -11,10 +9,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
+	"github.com/diamondburned/cchat/utils/split"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/pango"
-	"github.com/pkg/errors"
 )
 
 var monospace = primitives.PrepareCSS(`
@@ -24,16 +21,12 @@ var monospace = primitives.PrepareCSS(`
 	}
 `)
 
-var commandPadding = primitives.PrepareCSS(`
-	* { padding: 8px 12px; }
-`)
-
 type Session struct {
 	*gtk.Box
 
 	cmder  cchat.Commander
+	cmplt  *completion.Completer
 	buffer *Buffer
-	cmplt  *completer
 
 	inputbuf *gtk.TextBuffer
 
@@ -42,14 +35,11 @@ type Session struct {
 }
 
 func SpawnDialog(buf *Buffer) {
-	s := NewSession(buf.cmder, buf)
+	s := NewSession(buf)
 	s.Show()
 
 	h, _ := gtk.HeaderBarNew()
-	h.SetTitle(fmt.Sprintf(
-		"Commander: %s on %s",
-		buf.cmder.Name().Content, buf.svcname,
-	))
+	h.SetTitle("Commander: " + buf.name)
 	h.SetShowCloseButton(true)
 	h.Show()
 
@@ -60,12 +50,13 @@ func SpawnDialog(buf *Buffer) {
 	d.Show()
 }
 
-func NewSession(cmder cchat.Commander, buf *Buffer) *Session {
+func NewSession(buf *Buffer) *Session {
 	view, _ := gtk.TextViewNewWithBuffer(buf.TextBuffer)
 	view.SetEditable(false)
 	view.SetProperty("monospace", true)
 	view.SetPixelsAboveLines(1)
 	view.SetWrapMode(gtk.WRAP_WORD_CHAR)
+	view.SetBorderWidth(8)
 	view.Show()
 
 	scroll := autoscroll.NewScrolledWindow()
@@ -75,6 +66,7 @@ func NewSession(cmder cchat.Commander, buf *Buffer) *Session {
 
 	input, _ := gtk.TextViewNew()
 	input.SetSizeRequest(-1, 35) // magic height 35px
+	input.SetBorderWidth(8)
 	primitives.AttachCSS(input, monospace)
 	input.Show()
 
@@ -91,11 +83,15 @@ func NewSession(cmder cchat.Commander, buf *Buffer) *Session {
 	b.PackStart(sep, false, false, 0)
 	b.PackStart(inputscroll, false, false, 0)
 
+	completer := completion.NewCompleter(input)
+	completer.Splitter = split.ArgsIndexed
+	completer.SetCompleter(buf.cmder.AsCompleter())
+
 	session := &Session{
 		Box:      b,
-		cmder:    cmder,
+		cmder:    buf.cmder,
+		cmplt:    completer,
 		buffer:   buf,
-		cmplt:    newCompleter(input, cmder),
 		inputbuf: inputbuf,
 	}
 
@@ -105,8 +101,6 @@ func NewSession(cmder cchat.Commander, buf *Buffer) *Session {
 	primitives.AddClass(b, "commander")
 	primitives.AddClass(view, "command-buffer")
 	primitives.AddClass(input, "command-input")
-	primitives.AttachCSS(view, commandPadding)
-	primitives.AttachCSS(input, commandPadding)
 
 	return session
 }
@@ -117,14 +111,10 @@ func (s *Session) inputActivate(v *gtk.TextView, ev *gdk.Event) bool {
 		return false
 	}
 
+	// Get the slice of words.
+	var words = s.cmplt.Content()
 	// If the input is empty, then ignore.
-	if len(s.cmplt.Words) == 0 {
-		return true
-	}
-
-	r, err := s.cmder.RunCommand(s.cmplt.Words)
-	if err != nil {
-		s.buffer.WriteError(err)
+	if len(words) == 0 {
 		return true
 	}
 
@@ -132,19 +122,22 @@ func (s *Session) inputActivate(v *gtk.TextView, ev *gdk.Event) bool {
 	s.inputbuf.Delete(s.inputbuf.GetBounds())
 
 	var then = time.Now()
-	s.buffer.Printlnf("%s: Running command...", then.Format(time.Kitchen))
+	s.buffer.Systemlnf("%s > %q", then.Format(time.Kitchen), words)
 
 	go func() {
-		_, err := io.Copy(s.buffer, r)
-		r.Close()
+		out, err := s.cmder.Run(words)
 
 		gts.ExecAsync(func() {
+			if out != nil {
+				s.buffer.WriteOutput(out)
+			}
+
 			if err != nil {
-				s.buffer.WriteError(errors.Wrap(err, "Internal error"))
+				s.buffer.WriteError(err)
 			}
 
 			var now = time.Now()
-			s.buffer.Printlnf(
+			s.buffer.Systemlnf(
 				"%s: Finished running command, took %s.",
 				now.Format(time.Kitchen),
 				now.Sub(then).String(),
@@ -153,48 +146,4 @@ func (s *Session) inputActivate(v *gtk.TextView, ev *gdk.Event) bool {
 	}()
 
 	return true
-}
-
-type completer struct {
-	*completion.Completer
-
-	completer cchat.CommandCompleter
-	choices   []string
-}
-
-func newCompleter(input *gtk.TextView, v cchat.Commander) *completer {
-	completer := &completer{}
-	completer.Completer = completion.NewCompleter(input, completer)
-
-	c, ok := v.(cchat.CommandCompleter)
-	if ok {
-		completer.completer = c
-	}
-
-	return completer
-}
-
-func (c *completer) Update(words []string, offset int) []gtk.IWidget {
-	if c.completer == nil {
-		return nil
-	}
-
-	c.choices = c.completer.CompleteCommand(words, offset)
-	var widgets = make([]gtk.IWidget, 0, len(c.choices))
-
-	for _, choice := range c.choices {
-		l, _ := gtk.LabelNew(choice)
-		l.SetXAlign(0)
-		l.SetEllipsize(pango.ELLIPSIZE_END)
-		primitives.AttachCSS(l, monospace)
-		l.Show()
-
-		widgets = append(widgets, l)
-	}
-
-	return widgets
-}
-
-func (c *completer) Word(i int) string {
-	return c.choices[i]
 }

@@ -82,7 +82,7 @@ func (u *Container) SetRevealChild(reveal bool) {
 
 // shouldReveal returns whether or not the container should reveal.
 func (u *Container) shouldReveal() bool {
-	return (!u.label.GetLabel().Empty() || u.avatar.URL() != "") && showUser
+	return (!u.label.GetLabel().IsEmpty() || u.avatar.URL() != "") && showUser
 }
 
 func (u *Container) Reset() {
@@ -92,19 +92,19 @@ func (u *Container) Reset() {
 }
 
 // Update is not thread-safe.
-func (u *Container) Update(session cchat.Session, sender cchat.ServerMessageSender) {
+func (u *Container) Update(session cchat.Session, messenger cchat.Messenger) {
 	// Set the fallback username.
 	u.label.SetLabelUnsafe(session.Name())
 	// Reveal the name if it's not empty.
 	u.SetRevealChild(true)
 
-	// Does sender (aka Server) implement ServerNickname? If yes, use it.
-	if nicknamer, ok := sender.(cchat.ServerNickname); ok {
+	// Does messenger implement Nicknamer? If yes, use it.
+	if nicknamer := messenger.AsNicknamer(); nicknamer != nil {
 		u.label.AsyncSetLabel(nicknamer.Nickname, "Error fetching server nickname")
 	}
 
 	// Does session implement an icon? Update if yes.
-	if iconer, ok := session.(cchat.Icon); ok {
+	if iconer := session.AsIconer(); iconer != nil {
 		u.avatar.AsyncSetIconer(iconer, "Error fetching session icon URL")
 	}
 }

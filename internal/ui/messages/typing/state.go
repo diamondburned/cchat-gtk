@@ -21,7 +21,7 @@ type State struct {
 	stopper func() // stops the event loop, not used atm
 }
 
-var _ cchat.TypingIndicator = (*State)(nil)
+var _ cchat.TypingContainer = (*State)(nil)
 
 func NewState(changed func(s *State, empty bool)) *State {
 	s := &State{changed: changed}
@@ -41,7 +41,7 @@ func (s *State) reset() {
 }
 
 // Subscribe is thread-safe.
-func (s *State) Subscribe(indicator cchat.ServerMessageTypingIndicator) {
+func (s *State) Subscribe(indicator cchat.TypingIndicator) {
 	gts.Async(func() (func(), error) {
 		c, err := indicator.TypingSubscribe(s)
 		if err != nil {

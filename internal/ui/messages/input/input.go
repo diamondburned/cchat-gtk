@@ -7,9 +7,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/diamondburned/gspell"
 	"github.com/gotk3/gotk3/gtk"
@@ -24,7 +24,7 @@ type Controller interface {
 
 type InputView struct {
 	*Field
-	Completer *completion.View
+	Completer *completion.Completer
 }
 
 var textCSS = primitives.PrepareCSS(`
@@ -69,7 +69,7 @@ func NewView(ctrl Controller) *InputView {
 	primitives.AttachCSS(text, textCSS)
 
 	// Bind the text event handler to text first.
-	c := completion.New(text)
+	c := completion.NewCompleter(text)
 
 	// Bind the input callback later.
 	f := NewField(text, ctrl)
@@ -78,12 +78,18 @@ func NewView(ctrl Controller) *InputView {
 	return &InputView{f, c}
 }
 
-func (v *InputView) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
-	v.Field.SetSender(session, sender)
+func (v *InputView) SetMessenger(session cchat.Session, messenger cchat.Messenger) {
+	v.Field.SetMessenger(session, messenger)
+
+	if messenger == nil {
+		return
+	}
 
 	// Ignore ok; completer can be nil.
-	completer, _ := sender.(cchat.ServerMessageSendCompleter)
-	v.Completer.SetCompleter(completer)
+	// TODO: this is possibly racy vs the above SetMessenger.
+	if sender := messenger.AsSender(); sender != nil {
+		v.Completer.SetCompleter(sender.AsCompleter())
+	}
 }
 
 type Field struct {
@@ -111,11 +117,12 @@ type Field struct {
 }
 
 type fieldState struct {
-	UserID string
-	Sender cchat.ServerMessageSender
-	upload bool // true if server supports files
-	editor cchat.ServerMessageEditor
-	typer  cchat.ServerMessageTypingIndicator
+	UserID    string
+	Messenger cchat.Messenger
+	Sender    cchat.Sender
+	upload    bool // true if server supports files
+	editor    cchat.Editor
+	typing    cchat.TypingIndicator
 
 	editingID string // never empty
 	lastTyped time.Time
@@ -215,30 +222,30 @@ func (f *Field) Reset() {
 	f.clearText()
 }
 
-// SetSender changes the sender of the input field. If nil, the input will be
-// disabled. Reset() should be called first.
-func (f *Field) SetSender(session cchat.Session, sender cchat.ServerMessageSender) {
+// SetMessenger changes the messenger of the input field. If nil, the input
+// will be disabled. Reset() should be called first.
+func (f *Field) SetMessenger(session cchat.Session, messenger cchat.Messenger) {
 	// Update the left username container in the input.
-	f.Username.Update(session, sender)
+	f.Username.Update(session, messenger)
 	f.UserID = session.ID()
 
 	// Set the sender.
-	if sender != nil {
-		f.Sender = sender
+	if messenger != nil {
+		f.Messenger = messenger
+		f.Sender = messenger.AsSender()
 		f.text.SetSensitive(true)
 
 		// Allow editor to be nil.
-		f.editor, _ = sender.(cchat.ServerMessageEditor)
+		f.editor = f.Messenger.AsEditor()
 		// Allow typer to be nil.
-		f.typer, _ = sender.(cchat.ServerMessageTypingIndicator)
+		f.typing = f.Messenger.AsTypingIndicator()
 
 		// See if we can upload files.
-		_, allowUpload := sender.(cchat.ServerMessageAttachmentSender)
-		f.SetAllowUpload(allowUpload)
+		f.SetAllowUpload(f.Sender.CanAttach())
 
 		// Populate the duration state if typer is not nil.
-		if f.typer != nil {
-			f.typerDura = f.typer.TypingTimeout()
+		if f.typing != nil {
+			f.typerDura = f.typing.TypingTimeout()
 		}
 	}
 }
@@ -262,7 +269,7 @@ func (f *Field) SetAllowUpload(allow bool) {
 
 // Editable returns whether or not the input field can be edited.
 func (f *Field) Editable(msgID string) bool {
-	return f.editor != nil && f.editor.MessageEditable(msgID)
+	return f.editor != nil && f.editor.IsEditable(msgID)
 }
 
 func (f *Field) StartEditing(msgID string) bool {
@@ -272,7 +279,7 @@ func (f *Field) StartEditing(msgID string) bool {
 	}
 
 	// Try and request the old message content for editing.
-	content, err := f.editor.RawMessageContent(msgID)
+	content, err := f.editor.RawContent(msgID)
 	if err != nil {
 		// TODO: show error
 		log.Error(errors.Wrap(err, "Failed to get message content"))

@@ -78,7 +78,7 @@ func KeyDownHandler(l *gtk.ListBox, focus func()) KeyDownHandlerFn {
 	}
 }
 
-func SwapWord(b *gtk.TextBuffer, word string, offset int) {
+func SwapWord(b *gtk.TextBuffer, word string, offset int64) {
 	// Get iter for word replacing.
 	start, end := GetWordIters(b, offset)
 	b.Delete(start, end)
@@ -93,7 +93,7 @@ func CursorRect(i *gtk.TextView) gdk.Rectangle {
 	return *r
 }
 
-func State(buf *gtk.TextBuffer) (text string, offset int, blank bool) {
+func State(buf *gtk.TextBuffer) (text string, offset int64, blank bool) {
 	// obtain current state
 	mark := buf.GetInsert()
 	iter := buf.GetIterAtMark(mark)
@@ -102,7 +102,7 @@ func State(buf *gtk.TextBuffer) (text string, offset int, blank bool) {
 	start, end := buf.GetBounds()
 
 	text, _ = buf.GetText(start, end, true)
-	offset = iter.GetOffset()
+	offset = int64(iter.GetOffset())
 
 	// We need the rune before the cursor.
 	iter.BackwardChar()
@@ -118,8 +118,8 @@ const searchFlags = 0 |
 	gtk.TEXT_SEARCH_TEXT_ONLY |
 	gtk.TEXT_SEARCH_VISIBLE_ONLY
 
-func GetWordIters(buf *gtk.TextBuffer, offset int) (start, end *gtk.TextIter) {
-	iter := buf.GetIterAtOffset(offset)
+func GetWordIters(buf *gtk.TextBuffer, offset int64) (start, end *gtk.TextIter) {
+	iter := buf.GetIterAtOffset(int(offset))
 
 	var ok bool
 

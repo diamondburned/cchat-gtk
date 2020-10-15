@@ -192,41 +192,39 @@ func (c *GridStore) LastMessage() GridMessage {
 
 // Message finds the message state in the container. It is not thread-safe. This
 // exists for backwards compatibility.
-func (c *GridStore) Message(msg cchat.MessageHeader) GridMessage {
-	if m := c.message(msg); m != nil {
+func (c *GridStore) Message(msgID cchat.ID, nonce string) GridMessage {
+	if m := c.message(msgID, nonce); m != nil {
 		return m.GridMessage
 	}
 	return nil
 }
 
-func (c *GridStore) message(msg cchat.MessageHeader) *gridMessage {
+func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
 	// Search using the ID first.
-	m, ok := c.messages[msg.ID()]
+	m, ok := c.messages[msgID]
 	if ok {
 		return m
 	}
 
 	// Is this an existing message?
-	if noncer, ok := msg.(cchat.MessageNonce); ok {
-		var nonce = noncer.Nonce()
-
+	if nonce != "" {
 		// Things in this map are guaranteed to have presend != nil.
 		m, ok := c.messages[nonce]
 		if ok {
 			// Replace the nonce key with ID.
 			delete(c.messages, nonce)
-			c.messages[msg.ID()] = m
+			c.messages[msgID] = m
 
 			// Set the right ID.
-			m.presend.SetDone(msg.ID())
+			m.presend.SetDone(msgID)
 			// Destroy the presend struct.
 			m.presend = nil
 
 			// Replace the nonce inside the ID slice with the actual ID.
 			if ix := c.findIndex(nonce); ix > -1 {
-				c.messageIDs[ix] = msg.ID()
+				c.messageIDs[ix] = msgID
 			} else {
-				log.Error(fmt.Errorf("Missed ID %s in slice index %d", msg.ID(), ix))
+				log.Error(fmt.Errorf("Missed ID %s in slice index %d", msgID, ix))
 			}
 
 			return m
@@ -280,7 +278,7 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	defer c.Controller.AuthorEvent(msg.Author())
 
 	// Attempt to update before insertion (aka upsert).
-	if msgc := c.Message(msg); msgc != nil {
+	if msgc := c.Message(msg.ID(), msg.Nonce()); msgc != nil {
 		msgc.UpdateAuthor(msg.Author())
 		msgc.UpdateContent(msg.Content(), false)
 		msgc.UpdateTimestamp(msg.Time())
@@ -305,11 +303,11 @@ func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
 	// Call the event handler last.
 	defer c.Controller.AuthorEvent(msg.Author())
 
-	if msgc := c.Message(msg); msgc != nil {
+	if msgc := c.Message(msg.ID(), ""); msgc != nil {
 		if author := msg.Author(); author != nil {
 			msgc.UpdateAuthor(author)
 		}
-		if content := msg.Content(); !content.Empty() {
+		if content := msg.Content(); !content.IsEmpty() {
 			msgc.UpdateContent(content, true)
 		}
 	}

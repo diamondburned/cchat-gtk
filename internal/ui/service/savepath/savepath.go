@@ -91,18 +91,22 @@ func Save() {
 }
 
 func Update(b traverse.Breadcrumber, expanded bool) {
-	var path = traverse.TryID(b)
-	var node = paths
+	if expanded {
+		var path = traverse.TryID(b)
+		var node = paths
 
-	// Descend and initialize.
-	for i := 0; i < len(path); i++ {
-		ch, ok := node[path[i]]
-		if !ok {
-			ch = make(pathMap)
-			node[path[i]] = ch
+		// Descend and initialize.
+		for i := 0; i < len(path); i++ {
+			ch, ok := node[path[i]]
+			if !ok {
+				ch = make(pathMap)
+				node[path[i]] = ch
+			}
+
+			node = ch
 		}
+	} else {
 
-		node = ch
 	}
 
 	Save()

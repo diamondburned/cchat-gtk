@@ -105,7 +105,7 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 
 	// If the server supports typing indication, then announce that we are
 	// typing with a proper rate limit.
-	if f.typer != nil {
+	if f.typing != nil {
 		// Get the current time; if the next timestamp is before now, then that
 		// means it's time for us to update it and send a typing indication.
 		if now := time.Now(); f.lastTyped.Add(f.typerDura).Before(now) {
@@ -113,7 +113,7 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 			f.lastTyped = now
 			// Send asynchronously.
 			go func() {
-				if err := f.typer.Typing(); err != nil {
+				if err := f.typing.Typing(); err != nil {
 					log.Error(errors.Wrap(err, "Failed to announce typing"))
 				}
 			}()
