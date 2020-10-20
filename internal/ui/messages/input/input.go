@@ -63,6 +63,7 @@ func NewView(ctrl Controller) *InputView {
 	text.SetProperty("bottom-margin", 4)
 	text.SetProperty("left-margin", 8)
 	text.SetProperty("right-margin", 8)
+	text.SetProperty("monospace", true)
 	text.Show()
 
 	primitives.AddClass(text, "message-input")

@@ -75,7 +75,6 @@ func NewCompleter(input *gtk.TextView) *Completer {
 	l.Connect("row-activated", func(l *gtk.ListBox, r *gtk.ListBoxRow) {
 		SwapWord(ibuf, c.entries[r.GetIndex()].Raw, c.cursor)
 		c.onChange() // signal change
-		c.Clear()
 		c.Popdown()
 		input.GrabFocus()
 	})
@@ -86,7 +85,6 @@ func NewCompleter(input *gtk.TextView) *Completer {
 // SetCompleter sets the current completer. If completer is nil, then the
 // completer is disabled.
 func (c *Completer) SetCompleter(completer cchat.Completer) {
-	c.Clear()
 	c.Popdown()
 	c.completer = completer
 }
@@ -106,6 +104,7 @@ func (c *Completer) Popdown() {
 	if !c.popdown {
 		c.Popover.Popdown()
 		c.popdown = true
+		c.Clear()
 	}
 }
 
@@ -146,6 +145,7 @@ func (c *Completer) onChange() {
 	if blank {
 		c.words = nil
 		c.index = -1
+		c.Popdown()
 		log.Println("RESET INDEX TO -1")
 		return
 	}
