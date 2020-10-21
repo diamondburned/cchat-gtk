@@ -1,8 +1,6 @@
 package container
 
 import (
-	"fmt"
-
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
@@ -17,8 +15,9 @@ type GridStore struct {
 	Construct  Constructor
 	Controller Controller
 
-	messages   map[string]*gridMessage
-	messageIDs []string // ids or nonces
+	store *messageStore
+	// messages   map[string]*gridMessage
+	// messageIDs []string // ids or nonces
 }
 
 func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
@@ -35,22 +34,22 @@ func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
 		Grid:       grid,
 		Construct:  constr,
 		Controller: ctrl,
-		messages:   map[string]*gridMessage{},
+		store:      newMessageStore(),
 	}
 }
 
 func (c *GridStore) MessagesLen() int {
-	return len(c.messages)
+	return c.store.Len()
 }
 
-// findIndex searches backwards for idnonce.
-func (c *GridStore) findIndex(idnonce string) int {
-	for i := len(c.messageIDs) - 1; i >= 0; i-- {
-		if c.messageIDs[i] == idnonce {
-			return i
-		}
+func (c *GridStore) attachGrid(row int, widgets []gtk.IWidget) {
+	// Cover a special case with attaching to the 0th row.
+	if row == 0 {
+		c.Grid.InsertRow(0)
 	}
-	return -1
+	for i, w := range widgets {
+		c.Grid.Attach(w, i, row, 1, 1)
+	}
 }
 
 type CoordinateTranslator interface {
@@ -60,12 +59,11 @@ type CoordinateTranslator interface {
 var _ CoordinateTranslator = (*gtk.Widget)(nil)
 
 func (c *GridStore) TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y int) {
-	i := c.findIndex(msg.ID())
-	if i < 0 {
+	m := c.store.Message(msg.ID(), "")
+	if m == nil {
 		return 0
 	}
 
-	m, _ := c.messages[c.messageIDs[i]]
 	w, _ := m.Focusable().(CoordinateTranslator)
 
 	// x is not needed.
@@ -86,16 +84,16 @@ func (c *GridStore) TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y
 //
 // TODO: combine compact and full so they share the same attach method.
 func (c *GridStore) SwapMessage(msg GridMessage) bool {
-	// Get the current message's index.
-	var ix = c.findIndex(msg.ID())
-	if ix == -1 {
-		return false
-	}
-
 	// Wrap msg inside a *gridMessage if it's not already.
 	mg, ok := msg.(*gridMessage)
 	if !ok {
 		mg = &gridMessage{GridMessage: msg}
+	}
+
+	// Get the current message's index.
+	var ix = c.store.SwapMessage(mg)
+	if ix == -1 {
+		return false
 	}
 
 	// Add a row at index. The actual row we want to delete will be shifted
@@ -103,10 +101,7 @@ func (c *GridStore) SwapMessage(msg GridMessage) bool {
 	c.Grid.InsertRow(ix)
 
 	// Let the new message be attached on top of the to-be-replaced message.
-	mg.Attach(c.Grid, ix)
-
-	// Set the message into the map.
-	c.messages[mg.ID()] = mg
+	c.attachGrid(ix, mg.Attach())
 
 	// Delete the to-be-replaced message, which we have shifted downwards
 	// earlier, so we add 1.
@@ -117,121 +112,51 @@ func (c *GridStore) SwapMessage(msg GridMessage) bool {
 
 // Before returns the message before the given ID, or nil if none.
 func (c *GridStore) Before(id string) GridMessage {
-	return c.getOffsetted(id, -1)
+	return c.store.MessageBefore(id)
 }
 
 // After returns the message after the given ID, or nil if none.
 func (c *GridStore) After(id string) GridMessage {
-	return c.getOffsetted(id, 1)
-}
-
-func (c *GridStore) getOffsetted(id string, offset int) GridMessage {
-	// Get the current index.
-	var ix = c.findIndex(id)
-	if ix == -1 {
-		return nil
-	}
-	ix += offset
-
-	if ix < 0 || ix >= len(c.messages) {
-		return nil
-	}
-
-	return c.messages[c.messageIDs[ix]].GridMessage
+	return c.store.MessageAfter(id)
 }
 
 // LatestMessageFrom returns the latest message with the given user ID. This is
 // used for the input prompt.
 func (c *GridStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
-	// FindMessage already looks from the latest messages.
-	var msg = c.FindMessage(func(msg GridMessage) bool {
-		return msg.AuthorID() == userID
-	})
-
+	msg := c.store.LastMessageFrom(userID)
 	if msg == nil {
+		// "Backwards-compatibility is repeating the mistakes of yesterday,
+		// today."
 		return "", false
 	}
-
 	return msg.ID(), true
 }
 
 // FindMessage iterates backwards and returns the message if isMessage() returns
 // true on that message.
 func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessage {
-	for i := len(c.messageIDs) - 1; i >= 0; i-- {
-		msg := c.messages[c.messageIDs[i]]
-		// Ignore sending messages.
-		if msg.presend != nil {
-			continue
-		}
-		// Check.
-		if msg := msg.GridMessage; isMessage(msg) {
-			return msg
-		}
-	}
-	return nil
+	return c.store.FindMessage(isMessage)
 }
 
 // NthMessage returns the nth message.
 func (c *GridStore) NthMessage(n int) GridMessage {
-	if len(c.messageIDs) > 0 && n >= 0 && n < len(c.messageIDs) {
-		return c.messages[c.messageIDs[n]].GridMessage
-	}
-	return nil
+	return c.store.NthMessage(n).unwrap()
 }
 
 // FirstMessage returns the first message.
 func (c *GridStore) FirstMessage() GridMessage {
-	return c.NthMessage(0)
+	return c.store.FirstMessage().unwrap()
 }
 
 // LastMessage returns the latest message.
 func (c *GridStore) LastMessage() GridMessage {
-	return c.NthMessage(c.MessagesLen() - 1)
+	return c.store.LastMessage().unwrap()
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
 // exists for backwards compatibility.
 func (c *GridStore) Message(msgID cchat.ID, nonce string) GridMessage {
-	if m := c.message(msgID, nonce); m != nil {
-		return m.GridMessage
-	}
-	return nil
-}
-
-func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
-	// Search using the ID first.
-	m, ok := c.messages[msgID]
-	if ok {
-		return m
-	}
-
-	// Is this an existing message?
-	if nonce != "" {
-		// Things in this map are guaranteed to have presend != nil.
-		m, ok := c.messages[nonce]
-		if ok {
-			// Replace the nonce key with ID.
-			delete(c.messages, nonce)
-			c.messages[msgID] = m
-
-			// Set the right ID.
-			m.presend.SetDone(msgID)
-			// Destroy the presend struct.
-			m.presend = nil
-
-			// Replace the nonce inside the ID slice with the actual ID.
-			if ix := c.findIndex(nonce); ix > -1 {
-				c.messageIDs[ix] = msgID
-			} else {
-				log.Error(fmt.Errorf("Missed ID %s in slice index %d", msgID, ix))
-			}
-
-			return m
-		}
-	}
-
-	return nil
+	return c.store.Message(msgID, nonce).unwrap()
 }
 
 // AddPresendMessage inserts an input.PresendMessage into the container and
@@ -244,38 +169,23 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 		presend:     presend,
 	}
 
+	// Crash and burn if -1 is returned.
+	ix := c.store.InsertMessage(msgc)
+	if ix == -1 {
+		panic("BUG: -1 returned from store.InsertMessage")
+	}
+
 	// Set the message into the grid.
-	msgc.Attach(c.Grid, c.MessagesLen())
-	// Append the NONCE.
-	c.messageIDs = append(c.messageIDs, msgc.Nonce())
-	// Set the NONCE into the message map.
-	c.messages[msgc.Nonce()] = msgc
+	c.attachGrid(ix, msgc.Attach())
 
 	return presend
 }
 
-func (c *GridStore) PrependMessageUnsafe(msg cchat.MessageCreate) {
-	msgc := &gridMessage{
-		GridMessage: c.Construct.NewMessage(msg),
-	}
-
-	c.Grid.InsertRow(0)
-	msgc.Attach(c.Grid, 0)
-
-	// Prepend the message ID.
-	c.messageIDs = append(c.messageIDs, "")
-	copy(c.messageIDs[1:], c.messageIDs)
-	c.messageIDs[0] = msgc.ID()
-
-	// Set the message into the map.
-	c.messages[msgc.ID()] = msgc
-
-	c.Controller.BindMenu(msgc)
-}
-
-func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
+// CreateMessageUnsafe adds msg into the message view. It returns -1 if the
+// message was "upserted," that is if it's updated instead of inserted.
+func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) int {
 	// Call the event handler last.
-	defer c.Controller.AuthorEvent(msg.Author())
+	defer c.Controller.OnAuthorEvent(msg.Author())
 
 	// Attempt to update before insertion (aka upsert).
 	if msgc := c.Message(msg.ID(), msg.Nonce()); msgc != nil {
@@ -284,24 +194,29 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 		msgc.UpdateTimestamp(msg.Time())
 
 		c.Controller.BindMenu(msgc)
-		return
+		return -1
 	}
 
 	msgc := &gridMessage{
 		GridMessage: c.Construct.NewMessage(msg),
 	}
 
-	// Copy from PresendMessage.
-	msgc.Attach(c.Grid, c.MessagesLen())
-	c.messageIDs = append(c.messageIDs, msgc.ID())
-	c.messages[msgc.ID()] = msgc
+	// Crash and burn if -1 is returned.
+	ix := c.store.InsertMessage(msgc)
+	if ix == -1 {
+		panic("BUG: -1 returned from store.InsertMessage")
+	}
 
+	// Set the message into the grid.
+	c.attachGrid(ix, msgc.Attach())
 	c.Controller.BindMenu(msgc)
+
+	return ix
 }
 
 func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
 	// Call the event handler last.
-	defer c.Controller.AuthorEvent(msg.Author())
+	defer c.Controller.OnAuthorEvent(msg.Author())
 
 	if msgc := c.Message(msg.ID(), ""); msgc != nil {
 		if author := msg.Author(); author != nil {
@@ -316,26 +231,31 @@ func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
 }
 
 func (c *GridStore) DeleteMessageUnsafe(msg cchat.MessageDelete) {
-	c.PopMessage(msg.ID())
+	c.store.DeleteMessage(msg.ID())
 }
 
 // PopMessage deletes a message off of the list and return the deleted message.
-func (c *GridStore) PopMessage(id string) (msg GridMessage) {
-	// Search for the index.
-	var ix = c.findIndex(id)
-	if ix < 0 {
+func (c *GridStore) PopMessage(id string) GridMessage {
+	msg, ix := c.store.PopMessage(id)
+	if msg == nil {
 		return nil
 	}
 
-	// Grab the message before deleting.
-	msg = c.messages[id]
-
 	// Remove off of the Gtk grid.
 	c.Grid.RemoveRow(ix)
-	// Pop off the slice.
-	c.messageIDs = append(c.messageIDs[:ix], c.messageIDs[ix+1:]...)
-	// Delete off the map.
-	delete(c.messages, id)
 
-	return
+	return msg.GridMessage
+}
+
+func (c *GridStore) PopEarliestMessages(n int) {
+	poppedIxs := c.store.PopEarliestMessages(n)
+	if poppedIxs == 0 {
+		return
+	}
+	// Get the count of messages after deletion. We can then gradually decrement
+	// poppedN to get the deleted message indices.
+	for poppedIxs > 0 {
+		c.Grid.RemoveRow(poppedIxs)
+		poppedIxs--
+	}
 }

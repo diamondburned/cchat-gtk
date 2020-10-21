@@ -55,8 +55,8 @@ func (c *CollapsedMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	return c.GenericContainer
 }
 
-func (c *CollapsedMessage) Attach(grid *gtk.Grid, row int) {
-	container.AttachRow(grid, row, c.Timestamp, c.Content)
+func (c *CollapsedMessage) Attach() []gtk.IWidget {
+	return []gtk.IWidget{c.Timestamp, c.Content}
 }
 
 func (c *CollapsedMessage) Focusable() gtk.IWidget {

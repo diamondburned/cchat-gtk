@@ -18,15 +18,9 @@ type GridMessage interface {
 	// Focusable should return a widget that can be focused.
 	Focusable() gtk.IWidget
 	// Attach should only be called once.
-	Attach(grid *gtk.Grid, row int)
+	Attach() []gtk.IWidget
 	// AttachMenu should override the stored constructor.
 	AttachMenu(items []menu.Item) // save memory
-}
-
-func AttachRow(grid *gtk.Grid, row int, widgets ...gtk.IWidget) {
-	for i, w := range widgets {
-		grid.Attach(w, i, row, 1, 1)
-	}
 }
 
 type PresendGridMessage interface {
@@ -43,10 +37,10 @@ type Container interface {
 	cchat.MessagesContainer
 
 	// Thread-unsafe methods.
-	CreateMessageUnsafe(cchat.MessageCreate)
+
+	CreateMessageUnsafe(cchat.MessageCreate) int
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
-	PrependMessageUnsafe(cchat.MessageCreate)
 
 	// FirstMessage returns the first message in the buffer. Nil is returned if
 	// there's nothing.
@@ -72,7 +66,7 @@ type Controller interface {
 	Bottomed() bool
 	// AuthorEvent is called on message create/update. This is used to update
 	// the typer state.
-	AuthorEvent(a cchat.Author)
+	OnAuthorEvent(a cchat.Author)
 }
 
 // Constructor is an interface for making custom message implementations which
@@ -91,12 +85,6 @@ type GridContainer struct {
 	Controller
 }
 
-// gridMessage w/ required internals
-type gridMessage struct {
-	GridMessage
-	presend message.PresendContainer // this shouldn't be here but i'm lazy
-}
-
 var _ Container = (*GridContainer)(nil)
 
 func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
@@ -108,28 +96,18 @@ func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
 
 // CreateMessageUnsafe inserts a message as well as cleaning up the backlog if
 // the user is scrolled to the bottom.
-func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
+func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) int {
 	// Insert the message first.
-	c.GridStore.CreateMessageUnsafe(msg)
+	ix := c.GridStore.CreateMessageUnsafe(msg)
 
 	// Determine if the user is scrolled to the bottom for cleaning up.
-	if !c.Bottomed() {
-		return
+	if c.Bottomed() {
+		// Clean up the backlog. The function allows a negative n, which would
+		// be a no-op.
+		c.PopEarliestMessages(c.MessagesLen() - BacklogLimit)
 	}
 
-	// Clean up the backlog.
-	if clean := len(c.messages) - BacklogLimit; clean > 0 {
-		// Remove them from the map and the container.
-		for _, id := range c.messageIDs[:clean] {
-			delete(c.messages, id)
-			// We can gradually pop the first item off here, as we're removing
-			// from 0th, and items are being shifted backwards.
-			c.Grid.RemoveRow(0)
-		}
-
-		// Cut the message IDs away by shifting the slice.
-		c.messageIDs = append(c.messageIDs[:0], c.messageIDs[clean:]...)
-	}
+	return ix
 }
 
 func (c *GridContainer) CreateMessage(msg cchat.MessageCreate) {
@@ -142,8 +120,4 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
-}
-
-func (c *GridContainer) PrependMessage(msg cchat.MessageCreate) {
-	gts.ExecAsync(func() { c.PrependMessageUnsafe(msg) })
 }

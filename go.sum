@@ -56,6 +56,8 @@ github.com/diamondburned/arikawa v1.2.0 h1:3dFmpk/G4UwO+Kto0tXd5AbaCKC9KH2ZfnA8U
 github.com/diamondburned/arikawa v1.2.0/go.mod h1:nIhVIatzTQhPUa7NB8w4koG1RF9gYbpAr8Fj8sKq660=
 github.com/diamondburned/arikawa v1.3.0 h1:up5q5Ya/QbiFqhMejvl+c03YdsgzkzspsJOWW30A2lk=
 github.com/diamondburned/arikawa v1.3.0/go.mod h1:nIhVIatzTQhPUa7NB8w4koG1RF9gYbpAr8Fj8sKq660=
+github.com/diamondburned/arikawa v1.3.6 h1:DhxWDO4fyXAZ4VFrWdJOqiiJKJRpkrehGJwPtZ2eos0=
+github.com/diamondburned/arikawa v1.3.6/go.mod h1:nIhVIatzTQhPUa7NB8w4koG1RF9gYbpAr8Fj8sKq660=
 github.com/diamondburned/cchat v0.0.43 h1:HetAujSaUSdnQgAUZgprNLARjf/MSWXpCfWdvX2wOCU=
 github.com/diamondburned/cchat v0.0.43/go.mod h1:+zXktogE45A0om4fT6B/z6Ii7FXNafjxsNspI0rlhbU=
 github.com/diamondburned/cchat v0.0.45 h1:HMVSKx1h6lh2OenWaBTvMSK531hWaXAW7I0tKZepYug=
@@ -113,6 +115,8 @@ github.com/diamondburned/cchat-discord v0.0.0-20201009173316-1907986ceb08 h1:iyt
 github.com/diamondburned/cchat-discord v0.0.0-20201009173316-1907986ceb08/go.mod h1:BF8CJaW6rdYDGjFd2qXODS5nSu9vvW7OehgkXIB8B0M=
 github.com/diamondburned/cchat-discord v0.0.0-20201015062850-090259a6b4ca h1:36MnUdiunaz4hsqDO0313Nc03y59PzIPZtmEF8gUeCg=
 github.com/diamondburned/cchat-discord v0.0.0-20201015062850-090259a6b4ca/go.mod h1:S0PDR6aj2qE871JSy94YvwtprQJCWwkIJWzRu7S1Asc=
+github.com/diamondburned/cchat-discord v0.0.0-20201020232329-a9f3804f5613 h1:yNgvF5JqsFvAddD0kHiD0trx1Er4Bjt4K8iPrp5ULGc=
+github.com/diamondburned/cchat-discord v0.0.0-20201020232329-a9f3804f5613/go.mod h1:gsdyDkcELVS0PoTwUaDTyiVI69Kmyy0YWCjyL0x5DzM=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b h1:sq0MXjJc3yAOZvuolRxOpKQNvpMLyTmsECxQqdYgF5E=
 github.com/diamondburned/cchat-mock v0.0.0-20200709231652-ad222ce5a74b/go.mod h1:+bAf0m2o5qH54DmYJ/lR1HeITV53ol0JaoKyFFx3m3E=
 github.com/diamondburned/cchat-mock v0.0.0-20201004204741-b841407af381 h1:8JWNJMgoa3fL2py3gXSeC3NiAC+39EZp+JmvaoDBTUU=
@@ -350,6 +354,7 @@ golang.org/x/sys v0.0.0-20200212091648-12a6c2dcc1e4/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 h1:opSr2sbRXk5X5/givKrrKj9HXxFpW2sdCiP8MJSKLQY=
 golang.org/x/sys v0.0.0-20200413165638-669c56c373c4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200802091954-4b90ce9b60b3 h1:qDJKu1y/1SjhWac4BQZjLljqvqiWUhjmDMnonmVGDAU=
 golang.org/x/sys v0.0.0-20200802091954-4b90ce9b60b3/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=

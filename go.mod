@@ -8,13 +8,14 @@ require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.3.7
-	github.com/diamondburned/cchat-discord v0.0.0-20201015062850-090259a6b4ca
+	github.com/diamondburned/cchat-discord v0.0.0-20201020232329-a9f3804f5613
 	github.com/diamondburned/cchat-mock v0.0.0-20201014202453-b9838fab0ab0
 	github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972
 	github.com/disintegration/imaging v1.6.2
 	github.com/goodsign/monday v1.0.0
+	github.com/google/btree v1.0.0
 	github.com/gotk3/gotk3 v0.4.1-0.20200524052254-cb2aa31c6194
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20200424224625-be1b05b0b279

@@ -39,6 +39,6 @@ func NewEmptyMessage() Message {
 	return Message{message.NewEmptyContainer()}
 }
 
-func (m Message) Attach(grid *gtk.Grid, row int) {
-	container.AttachRow(grid, row, m.Timestamp, m.Username, m.Content)
+func (m Message) Attach() []gtk.IWidget {
+	return []gtk.IWidget{m.Timestamp, m.Username, m.Content}
 }

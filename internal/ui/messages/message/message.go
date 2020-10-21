@@ -17,6 +17,7 @@ import (
 
 type Container interface {
 	ID() string
+	Time() time.Time
 	AuthorID() string
 	AvatarURL() string // avatar
 	Nonce() string

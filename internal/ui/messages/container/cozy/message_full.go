@@ -125,9 +125,9 @@ func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	return m.GenericContainer
 }
 
-func (m *FullMessage) Attach(grid *gtk.Grid, row int) {
+func (m *FullMessage) Attach() []gtk.IWidget {
 	m.Avatar.Show()
-	container.AttachRow(grid, row, m.Avatar, m.MainBox)
+	return []gtk.IWidget{m.Avatar, m.MainBox}
 }
 
 func (m *FullMessage) Focusable() gtk.IWidget {
