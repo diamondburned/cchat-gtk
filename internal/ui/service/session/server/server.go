@@ -392,6 +392,9 @@ func (r *ServerRow) SetRevealChild(reveal bool) {
 	// Actually reveal the children.
 	r.childrev.SetRevealChild(reveal)
 
+	// Save the path.
+	savepath.Update(r, reveal)
+
 	// If this isn't a reveal, then we don't need to load.
 	if !reveal {
 		return
@@ -401,9 +404,6 @@ func (r *ServerRow) SetRevealChild(reveal bool) {
 	// to call Servers on this. Now, we already know that there are hollow
 	// servers in the children container.
 	r.children.LoadAll()
-
-	// Save the path.
-	savepath.Update(r, reveal)
 }
 
 // GetRevealChild returns whether or not the server list is expanded, or always

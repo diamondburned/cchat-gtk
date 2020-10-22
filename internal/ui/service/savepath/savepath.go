@@ -91,10 +91,13 @@ func Save() {
 }
 
 func Update(b traverse.Breadcrumber, expanded bool) {
-	if expanded {
-		var path = traverse.TryID(b)
-		var node = paths
+	var path = traverse.TryID(b)
+	var node = paths
 
+	// TODO: this doesn't actually account for paths that no longer exist, but
+	// it's complex to check.
+
+	if expanded {
 		// Descend and initialize.
 		for i := 0; i < len(path); i++ {
 			ch, ok := node[path[i]]
@@ -106,7 +109,20 @@ func Update(b traverse.Breadcrumber, expanded bool) {
 			node = ch
 		}
 	} else {
+		for i := 0; i < len(path); i++ {
+			ch, ok := node[path[i]]
+			if !ok {
+				// We can't find anything.
+				return
+			}
 
+			if i == len(path)-1 {
+				// We're at the last node, so we can delete things now.
+				delete(node, path[i])
+			}
+
+			node = ch
+		}
 	}
 
 	Save()
