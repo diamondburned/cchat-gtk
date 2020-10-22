@@ -36,6 +36,8 @@ type Container struct {
 	// map id -> *Section
 	Sections map[string]*Section
 	stop     func()
+
+	eventQueue eventQueue
 }
 
 var memberListCSS = primitives.PrepareClassCSS("member-list", `
@@ -110,15 +112,20 @@ func (c *Container) TryAsyncList(server cchat.Messenger) {
 }
 
 func (c *Container) SetSections(sections []cchat.MemberSection) {
-	gts.ExecAsync(func() { c.SetSectionsUnsafe(sections) })
+	c.eventQueue.Add(func() { c.SetSectionsUnsafe(sections) })
 }
 
 func (c *Container) SetMember(sectionID string, member cchat.ListMember) {
-	gts.ExecAsync(func() { c.SetMemberUnsafe(sectionID, member) })
+	c.eventQueue.Add(func() { c.SetMemberUnsafe(sectionID, member) })
 }
 
 func (c *Container) RemoveMember(sectionID string, id string) {
-	gts.ExecAsync(func() { c.RemoveMemberUnsafe(sectionID, id) })
+	c.eventQueue.Add(func() { c.RemoveMemberUnsafe(sectionID, id) })
+}
+
+type sectionInsert struct {
+	front    *Section
+	sections []*Section
 }
 
 func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
@@ -127,7 +134,7 @@ func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
 	for i, section := range sections {
 		sc, ok := c.Sections[section.ID()]
 		if !ok {
-			sc = NewSection(section)
+			sc = NewSection(section, &c.eventQueue)
 		} else {
 			sc.Update(section.Name(), section.Total())
 		}
@@ -191,7 +198,7 @@ var sectionBodyCSS = primitives.PrepareClassCSS("section-body", `
 	}
 `)
 
-func NewSection(sect cchat.MemberSection) *Section {
+func NewSection(sect cchat.MemberSection, evq EventQueuer) *Section {
 	header := rich.NewLabel(text.Rich{})
 	header.Show()
 	sectionHeaderCSS(header)
@@ -216,8 +223,7 @@ func NewSection(sect cchat.MemberSection) *Section {
 		// Cold path; we can afford searching in the map.
 		for _, member := range members {
 			if member.ListBoxRow.GetIndex() == i {
-				member.Popup()
-				return
+				member.Popup(evq)
 			}
 		}
 	})
@@ -291,6 +297,8 @@ type Member struct {
 	Avatar *rich.Icon
 	Name   *gtk.Label
 	output markup.RenderOutput
+
+	parent *gtk.ListBox
 }
 
 const AvatarSize = 34
@@ -382,12 +390,18 @@ func (m *Member) Update(member cchat.ListMember) {
 }
 
 // Popup pops up the mention popover if any.
-func (m *Member) Popup() {
+func (m *Member) Popup(evq EventQueuer) {
 	if len(m.output.Mentions) > 0 {
 		p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
 		p.Ref() // prevent the popover from closing itself
 		p.SetPosition(gtk.POS_LEFT)
 		p.Connect("closed", p.Unref)
+
+		// Unbounded concurrency is kind of bad. We should deal with
+		// this in the future.
+		evq.Activate()
+		p.Connect("closed", evq.Deactivate)
+
 		p.Popup()
 	}
 }
