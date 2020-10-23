@@ -49,6 +49,7 @@ func NewList(vctl ViewController) *List {
 
 	svlist.ScrolledWindow, _ = gtk.ScrolledWindowNew(nil, nil)
 	svlist.ScrolledWindow.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_EXTERNAL)
+	svlist.ScrolledWindow.SetHExpand(false)
 	svlist.ScrolledWindow.Add(svlist.ListBox)
 
 	return svlist

@@ -23,6 +23,13 @@ func New() *Boxed {
 	return &Boxed{box, spin}
 }
 
+func NewVisible() *Boxed {
+	spin := New()
+	spin.Start()
+	spin.Show()
+	return spin
+}
+
 func (b *Boxed) SetSizeRequest(w, h int) {
 	b.Spinner.SetSizeRequest(w, h)
 }

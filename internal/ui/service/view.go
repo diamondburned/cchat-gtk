@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/singlestack"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
@@ -95,7 +96,11 @@ func (v *View) SessionSelected(svc *Service, srow *session.Row) {
 	// !!!: SHITTY HACK!!!
 	// We can do this, as we're keeping all the server lists in memory by Go's
 	// reference anyway. In fact, cchat REQUIRES us to do so.
-	v.ServerStack.SetVisibleChild(srow.Servers)
+	if srow.Session != nil {
+		v.ServerStack.SetVisibleChild(srow.Servers)
+	} else {
+		v.ServerStack.SetVisibleChild(spinner.NewVisible())
+	}
 
 	v.Header.SetSessionMenu(srow)
 	v.Header.SetBreadcrumber(srow)

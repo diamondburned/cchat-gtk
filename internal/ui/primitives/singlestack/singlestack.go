@@ -19,13 +19,13 @@ func (s *Stack) Add(w gtk.IWidget) {
 		return
 	}
 
+	if s.current != nil {
+		s.Stack.Remove(s.current)
+	}
+
 	if w != nil {
 		s.Stack.Add(w)
 		s.Stack.SetVisibleChild(w)
-	}
-
-	if s.current != nil {
-		s.Stack.Remove(s.current)
 	}
 
 	s.current = w

@@ -186,6 +186,9 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 		}
 	})
 
+	// Reset to bring states set in that method to a newly constructed widget.
+	row.Reset()
+
 	return row
 }
 
@@ -209,6 +212,7 @@ func NewAddButton() *gtk.ListBoxRow {
 func (r *Row) Reset() {
 	r.Servers.Reset()     // wipe servers
 	r.ActionsMenu.Reset() // wipe menu items
+	r.ActionsMenu.AddAction("Remove", r.RemoveSession)
 
 	// Set a lame placeholder icon.
 	r.icon.Icon.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
@@ -222,6 +226,9 @@ func (r *Row) ParentBreadcrumb() traverse.Breadcrumber {
 }
 
 func (r *Row) Breadcrumb() string {
+	if r.Session == nil {
+		return ""
+	}
 	return r.Session.Name().Content
 }
 
@@ -229,6 +236,9 @@ func (r *Row) Breadcrumb() string {
 // method will reconnect. If the row is already loaded, then SessionSelected
 // will be called.
 func (r *Row) Activate() {
+	// Display the empty server list first, then try and reconnect.
+	r.svcctrl.SessionSelected(r)
+
 	// If session is nil, then we've probably failed to load it. The row is
 	// deactivated while loading, so this wouldn't have happened.
 	if r.Session == nil {
@@ -237,7 +247,6 @@ func (r *Row) Activate() {
 		// Load all servers in this root node, then call the parent controller's
 		// method.
 		r.Servers.Children.LoadAll()
-		r.svcctrl.SessionSelected(r)
 	}
 }
 
@@ -292,7 +301,7 @@ func (r *Row) RestoreSession(res cchat.SessionRestorer, k keyring.Session) {
 	go func() {
 		s, err := res.RestoreSession(k.Data)
 		if err != nil {
-			err = errors.Wrapf(err, "Failed to restore session %s (%s)", k.ID, k.Name)
+			err = errors.Wrapf(err, "failed to restore session %s (%s)", k.ID, k.Name)
 			log.Error(err)
 
 			gts.ExecAsync(func() { r.SetFailed(err) })
@@ -313,7 +322,7 @@ func (r *Row) SetSession(ses cchat.Session) {
 
 	// If the session has an icon, then use it.
 	if iconer := ses.AsIconer(); iconer != nil {
-		r.icon.Icon.AsyncSetIconer(iconer, "Failed to set session icon")
+		r.icon.Icon.AsyncSetIconer(iconer, "failed to set session icon")
 	}
 
 	// Update to indicate that we're done.
@@ -402,7 +411,7 @@ func (r *Row) DisconnectSession() {
 	// Try and disconnect asynchronously.
 	gts.Async(func() (func(), error) {
 		// Disconnect and wrap the error if any. Wrap works with a nil error.
-		err := errors.Wrap(session.Disconnect(), "Failed to disconnect.")
+		err := errors.Wrap(session.Disconnect(), "failed to disconnect.")
 		return func() {
 			// Re-enable access to the menu.
 			r.SetSensitive(true)

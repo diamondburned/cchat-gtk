@@ -3,6 +3,8 @@ module github.com/diamondburned/cchat-gtk
 go 1.14
 
 replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200816224505-3cd69b83a48a
+replace github.com/diamondburned/cchat-mock => ../cchat-mock
+replace github.com/diamondburned/ningen => ../../ningen
 
 require (
 	github.com/Xuanwo/go-locale v1.0.0

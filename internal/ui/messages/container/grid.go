@@ -43,10 +43,19 @@ func (c *GridStore) MessagesLen() int {
 }
 
 func (c *GridStore) attachGrid(row int, widgets []gtk.IWidget) {
-	// Cover a special case with attaching to the 0th row.
-	if row == 0 {
-		c.Grid.InsertRow(0)
-	}
+	// // Cover a special case with attaching to the 0th row.
+	// switch row {
+	// case 0:
+	// 	c.Grid.InsertRow(0)
+	// case c.MessagesLen() - 1:
+	// 	row++ // ensure this doesn't try to write to the last message.
+	// 	c.Grid.InsertRow(row)
+	// }
+
+	c.Grid.InsertRow(row)
+
+	log.Println("Inserted row", row, "; length is", c.MessagesLen())
+
 	for i, w := range widgets {
 		c.Grid.Attach(w, i, row, 1, 1)
 	}
