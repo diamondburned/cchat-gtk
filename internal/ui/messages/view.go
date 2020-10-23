@@ -364,8 +364,8 @@ func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
 	}
 }
 
-// OnAuthorEvent should be called on message create/update/delete.
-func (v *View) OnAuthorEvent(author cchat.Author) {
+// AuthorEvent should be called on message create/update/delete.
+func (v *View) AuthorEvent(author cchat.Author) {
 	// Remove the author from the typing list if it's not nil.
 	if author != nil {
 		v.Typing.RemoveAuthor(author)

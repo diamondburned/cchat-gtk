@@ -37,10 +37,10 @@ type Container interface {
 	cchat.MessagesContainer
 
 	// Thread-unsafe methods.
-
-	CreateMessageUnsafe(cchat.MessageCreate) int
+	CreateMessageUnsafe(cchat.MessageCreate)
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
+	PrependMessageUnsafe(cchat.MessageCreate)
 
 	// FirstMessage returns the first message in the buffer. Nil is returned if
 	// there's nothing.
@@ -66,7 +66,7 @@ type Controller interface {
 	Bottomed() bool
 	// AuthorEvent is called on message create/update. This is used to update
 	// the typer state.
-	OnAuthorEvent(a cchat.Author)
+	AuthorEvent(a cchat.Author)
 }
 
 // Constructor is an interface for making custom message implementations which
@@ -85,6 +85,12 @@ type GridContainer struct {
 	Controller
 }
 
+// gridMessage w/ required internals
+type gridMessage struct {
+	GridMessage
+	presend message.PresendContainer // this shouldn't be here but i'm lazy
+}
+
 var _ Container = (*GridContainer)(nil)
 
 func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
@@ -96,18 +102,28 @@ func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
 
 // CreateMessageUnsafe inserts a message as well as cleaning up the backlog if
 // the user is scrolled to the bottom.
-func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) int {
+func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	// Insert the message first.
-	ix := c.GridStore.CreateMessageUnsafe(msg)
+	c.GridStore.CreateMessageUnsafe(msg)
 
 	// Determine if the user is scrolled to the bottom for cleaning up.
-	if c.Bottomed() {
-		// Clean up the backlog. The function allows a negative n, which would
-		// be a no-op.
-		c.PopEarliestMessages(c.MessagesLen() - BacklogLimit)
+	if !c.Bottomed() {
+		return
 	}
 
-	return ix
+	// Clean up the backlog.
+	if clean := len(c.messages) - BacklogLimit; clean > 0 {
+		// Remove them from the map and the container.
+		for _, id := range c.messageIDs[:clean] {
+			delete(c.messages, id)
+			// We can gradually pop the first item off here, as we're removing
+			// from 0th, and items are being shifted backwards.
+			c.Grid.RemoveRow(0)
+		}
+
+		// Cut the message IDs away by shifting the slice.
+		c.messageIDs = append(c.messageIDs[:0], c.messageIDs[clean:]...)
+	}
 }
 
 func (c *GridContainer) CreateMessage(msg cchat.MessageCreate) {
@@ -120,4 +136,8 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
+}
+
+func (c *GridContainer) PrependMessage(msg cchat.MessageCreate) {
+	gts.ExecAsync(func() { c.PrependMessageUnsafe(msg) })
 }

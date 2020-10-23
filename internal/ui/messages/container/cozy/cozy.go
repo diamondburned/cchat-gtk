@@ -129,41 +129,12 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
 		// Create the message in the parent's handler. This handler will also
 		// wipe old messages.
-		ix := c.GridContainer.CreateMessageUnsafe(msg)
+		c.GridContainer.CreateMessageUnsafe(msg)
 
-		// We need to do certain checks to messages that are prepended to the
-		// top of the buffer. This was originally in the now-deprecated
-		// PrependMessage function.
-		if ix == 0 {
-			// See if we need to uncollapse the second message.
-			if sec := c.NthMessage(1); sec != nil {
-				// If the author isn't the same, then ignore.
-				if sec.AuthorID() != msg.Author().ID() {
-					return
-				}
-
-				// The author is the same; collapse.
-				c.compact(sec)
-			}
-
-			return
-		}
-
-		// Should we collapse the last message? Yes if the current message's
-		// author is the same as the last author.
+		// Should we collapse this message? Yes, if the current message's author
+		// is the same as the last author.
 		if c.lastMessageIsAuthor(msg.Author().ID(), 1) {
 			c.compact(c.GridContainer.LastMessage())
-		}
-
-		// See if we need to collapse the second message.
-		if sec := c.NthMessage(1); sec != nil {
-			// If the author isn't the same, then ignore.
-			if sec.AuthorID() != msg.Author().ID() {
-				return
-			}
-
-			// The author is the same; collapse.
-			c.compact(sec)
 		}
 
 		// Did the handler wipe old messages? It will only do so if the user is
@@ -238,6 +209,23 @@ func (c *Container) uncompact(msg container.GridMessage) {
 
 	// Swap the old next message out for a new one.
 	c.GridStore.SwapMessage(full)
+}
+
+func (c *Container) PrependMessage(msg cchat.MessageCreate) {
+	gts.ExecAsync(func() {
+		c.GridContainer.PrependMessageUnsafe(msg)
+
+		// See if we need to uncollapse the second message.
+		if sec := c.NthMessage(1); sec != nil {
+			// If the author isn't the same, then ignore.
+			if sec.AuthorID() != msg.Author().ID() {
+				return
+			}
+
+			// The author is the same; collapse.
+			c.compact(sec)
+		}
+	})
 }
 
 func (c *Container) compact(msg container.GridMessage) {
