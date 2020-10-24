@@ -17,6 +17,7 @@ import (
 
 type Container interface {
 	ID() string
+	Time() time.Time
 	AuthorID() string
 	AvatarURL() string // avatar
 	Nonce() string
@@ -140,6 +141,10 @@ func NewEmptyContainer() *GenericContainer {
 		Content:     ctbox,
 		contentBox:  ctbox,
 		ContentBody: ctbody,
+
+		// Time is important, as it is used to sort messages, so we have to be
+		// careful with this.
+		time: time.Now(),
 	}
 
 	// Bind the custom popup menu to the content label.

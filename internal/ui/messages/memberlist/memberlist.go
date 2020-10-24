@@ -393,15 +393,16 @@ func (m *Member) Update(member cchat.ListMember) {
 func (m *Member) Popup(evq EventQueuer) {
 	if len(m.output.Mentions) > 0 {
 		p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
-		p.Ref() // prevent the popover from closing itself
-		p.SetPosition(gtk.POS_LEFT)
-		p.Connect("closed", p.Unref)
+		if p == nil {
+			return
+		}
 
 		// Unbounded concurrency is kind of bad. We should deal with
 		// this in the future.
 		evq.Activate()
 		p.Connect("closed", evq.Deactivate)
 
+		p.SetPosition(gtk.POS_LEFT)
 		p.Popup()
 	}
 }

@@ -40,7 +40,6 @@ type Container interface {
 	CreateMessageUnsafe(cchat.MessageCreate)
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
-	PrependMessageUnsafe(cchat.MessageCreate)
 
 	// FirstMessage returns the first message in the buffer. Nil is returned if
 	// there's nothing.
@@ -107,22 +106,9 @@ func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	c.GridStore.CreateMessageUnsafe(msg)
 
 	// Determine if the user is scrolled to the bottom for cleaning up.
-	if !c.Bottomed() {
-		return
-	}
-
-	// Clean up the backlog.
-	if clean := len(c.messages) - BacklogLimit; clean > 0 {
-		// Remove them from the map and the container.
-		for _, id := range c.messageIDs[:clean] {
-			delete(c.messages, id)
-			// We can gradually pop the first item off here, as we're removing
-			// from 0th, and items are being shifted backwards.
-			c.Grid.RemoveRow(0)
-		}
-
-		// Cut the message IDs away by shifting the slice.
-		c.messageIDs = append(c.messageIDs[:0], c.messageIDs[clean:]...)
+	if c.Bottomed() {
+		// Clean up the backlog.
+		c.DeleteEarliest(c.MessagesLen() - BacklogLimit)
 	}
 }
 
@@ -136,8 +122,4 @@ func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
-}
-
-func (c *GridContainer) PrependMessage(msg cchat.MessageCreate) {
-	gts.ExecAsync(func() { c.PrependMessageUnsafe(msg) })
 }

@@ -2,7 +2,6 @@ package completion
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
@@ -138,20 +137,16 @@ func (c *Completer) onChange() {
 	t, v, blank := State(c.Buffer)
 	c.cursor = v
 
-	log.Println("STATE:", t, v, blank)
-
 	// If the cursor is on a blank character, then we should not
 	// autocomplete anything, so we set the states to nil.
 	if blank {
 		c.words = nil
 		c.index = -1
 		c.Popdown()
-		log.Println("RESET INDEX TO -1")
 		return
 	}
 
 	c.words, c.index = c.Splitter(t, v)
-	log.Println("INDEX:", c.index)
 	c.complete()
 }
 

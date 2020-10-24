@@ -137,6 +137,17 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 			c.compact(c.GridContainer.LastMessage())
 		}
 
+		// See if we need to collapse the second message.
+		if sec := c.NthMessage(1); sec != nil {
+			// If the author isn't the same, then ignore.
+			if sec.AuthorID() != msg.Author().ID() {
+				return
+			}
+
+			// The author is the same; collapse.
+			c.compact(sec)
+		}
+
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
 		if !c.Bottomed() {
@@ -154,8 +165,7 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() {
 		// Get the previous and next message before deleting. We'll need them to
 		// evaluate whether we need to change anything.
-		prev := c.GridStore.Before(msg.ID())
-		next := c.GridStore.After(msg.ID())
+		prev, next := c.GridStore.Around(msg.ID())
 
 		// The function doesn't actually try and re-collapse the bottom message
 		// when a sandwiched message is deleted. This is fine.
@@ -209,23 +219,6 @@ func (c *Container) uncompact(msg container.GridMessage) {
 
 	// Swap the old next message out for a new one.
 	c.GridStore.SwapMessage(full)
-}
-
-func (c *Container) PrependMessage(msg cchat.MessageCreate) {
-	gts.ExecAsync(func() {
-		c.GridContainer.PrependMessageUnsafe(msg)
-
-		// See if we need to uncollapse the second message.
-		if sec := c.NthMessage(1); sec != nil {
-			// If the author isn't the same, then ignore.
-			if sec.AuthorID() != msg.Author().ID() {
-				return
-			}
-
-			// The author is the same; collapse.
-			c.compact(sec)
-		}
-	})
 }
 
 func (c *Container) compact(msg container.GridMessage) {
