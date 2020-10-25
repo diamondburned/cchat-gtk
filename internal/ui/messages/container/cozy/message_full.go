@@ -112,6 +112,7 @@ func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
 	m.HeaderBox.Remove(m.Username)
 	m.HeaderBox.Remove(m.Timestamp)
+	m.MainBox.Remove(m.HeaderBox)
 	m.MainBox.Remove(m.Content)
 
 	// Hide the avatar.

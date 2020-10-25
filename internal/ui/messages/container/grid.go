@@ -112,15 +112,15 @@ func (c *GridStore) SwapMessage(msg GridMessage) bool {
 	// downwards.
 	c.Grid.InsertRow(ix)
 
+	// Delete the to-be-replaced message, which we have shifted downwards
+	// earlier, so we add 1.
+	c.Grid.RemoveRow(ix + 1)
+
 	// Let the new message be attached on top of the to-be-replaced message.
 	c.attachGrid(ix, m.Attach())
 
 	// Set the message into the map.
 	c.messages[m.ID()] = m
-
-	// Delete the to-be-replaced message, which we have shifted downwards
-	// earlier, so we add 1.
-	c.Grid.RemoveRow(ix + 1)
 
 	return true
 }
