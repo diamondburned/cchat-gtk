@@ -28,6 +28,10 @@ type Dialog struct {
 // is authenticated successfully inside the Gtk main thread.
 func NewDialog(name text.Rich, auther cchat.Authenticator, auth func(cchat.Session)) *Dialog {
 	label, _ := gtk.LabelNew("")
+	label.SetMarginStart(10)
+	label.SetMarginEnd(10)
+	label.SetMarginTop(10)
+	label.SetMarginBottom(10)
 	label.Show()
 
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
@@ -73,11 +77,6 @@ func (d *Dialog) runOnAuth(ses cchat.Session) {
 }
 
 func (d *Dialog) spin(err error) {
-	// Remove old request.
-	if d.request != nil {
-		d.body.Remove(d.request)
-	}
-
 	// Print the error.
 	if err != nil {
 		d.label.SetMarkup(`<span color="red">` + html.EscapeString(err.Error()) + `</span>`)
@@ -89,7 +88,19 @@ func (d *Dialog) spin(err error) {
 	d.stack.SetVisibleChildName("main")
 	d.Dialog.SetSensitive(true)
 
-	d.request = NewRequest(d.Auther.AuthenticateForm())
+	form := d.Auther.AuthenticateForm()
+
+	// See if we need to remove the current request page. We should keep
+	// everything the same if the key matches, as then forms aren't reset.
+	if d.request != nil {
+		if d.request.equalEntries(form) {
+			return
+		}
+
+		d.body.Remove(d.request)
+	}
+
+	d.request = NewRequest(form)
 	d.body.Add(d.request)
 }
 
@@ -115,8 +126,9 @@ func (d *Dialog) ok(m *dialog.Modal) {
 
 type Request struct {
 	*gtk.Grid
+	entries []cchat.AuthenticateEntry
 	labels  []*gtk.Label
-	entries []Texter
+	texts   []Texter
 }
 
 func NewRequest(authEntries []cchat.AuthenticateEntry) *Request {
@@ -128,27 +140,44 @@ func NewRequest(authEntries []cchat.AuthenticateEntry) *Request {
 
 	req := &Request{
 		Grid:    grid,
+		entries: authEntries,
 		labels:  make([]*gtk.Label, len(authEntries)),
-		entries: make([]Texter, len(authEntries)),
+		texts:   make([]Texter, len(authEntries)),
 	}
 
-	for i, authEntry := range authEntries {
-		label, entry := newEntry(authEntry)
+	for i, authEntry := range req.entries {
+		label, texter := newEntry(authEntry)
 
 		req.labels[i] = label
-		req.entries[i] = entry
+		req.texts[i] = texter
 
 		grid.Attach(label, 0, i, 1, 1)
-		grid.Attach(entry, 1, i, 3, 1) // triple the width
+		grid.Attach(texter, 1, i, 3, 1) // triple the width
 	}
 
 	return req
 }
 
+// equalEntries compares the current request with a list of entries. It returns
+// false if there are inequalities.
+func (r *Request) equalEntries(entries []cchat.AuthenticateEntry) bool {
+	if len(r.entries) != len(entries) {
+		return false
+	}
+
+	for i, entry := range r.entries {
+		if entry != entries[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *Request) values() []string {
 	var values = make([]string, len(r.entries))
-	for i, entry := range r.entries {
-		values[i] = entry.GetText()
+	for i, texter := range r.texts {
+		values[i] = texter.GetText()
 	}
 
 	return values
