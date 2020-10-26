@@ -6,7 +6,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/savepath"
@@ -125,6 +124,10 @@ func (r *ServerRow) Init() {
 	r.Box.PackStart(r.Button, false, false, 0)
 	serverCSS(r.Box)
 
+	// Make the Actions menu.
+	r.ActionsMenu = actions.NewMenu("server")
+	r.ActionsMenu.InsertActionGroup(r)
+
 	// Ensure errors are displayed.
 	r.childrenSetErr(r.childrenErr)
 
@@ -137,10 +140,6 @@ func (r *ServerRow) Init() {
 	// Restore the read state.
 	r.Button.SetUnreadUnsafe(r.unread, r.mentioned) // update with state
 
-	// Make the Actions menu.
-	r.ActionsMenu = actions.NewMenu("server")
-	r.ActionsMenu.InsertActionGroup(r)
-
 	if cmder := r.Server.AsCommander(); cmder != nil {
 		r.cmder = commander.NewBuffer(r.Server.Name().String(), cmder)
 		r.ActionsMenu.AddAction("Command Prompt", r.cmder.ShowDialog)
@@ -149,7 +148,7 @@ func (r *ServerRow) Init() {
 	// Bind right clicks and show a popover menu on such event.
 	r.Button.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
-			r.ActionsMenu.Popover(r).Popup()
+			r.ActionsMenu.Popup(r)
 		}
 	})
 
@@ -223,12 +222,28 @@ func (r *ServerRow) IsHollow() bool {
 // recursively create
 func (r *ServerRow) SetHollowServerList(list cchat.Lister, ctrl Controller) {
 	r.serverList = list
-
 	r.children = NewHollowChildren(r, ctrl)
-	r.children.setLoading()
+	r.load(func(error) {})
+}
+
+// load calls finish if the server list is not loaded. If it is, finish is
+// called with a nil immediately.
+func (r *ServerRow) load(finish func(error)) {
+	if r.children.Rows != nil {
+		finish(nil)
+		return
+	}
+
+	list := r.serverList
+	children := r.children
+	children.setLoading()
+
+	if !r.IsHollow() {
+		r.SetSensitive(false)
+	}
 
 	go func() {
-		var err = list.Servers(r.children)
+		var err = list.Servers(children)
 		if err != nil {
 			log.Error(errors.Wrap(err, "Failed to get servers"))
 		}
@@ -245,6 +260,8 @@ func (r *ServerRow) SetHollowServerList(list cchat.Lister, ctrl Controller) {
 			// Use the childrenX method instead of SetX. We can wrap nil
 			// errors.
 			r.childrenSetErr(errors.Wrap(err, "Failed to get servers"))
+
+			finish(err)
 		})
 	}()
 }
@@ -344,6 +361,8 @@ func (r *ServerRow) SetFailed(err error, retry func()) {
 	r.SetTooltipText(err.Error())
 	r.Button.SetFailed(err, retry)
 	r.Button.Label.SetMarkup(rich.MakeRed(r.Button.GetLabel()))
+	r.ActionsMenu.Reset()
+	r.ActionsMenu.AddAction("Retry", retry)
 }
 
 // SetDone is shared between the parent struct and the children list. This is
@@ -356,13 +375,13 @@ func (r *ServerRow) SetDone() {
 	r.SetTooltipText("")
 }
 
-func (r *ServerRow) SetNormalExtraMenu(items []menu.Item) {
-	AssertUnhollow(r)
+// func (r *ServerRow) SetNormalExtraMenu(items []menu.Item) {
+// 	AssertUnhollow(r)
 
-	r.Button.SetNormalExtraMenu(items)
-	r.SetSensitive(true)
-	r.SetTooltipText("")
-}
+// 	r.Button.SetNormalExtraMenu(items)
+// 	r.SetSensitive(true)
+// 	r.SetTooltipText("")
+// }
 
 // SetSelected is used for highlighting the current message server.
 func (r *ServerRow) SetSelected(selected bool) {
@@ -400,10 +419,15 @@ func (r *ServerRow) SetRevealChild(reveal bool) {
 		return
 	}
 
-	// Load the list of servers if we're still in loading mode. Before, we have
-	// to call Servers on this. Now, we already know that there are hollow
-	// servers in the children container.
-	r.children.LoadAll()
+	// Ensure that we have successfully loaded the server.
+	r.load(func(err error) {
+		if err == nil {
+			// Load the list of servers if we're still in loading mode. Before,
+			// we have to call Servers on this. Now, we already know that there
+			// are hollow servers in the children container.
+			r.children.LoadAll()
+		}
+	})
 }
 
 // GetRevealChild returns whether or not the server list is expanded, or always

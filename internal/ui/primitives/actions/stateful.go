@@ -30,6 +30,11 @@ func (s *Stateful) Reset() {
 	s.labels = nil
 }
 
+// Len returns the number of menu entries.
+func (s *Stateful) Len() int {
+	return len(s.labels)
+}
+
 func (s *Stateful) AddAction(label string, call func()) {
 	sa := glib.SimpleActionNew(ActionName(label), nil)
 	sa.Connect("activate", call)

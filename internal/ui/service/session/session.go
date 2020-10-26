@@ -152,6 +152,7 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	rowIconCSS(row.icon.Icon)
 
 	row.ListBoxRow, _ = gtk.ListBoxRowNew()
+	row.ListBoxRow.Show()
 	rowCSS(row.ListBoxRow)
 
 	// TODO: commander button
@@ -166,7 +167,7 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	// Bind right clicks and show a popover menu on such event.
 	row.icon.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
-			row.ActionsMenu.Popover(row).Popup()
+			row.ActionsMenu.Popup(row)
 		}
 	})
 
@@ -236,9 +237,6 @@ func (r *Row) Breadcrumb() string {
 // method will reconnect. If the row is already loaded, then SessionSelected
 // will be called.
 func (r *Row) Activate() {
-	// Display the empty server list first, then try and reconnect.
-	r.svcctrl.SessionSelected(r)
-
 	// If session is nil, then we've probably failed to load it. The row is
 	// deactivated while loading, so this wouldn't have happened.
 	if r.Session == nil {
@@ -248,6 +246,9 @@ func (r *Row) Activate() {
 		// method.
 		r.Servers.Children.LoadAll()
 	}
+
+	// Display the empty server list first, then try and reconnect.
+	r.svcctrl.SessionSelected(r)
 }
 
 // SetLoading sets the session button to have a spinner circle. DO NOT CONFUSE

@@ -39,7 +39,18 @@ func (m *Menu) InsertActionGroup(w ActionGroupInserter) {
 	w.InsertActionGroup(m.prefix, m)
 }
 
-func (m *Menu) Popover(relative gtk.IWidget) *gtk.Popover {
+// Popup pops up the menu popover. It does not pop up anything if there are no
+// menu items.
+func (m *Menu) Popup(relative gtk.IWidget) {
+	p := m.popover(relative)
+	if p == nil || m.Len() == 0 {
+		return
+	}
+
+	p.Popup()
+}
+
+func (m *Menu) popover(relative gtk.IWidget) *gtk.Popover {
 	_, model := m.MenuModel()
 
 	p, _ := gtk.PopoverNewFromModel(relative, model)
