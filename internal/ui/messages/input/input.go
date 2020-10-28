@@ -11,7 +11,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
-	"github.com/diamondburned/gspell"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -93,6 +92,9 @@ func (v *InputView) SetMessenger(session cchat.Session, messenger cchat.Messenge
 	}
 }
 
+// wrapSpellCheck is a no-op but is replaced by gspell in ./spellcheck.go.
+var wrapSpellCheck = func(textView *gtk.TextView) {}
+
 type Field struct {
 	// Box contains the field box and the attachment container.
 	*gtk.Box
@@ -104,9 +106,8 @@ type Field struct {
 	Username *username.Container
 
 	TextScroll *gtk.ScrolledWindow
-	text       *gtk.TextView    // const
-	speller    *gspell.TextView // const
-	buffer     *gtk.TextBuffer  // const
+	text       *gtk.TextView   // const
+	buffer     *gtk.TextBuffer // const
 
 	send   *gtk.Button
 	attach *gtk.Button
@@ -150,8 +151,6 @@ var scrolledInputCSS = primitives.PrepareClassCSS("scrolled-input", `
 func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field := &Field{text: text, ctrl: ctrl}
 	field.buffer, _ = text.GetBuffer()
-	field.speller = gspell.GetFromGtkTextView(text)
-	field.speller.BasicSetup()
 
 	field.Username = username.NewContainer()
 	field.Username.Show()

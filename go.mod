@@ -7,9 +7,9 @@ replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20200816
 require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
-	github.com/diamondburned/cchat v0.3.7
-	github.com/diamondburned/cchat-discord v0.0.0-20201023215116-2209348d23bd
-	github.com/diamondburned/cchat-mock v0.0.0-20201023061026-155813b08c2c
+	github.com/diamondburned/cchat v0.3.11
+	github.com/diamondburned/cchat-discord v0.0.0-20201027213927-37165658e17c
+	github.com/diamondburned/cchat-mock v0.0.0-20201027204251-4f6dfbfc2424
 	github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894
 	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
 	github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972

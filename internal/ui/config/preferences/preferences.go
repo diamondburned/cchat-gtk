@@ -1,16 +1,16 @@
 package preferences
 
 import (
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/dialog"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
 type Dialog struct {
-	*gtk.Dialog
+	*dialog.Dialog
 
 	switcher *gtk.StackSwitcher
 	stack    *gtk.Stack
@@ -18,6 +18,10 @@ type Dialog struct {
 
 func NewDialog() *Dialog {
 	stack, _ := gtk.StackNew()
+	stack.SetMarginTop(8)
+	stack.SetMarginBottom(8)
+	stack.SetMarginStart(16)
+	stack.SetMarginEnd(16)
 	stack.Show()
 
 	switcher, _ := gtk.StackSwitcherNew()
@@ -29,18 +33,9 @@ func NewDialog() *Dialog {
 	h.SetCustomTitle(switcher)
 	h.Show()
 
-	d, _ := gts.NewModalDialog()
+	d := dialog.NewCSD(stack, h)
 	d.SetDefaultSize(400, 300)
 	d.SetTitle("Preferences")
-	d.SetTitlebar(h)
-
-	b, _ := d.GetContentArea()
-	b.SetMarginTop(8)
-	b.SetMarginBottom(8)
-	b.SetMarginStart(16)
-	b.SetMarginEnd(16)
-	b.PackStart(stack, true, true, 0)
-	b.Show()
 
 	return &Dialog{
 		Dialog:   d,
