@@ -241,7 +241,7 @@ func (f *Field) SetMessenger(session cchat.Session, messenger cchat.Messenger) {
 		f.typing = f.Messenger.AsTypingIndicator()
 
 		// See if we can upload files.
-		f.SetAllowUpload(f.Sender.CanAttach())
+		f.SetAllowUpload(f.Sender != nil && f.Sender.CanAttach())
 
 		// Populate the duration state if typer is not nil.
 		if f.typing != nil {

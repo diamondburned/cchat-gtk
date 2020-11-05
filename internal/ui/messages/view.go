@@ -52,6 +52,12 @@ type Controller interface {
 	OnMessageDone()
 }
 
+type MessagesContainer interface {
+	gtk.IWidget
+	container.Container
+	cchat.MessagesContainer
+}
+
 type View struct {
 	*gtk.Box
 
@@ -66,7 +72,7 @@ type View struct {
 
 	MsgBox    *gtk.Box
 	Typing    *typing.Container
-	Container container.Container
+	Container MessagesContainer
 	contType  int // msgIndex
 
 	MemberList *memberlist.Container // right box

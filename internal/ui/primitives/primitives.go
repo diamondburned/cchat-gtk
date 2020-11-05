@@ -2,7 +2,6 @@ package primitives
 
 import (
 	"runtime/debug"
-	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
@@ -279,24 +278,7 @@ func InlineCSS(ctx StyleContexter, css string) {
 // LeafletOnFold binds a callback to a leaflet that would be called when the
 // leaflet's folded state changes.
 func LeafletOnFold(leaflet *handy.Leaflet, foldedFn func(folded bool)) {
-	var lastFold = leaflet.GetFolded()
-	foldedFn(lastFold)
-
-	// Give each callback a 500ms wait for animations to complete.
-	const dt = 500 * time.Millisecond
-	var last = time.Now()
-
-	leaflet.ConnectAfter("size-allocate", func() {
-		// Ignore if this event is too recent.
-		if now := time.Now(); now.Add(-dt).Before(last) {
-			return
-		} else {
-			last = now
-		}
-
-		if folded := leaflet.GetFolded(); folded != lastFold {
-			lastFold = folded
-			foldedFn(folded)
-		}
+	leaflet.ConnectAfter("notify::folded", func() {
+		foldedFn(leaflet.GetFolded())
 	})
 }

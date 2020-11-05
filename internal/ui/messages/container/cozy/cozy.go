@@ -121,7 +121,8 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 }
 
 func (c *Container) lastMessageIsAuthor(id string, offset int) bool {
-	var last = c.GridStore.NthMessage(c.GridStore.MessagesLen() - (1 + offset))
+	// Get the offfsetth message from last.
+	var last = c.GridStore.NthMessage((c.GridStore.MessagesLen() - 1) + offset)
 	return last != nil && last.AuthorID() == id
 }
 
@@ -131,33 +132,42 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 		// wipe old messages.
 		c.GridContainer.CreateMessageUnsafe(msg)
 
-		// Should we collapse this message? Yes, if the current message's author
-		// is the same as the last author.
-		if c.lastMessageIsAuthor(msg.Author().ID(), 1) {
-			c.compact(c.GridContainer.LastMessage())
-		}
-
-		// See if we need to collapse the second message.
-		if sec := c.NthMessage(1); sec != nil {
-			// If the author isn't the same, then ignore.
-			if sec.AuthorID() != msg.Author().ID() {
-				return
-			}
-
-			// The author is the same; collapse.
-			c.compact(sec)
-		}
-
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
-		if !c.Bottomed() {
-			// If we're not at the bottom, then we exit.
-			return
+		if c.Bottomed() {
+			// We need to uncollapse the first (top) message. No length check is
+			// needed here, as we just inserted a message.
+			c.uncompact(c.FirstMessage())
 		}
 
-		// We need to uncollapse the first (top) message. No length check is
-		// needed here, as we just inserted a message.
-		c.uncompact(c.FirstMessage())
+		switch msg.ID() {
+		// Should we collapse this message? Yes, if the current message is
+		// inserted at the end and its author is the same as the last author.
+		case c.GridContainer.LastMessage().ID():
+			if c.lastMessageIsAuthor(msg.Author().ID(), -1) {
+				c.compact(c.GridContainer.LastMessage())
+			}
+
+		// If we've prepended the message, then see if we need to collapse the
+		// second message.
+		case c.GridContainer.FirstMessage().ID():
+			if sec := c.NthMessage(1); sec != nil {
+				// If the author isn't the same, then ignore.
+				if sec.AuthorID() != msg.Author().ID() {
+					return
+				}
+
+				// The author is the same; collapse.
+				c.compact(sec)
+			}
+		}
+
+	})
+}
+
+func (c *Container) UpdateMessage(msg cchat.MessageUpdate) {
+	gts.ExecAsync(func() {
+		c.UpdateMessageUnsafe(msg)
 	})
 }
 

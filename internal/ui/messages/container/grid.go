@@ -208,12 +208,20 @@ func (c *GridStore) NthMessage(n int) GridMessage {
 
 // FirstMessage returns the first message.
 func (c *GridStore) FirstMessage() GridMessage {
-	return c.NthMessage(0)
+	if c.messageList.Len() == 0 {
+		return nil
+	}
+	// Long unwrap.
+	return c.messageList.Front().Value.(*gridMessage).GridMessage
 }
 
 // LastMessage returns the latest message.
 func (c *GridStore) LastMessage() GridMessage {
-	return c.NthMessage(c.MessagesLen() - 1)
+	if c.messageList.Len() == 0 {
+		return nil
+	}
+	// Long unwrap.
+	return c.messageList.Back().Value.(*gridMessage).GridMessage
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
@@ -273,17 +281,21 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 	return presend
 }
 
+// Many attempts were made to have CreateMessageUnsafe return an index. That is
+// unreliable. The index might be off if the message buffer is cleaned up. Don't
+// rely on it.
+
 func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	// Call the event handler last.
 	defer c.Controller.AuthorEvent(msg.Author())
 
 	// Attempt to update before insertion (aka upsert).
-	if msgc := c.Message(msg.ID(), msg.Nonce()); msgc != nil {
+	if msgc := c.message(msg.ID(), msg.Nonce()); msgc != nil {
 		msgc.UpdateAuthor(msg.Author())
 		msgc.UpdateContent(msg.Content(), false)
 		msgc.UpdateTimestamp(msg.Time())
 
-		c.Controller.BindMenu(msgc)
+		c.Controller.BindMenu(msgc.GridMessage)
 		return
 	}
 

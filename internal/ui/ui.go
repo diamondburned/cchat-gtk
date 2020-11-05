@@ -15,6 +15,7 @@ import (
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
+	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
@@ -83,10 +84,19 @@ func NewApplication() *App {
 	app.HeaderGroup.AddHeaderBar(&app.Services.Header.HeaderBar)
 	app.HeaderGroup.AddHeaderBar(&app.MessageView.Header.HeaderBar)
 
+	separator, _ := gtk.SeparatorNew(gtk.ORIENTATION_VERTICAL)
+	separator.Show()
+
 	app.Leaflet = *handy.LeafletNew()
-	app.Leaflet.SetTransitionType(handy.LeafletTransitionTypeUnder)
+	app.Leaflet.SetChildTransitionDuration(75)
+	app.Leaflet.SetTransitionType(handy.LeafletTransitionTypeSlide)
+	app.Leaflet.SetCanSwipeBack(true)
+
 	app.Leaflet.Add(app.Services)
+	app.Leaflet.Add(separator)
 	app.Leaflet.Add(app.MessageView)
+
+	app.Leaflet.ChildSetProperty(separator, "navigatable", false)
 	app.Leaflet.Show()
 
 	// Bind the preferences action for our GAction button in the header popover.

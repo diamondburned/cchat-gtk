@@ -16,7 +16,6 @@ type State struct {
 }
 
 type Connector interface {
-	gtk.IWidget
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 

@@ -2,7 +2,6 @@ package container
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
@@ -34,9 +33,12 @@ type Container interface {
 	gtk.IWidget
 
 	// Thread-safe methods.
-	cchat.MessagesContainer
+	// cchat.MessagesContainer
 
 	// Thread-unsafe methods.
+
+	// CreateMessageUnsafe creates a new message and returns the index that is
+	// the location the message is added to.
 	CreateMessageUnsafe(cchat.MessageCreate)
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
@@ -110,16 +112,4 @@ func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 		// Clean up the backlog.
 		c.DeleteEarliest(c.MessagesLen() - BacklogLimit)
 	}
-}
-
-func (c *GridContainer) CreateMessage(msg cchat.MessageCreate) {
-	gts.ExecAsync(func() { c.CreateMessageUnsafe(msg) })
-}
-
-func (c *GridContainer) UpdateMessage(msg cchat.MessageUpdate) {
-	gts.ExecAsync(func() { c.UpdateMessageUnsafe(msg) })
-}
-
-func (c *GridContainer) DeleteMessage(msg cchat.MessageDelete) {
-	gts.ExecAsync(func() { c.DeleteMessageUnsafe(msg) })
 }

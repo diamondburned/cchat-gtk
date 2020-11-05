@@ -226,11 +226,10 @@ func RenderPixbuf(img image.Image) *gdk.Pixbuf {
 }
 
 func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
-	dialog, _ := gtk.FileChooserDialogNewWith2Buttons(
+	dialog, _ := gtk.FileChooserNativeDialogNew(
 		"Upload File", App.Window,
 		gtk.FILE_CHOOSER_ACTION_OPEN,
-		"Cancel", gtk.RESPONSE_CANCEL,
-		"Upload", gtk.RESPONSE_ACCEPT,
+		"Upload", "Cancel",
 	)
 
 	App.Throttler.Connect(dialog)
@@ -248,9 +247,7 @@ func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 	dialog.SetCurrentFolder(dirpath)
 	dialog.SetSelectMultiple(true)
 
-	defer dialog.Close()
-
-	if res := dialog.Run(); res != gtk.RESPONSE_ACCEPT {
+	if res := dialog.Run(); res != int(gtk.RESPONSE_ACCEPT) {
 		return
 	}
 
@@ -259,12 +256,12 @@ func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 }
 
 // BindPreviewer binds the file chooser dialog with a previewer.
-func BindPreviewer(fc *gtk.FileChooserDialog) {
+func BindPreviewer(fc *gtk.FileChooserNativeDialog) {
 	img, _ := gtk.ImageNew()
 
 	fc.SetPreviewWidget(img)
 	fc.Connect("update-preview",
-		func(fc *gtk.FileChooserDialog, img *gtk.Image) {
+		func(_ interface{}, img *gtk.Image) {
 			file := fc.GetPreviewFilename()
 
 			b, err := gdk.PixbufNewFromFileAtScale(file, 256, 256, true)
