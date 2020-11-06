@@ -30,7 +30,6 @@ func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
 
 	stack, _ := gtk.StackNew()
 	stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
-	stack.SetTransitionDuration(75)
 	stack.AddNamed(parent, "main")
 	stack.AddNamed(placeholder, "placeholder")
 	stack.AddNamed(c, "face")
@@ -45,21 +44,21 @@ func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
 
 // Reset brings the view to an empty box.
 func (v *FaceView) Reset() {
-	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Stop()
 	v.Stack.SetVisibleChildName("empty")
+	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetMain() {
-	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Stop()
 	v.Stack.SetVisibleChildName("main")
+	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetLoading() {
-	v.ensurePlaceholderDestroyed()
 	v.Loading.Spinner.Start()
 	v.Stack.SetVisibleChildName("loading")
+	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetError(err error) {

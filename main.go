@@ -11,9 +11,6 @@ import (
 	_ "github.com/diamondburned/cchat-mock"
 )
 
-// destructor is used for debugging and profiling.
-var destructor = func() {}
-
 func main() {
 	gts.Main(func() gts.MainApplication {
 		var app = ui.NewApplication()
@@ -36,6 +33,4 @@ func main() {
 
 		return app
 	})
-
-	destructor()
 }

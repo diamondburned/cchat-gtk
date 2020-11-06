@@ -17,6 +17,8 @@ type GridStore struct {
 	Construct  Constructor
 	Controller Controller
 
+	resetMe bool
+
 	messages    map[string]*gridMessage
 	messageList *list.List
 }
@@ -35,9 +37,15 @@ func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
 		Grid:        grid,
 		Construct:   constr,
 		Controller:  ctrl,
-		messages:    map[string]*gridMessage{},
+		messages:    make(map[string]*gridMessage, BacklogLimit+1),
 		messageList: list.New(),
 	}
+}
+
+func (c *GridStore) Reset() {
+	primitives.RemoveChildren(c.Grid)
+	c.messages = make(map[string]*gridMessage, BacklogLimit+1)
+	c.messageList = list.New()
 }
 
 func (c *GridStore) MessagesLen() int {

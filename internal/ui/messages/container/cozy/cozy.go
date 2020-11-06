@@ -1,6 +1,9 @@
 package cozy
 
 import (
+	"context"
+	"runtime/pprof"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
@@ -126,42 +129,47 @@ func (c *Container) lastMessageIsAuthor(id string, offset int) bool {
 	return last != nil && last.AuthorID() == id
 }
 
+var createMessageLabel = pprof.Labels("cozy", "createMessage")
+
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
-		// Create the message in the parent's handler. This handler will also
-		// wipe old messages.
-		c.GridContainer.CreateMessageUnsafe(msg)
+		pprof.Do(context.Background(), createMessageLabel, func(context.Context) {
 
-		// Did the handler wipe old messages? It will only do so if the user is
-		// scrolled to the bottom.
-		if c.GridContainer.CleanMessages() {
-			// We need to uncollapse the first (top) message. No length check is
-			// needed here, as we just inserted a message.
-			c.uncompact(c.FirstMessage())
-		}
+			// Create the message in the parent's handler. This handler will also
+			// wipe old messages.
+			c.GridContainer.CreateMessageUnsafe(msg)
 
-		switch msg.ID() {
-		// Should we collapse this message? Yes, if the current message is
-		// inserted at the end and its author is the same as the last author.
-		case c.GridContainer.LastMessage().ID():
-			if c.lastMessageIsAuthor(msg.Author().ID(), -1) {
-				c.compact(c.GridContainer.LastMessage())
+			// Did the handler wipe old messages? It will only do so if the user is
+			// scrolled to the bottom.
+			if c.GridContainer.CleanMessages() {
+				// We need to uncollapse the first (top) message. No length check is
+				// needed here, as we just inserted a message.
+				c.uncompact(c.FirstMessage())
 			}
 
-		// If we've prepended the message, then see if we need to collapse the
-		// second message.
-		case c.GridContainer.FirstMessage().ID():
-			if sec := c.NthMessage(1); sec != nil {
-				// If the author isn't the same, then ignore.
-				if sec.AuthorID() != msg.Author().ID() {
-					return
+			switch msg.ID() {
+			// Should we collapse this message? Yes, if the current message is
+			// inserted at the end and its author is the same as the last author.
+			case c.GridContainer.LastMessage().ID():
+				if c.lastMessageIsAuthor(msg.Author().ID(), -1) {
+					c.compact(c.GridContainer.LastMessage())
 				}
 
-				// The author is the same; collapse.
-				c.compact(sec)
-			}
-		}
+			// If we've prepended the message, then see if we need to collapse the
+			// second message.
+			case c.GridContainer.FirstMessage().ID():
+				if sec := c.NthMessage(1); sec != nil {
+					// If the author isn't the same, then ignore.
+					if sec.AuthorID() != msg.Author().ID() {
+						return
+					}
 
+					// The author is the same; collapse.
+					c.compact(sec)
+				}
+			}
+
+		})
 	})
 }
 

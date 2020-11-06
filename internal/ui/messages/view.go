@@ -93,7 +93,11 @@ var messageStack = primitives.PrepareClassCSS("message-stack", `
 var messageScroller = primitives.PrepareClassCSS("message-scroller", ``)
 
 func NewView(c Controller) *View {
-	view := &View{ctrl: c}
+	view := &View{
+		ctrl:     c,
+		contType: -1, // force recreate
+	}
+
 	view.Typing = typing.New()
 	view.Typing.Show()
 
@@ -188,6 +192,13 @@ func NewView(c Controller) *View {
 }
 
 func (v *View) createMessageContainer() {
+	// If we still want the same type of message container, then we don't need
+	// to remake a new one.
+	if v.contType == msgIndex {
+		v.Container.Reset()
+		return
+	}
+
 	// Remove the old message container.
 	if v.Container != nil {
 		v.MsgBox.Remove(v.Container)

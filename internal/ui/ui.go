@@ -172,12 +172,12 @@ func (app *App) GoBack() {
 func (app *App) OnMessageBusy() {
 	// Disable the server list because we don't want the user to switch around
 	// while we're loading.
-	gts.App.Window.SetSensitive(false)
+	app.Services.SetSensitive(false)
 }
 
 func (app *App) OnMessageDone() {
 	// Re-enable the server list.
-	gts.App.Window.SetSensitive(true)
+	app.Services.SetSensitive(true)
 }
 
 func (app *App) AuthenticateSession(list *service.List, ssvc *service.Service) {

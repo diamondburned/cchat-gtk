@@ -37,6 +37,9 @@ type Container interface {
 
 	// Thread-unsafe methods.
 
+	// Reset resets the message container to its original state.
+	Reset()
+
 	// CreateMessageUnsafe creates a new message and returns the index that is
 	// the location the message is added to.
 	CreateMessageUnsafe(cchat.MessageCreate)
