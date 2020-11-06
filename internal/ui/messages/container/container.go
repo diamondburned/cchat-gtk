@@ -101,15 +101,23 @@ func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
 	}
 }
 
-// CreateMessageUnsafe inserts a message as well as cleaning up the backlog if
-// the user is scrolled to the bottom.
+// CreateMessageUnsafe inserts a message. It does not clean up old messages.
 func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	// Insert the message first.
 	c.GridStore.CreateMessageUnsafe(msg)
+}
 
+// CleanMessages cleans up the oldest messages if the user is scrolled to the
+// bottom. True is returned if there were changes.
+func (c *GridContainer) CleanMessages() bool {
 	// Determine if the user is scrolled to the bottom for cleaning up.
 	if c.Bottomed() {
 		// Clean up the backlog.
-		c.DeleteEarliest(c.MessagesLen() - BacklogLimit)
+		if delta := c.MessagesLen() - BacklogLimit; delta > 0 {
+			c.DeleteEarliest(delta)
+			return true
+		}
 	}
+
+	return false
 }

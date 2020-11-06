@@ -134,7 +134,7 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
-		if c.Bottomed() {
+		if c.GridContainer.CleanMessages() {
 			// We need to uncollapse the first (top) message. No length check is
 			// needed here, as we just inserted a message.
 			c.uncompact(c.FirstMessage())

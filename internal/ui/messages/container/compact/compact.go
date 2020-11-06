@@ -19,7 +19,10 @@ func NewContainer(ctrl container.Controller) *Container {
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
-	gts.ExecAsync(func() { c.GridContainer.CreateMessageUnsafe(msg) })
+	gts.ExecAsync(func() {
+		c.GridContainer.CreateMessageUnsafe(msg)
+		c.GridContainer.CleanMessages()
+	})
 }
 
 func (c *Container) UpdateMessage(msg cchat.MessageUpdate) {
