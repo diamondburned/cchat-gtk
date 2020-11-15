@@ -82,14 +82,18 @@ func (v *InputView) SetMessenger(session cchat.Session, messenger cchat.Messenge
 	v.Field.SetMessenger(session, messenger)
 
 	if messenger == nil {
+		v.Completer.SetCompleter(nil)
 		return
 	}
 
 	// Ignore ok; completer can be nil.
 	// TODO: this is possibly racy vs the above SetMessenger.
+	var completer cchat.Completer
 	if sender := messenger.AsSender(); sender != nil {
-		v.Completer.SetCompleter(sender.AsCompleter())
+		completer = sender.AsCompleter()
 	}
+
+	v.Completer.SetCompleter(completer)
 }
 
 // wrapSpellCheck is a no-op but is replaced by gspell in ./spellcheck.go.
