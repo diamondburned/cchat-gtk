@@ -58,7 +58,7 @@ func New(ctrl Controller) *Container {
 	sw.Show()
 
 	rev, _ := gtk.RevealerNew()
-	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
+	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_LEFT)
 	rev.SetTransitionDuration(75)
 	rev.SetRevealChild(false)
 	rev.Add(sw)

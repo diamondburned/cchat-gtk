@@ -195,8 +195,8 @@ func NewAvatar() *Avatar {
 	img.Show()
 
 	avatar, _ := roundimage.NewCustomButton(img)
-	avatar.SetSizeRequest(AvatarSize, AvatarSize)
 	avatar.SetVAlign(gtk.ALIGN_START)
+	avatar.Image.SetSizeRequest(AvatarSize, AvatarSize)
 
 	// Default icon.
 	primitives.SetImageIcon(img, "user-available-symbolic", AvatarSize)
@@ -215,7 +215,7 @@ func (a *Avatar) SetURL(url string) {
 	}
 
 	a.url = url
-	httputil.AsyncImageSized(a.Image, url, AvatarSize, AvatarSize)
+	httputil.AsyncImageSized(a.Image, url)
 }
 
 // ManuallySetURL sets the URL without downloading the image. It assumes the

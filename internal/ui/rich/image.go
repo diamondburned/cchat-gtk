@@ -38,7 +38,6 @@ type Icon struct {
 	*gtk.Revealer
 	Image RoundIconContainer
 	procs []imgutil.Processor
-	size  int
 
 	r *Reusable
 
@@ -93,10 +92,6 @@ func (i *Icon) URL() string {
 	return i.url
 }
 
-func (i *Icon) Size() int {
-	return i.size
-}
-
 func (i *Icon) CopyPixbuf(dst httputil.ImageContainer) {
 	switch i.Image.GetStorageType() {
 	case gtk.IMAGE_PIXBUF:
@@ -120,8 +115,16 @@ func (i *Icon) SetPlaceholderIcon(iconName string, iconSzPx int) {
 
 // SetSize is not thread-safe.
 func (i *Icon) SetSize(szpx int) {
-	i.size = szpx
 	i.Image.SetSizeRequest(szpx, szpx)
+}
+
+// Size returns the minimum of the image size. It is not thread-safe.
+func (i *Icon) Size() int {
+	w, h := i.Image.GetSizeRequest()
+	if h < w {
+		return h
+	}
+	return w
 }
 
 // AddProcessors is not thread-safe.
@@ -154,7 +157,7 @@ func (i *Icon) SetIconUnsafe(url string) {
 }
 
 func (i *Icon) updateAsync() {
-	httputil.AsyncImageSized(i.Image, i.url, i.size, i.size, i.procs...)
+	httputil.AsyncImageSized(i.Image, i.url, i.procs...)
 }
 
 type EventIcon struct {

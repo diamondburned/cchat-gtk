@@ -234,7 +234,7 @@ func (c *Completer) update() []gtk.IWidget {
 				pps = ppIcon
 			}
 
-			httputil.AsyncImageSized(img, entry.IconURL, size, size, pps...)
+			httputil.AsyncImageSized(img, entry.IconURL, pps...)
 		}
 
 		widgets[i] = b

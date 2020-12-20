@@ -23,20 +23,28 @@ type ImageContainer interface {
 
 type ImageContainerSizer interface {
 	ImageContainer
+	GetSizeRequest() (w, h int)
 	SetSizeRequest(w, h int)
 }
 
+type dummySizer struct {
+	ImageContainer
+}
+
+func (dummySizer) GetSizeRequest() (int, int) { return -1, -1 }
+func (dummySizer) SetSizeRequest(int, int)    {}
+
 // AsyncImage loads an image. This method uses the cache.
 func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
-	asyncImage(img, url, 0, 0, procs)
+	asyncImage(dummySizer{img}, url, procs)
 }
 
 // AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
-func AsyncImageSized(img ImageContainerSizer, url string, w, h int, procs ...imgutil.Processor) {
-	asyncImage(img, url, w, h, procs)
+func AsyncImageSized(img ImageContainerSizer, url string, procs ...imgutil.Processor) {
+	asyncImage(img, url, procs)
 }
 
-func asyncImage(img ImageContainer, url string, w, h int, procs []imgutil.Processor) {
+func asyncImage(img ImageContainerSizer, url string, procs []imgutil.Processor) {
 	if url == "" {
 		return
 	}
@@ -55,14 +63,12 @@ func asyncImage(img ImageContainer, url string, w, h int, procs []imgutil.Proces
 		return
 	}
 
-	if w > 0 && h > 0 {
+	if w, h := img.GetSizeRequest(); w > 0 && h > 0 {
 		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
 			w, h = imgutil.MaxSize(imgW, imgH, w, h)
 			if w != imgW || h != imgH {
 				l.SetSize(w, h)
-				execIfCtx(ctx, func() {
-					img.(ImageContainerSizer).SetSizeRequest(w, h)
-				})
+				execIfCtx(ctx, func() { img.SetSizeRequest(w, h) })
 			}
 		})
 	}
@@ -73,7 +79,7 @@ func asyncImage(img ImageContainer, url string, w, h int, procs []imgutil.Proces
 }
 
 func connectDestroyer(img ImageContainer, cancel func()) {
-	img.Connect("destroy", func(img ImageContainer) {
+	img.Connect("destroy", func() {
 		cancel()
 		img.SetFromPixbuf(nil)
 	})

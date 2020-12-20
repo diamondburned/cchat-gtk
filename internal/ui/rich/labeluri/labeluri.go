@@ -211,7 +211,7 @@ func popoverImg(url string, round bool) gtk.IWidget {
 	img.SetHAlign(gtk.ALIGN_CENTER)
 	img.Show()
 
-	httputil.AsyncImageSized(idl, url, AvatarSize, AvatarSize)
+	httputil.AsyncImageSized(idl, url)
 
 	btn.SetHAlign(gtk.ALIGN_CENTER)
 	btn.SetRelief(gtk.RELIEF_NONE)
@@ -263,11 +263,12 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 				img = r.Image
 			}
 
+			img.SetSizeRequest(w, h)
 			img.SetFromIconName("image-loading", gtk.ICON_SIZE_BUTTON)
 			img.Show()
 
 			// Asynchronously fetch the image.
-			httputil.AsyncImageSized(img, uri, w, h)
+			httputil.AsyncImageSized(img, uri)
 
 			btn, _ := gtk.ButtonNew()
 			btn.Add(img)

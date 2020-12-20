@@ -24,7 +24,10 @@ func TrySetText(imager Imager, text string) {
 type Avatar struct {
 	handy.Avatar
 	pixbuf *gdk.Pixbuf
+	size   int
 }
+
+// Make a better API that allows scaling.
 
 var (
 	_ Imager                  = (*Avatar)(nil)
@@ -33,12 +36,18 @@ var (
 )
 
 func NewAvatar(size int) *Avatar {
-	a := handy.AvatarNew(size, "", true)
-	if a == nil {
-		return nil
+	avatar := Avatar{
+		Avatar: *handy.AvatarNew(size, "", true),
+		size:   size,
 	}
+	// Set the load function. This should hopefully trigger a reload.
+	avatar.SetImageLoadFunc(avatar.loadFunc)
 
-	return &Avatar{*a, nil}
+	return &avatar
+}
+
+func (a *Avatar) GetSizeRequest() (int, int) {
+	return a.size, a.size
 }
 
 // SetSizeRequest sets the avatar size. The actual size is min(w, h).
@@ -52,7 +61,23 @@ func (a *Avatar) SetSizeRequest(w, h int) {
 	a.Avatar.SetSizeRequest(w, h)
 }
 
-func (a *Avatar) loadFunc(int) *gdk.Pixbuf {
+func (a *Avatar) loadFunc(size int) *gdk.Pixbuf {
+	if a.pixbuf == nil {
+		a.size = size
+		return nil
+	}
+
+	if a.size != size {
+		a.size = size
+
+		p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
+		if err != nil {
+			return a.pixbuf
+		}
+
+		a.pixbuf = p
+	}
+
 	return a.pixbuf
 }
 

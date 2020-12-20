@@ -112,6 +112,7 @@ func NewImageIconPx(icon string, sizepx int) *gtk.Image {
 
 type ImageIconSetter interface {
 	SetProperty(name string, value interface{}) error
+	GetSizeRequest() (w, h int)
 	SetSizeRequest(w, h int)
 }
 
