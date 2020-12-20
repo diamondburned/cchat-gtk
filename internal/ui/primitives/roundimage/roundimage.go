@@ -26,9 +26,10 @@ type Connector interface {
 type Imager interface {
 	gtk.IWidget
 	RadiusSetter
+	SetSizeRequest(w, h int)
 
 	// Embed setters.
-	httputil.ImageContainerSizer
+	httputil.ImageContainer
 
 	GetPixbuf() *gdk.Pixbuf
 	GetAnimation() *gdk.PixbufAnimation

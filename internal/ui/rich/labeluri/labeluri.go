@@ -193,7 +193,7 @@ func largeText(text string) string {
 func popoverImg(url string, round bool) gtk.IWidget {
 	var btn *gtk.Button
 	var img *gtk.Image
-	var idl httputil.ImageContainerSizer
+	var idl httputil.ImageContainer
 
 	if round {
 		b, _ := roundimage.NewButton()

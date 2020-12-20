@@ -23,25 +23,25 @@ func NewButton() (*Button, error) {
 	image, _ := NewImage(0)
 	image.Show()
 
-	b, _ := NewEmptyButton()
+	b := NewEmptyButton()
 	b.SetImage(image)
 
 	return b, nil
 }
 
-func NewEmptyButton() (*Button, error) {
+func NewEmptyButton() *Button {
 	b, _ := gtk.ButtonNew()
 	b.SetRelief(gtk.RELIEF_NONE)
 	roundButtonCSS(b)
 
-	return &Button{Button: b}, nil
+	return &Button{Button: b}
 }
 
 // NewCustomButton creates a new rounded button with the given Imager. If the
 // given Imager implements the Connector interface (aka *StaticImage), then the
 // function will implicitly connect its handlers to the button.
 func NewCustomButton(img Imager) (*Button, error) {
-	b, _ := NewEmptyButton()
+	b := NewEmptyButton()
 	b.SetImage(img)
 
 	if connector, ok := img.(Connector); ok {

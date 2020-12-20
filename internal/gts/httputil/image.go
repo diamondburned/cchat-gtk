@@ -18,33 +18,21 @@ import (
 type ImageContainer interface {
 	SetFromPixbuf(*gdk.Pixbuf)
 	SetFromAnimation(*gdk.PixbufAnimation)
+	GetSizeRequest() (w, h int)
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 
-type ImageContainerSizer interface {
-	ImageContainer
-	GetSizeRequest() (w, h int)
-	SetSizeRequest(w, h int)
-}
-
-type dummySizer struct {
-	ImageContainer
-}
-
-func (dummySizer) GetSizeRequest() (int, int) { return -1, -1 }
-func (dummySizer) SetSizeRequest(int, int)    {}
-
 // AsyncImage loads an image. This method uses the cache.
 func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
-	asyncImage(dummySizer{img}, url, procs)
-}
-
-// AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
-func AsyncImageSized(img ImageContainerSizer, url string, procs ...imgutil.Processor) {
 	asyncImage(img, url, procs)
 }
 
-func asyncImage(img ImageContainerSizer, url string, procs []imgutil.Processor) {
+// AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
+func AsyncImageSized(img ImageContainer, url string, procs ...imgutil.Processor) {
+	asyncImage(img, url, procs)
+}
+
+func asyncImage(img ImageContainer, url string, procs []imgutil.Processor) {
 	if url == "" {
 		return
 	}
@@ -68,7 +56,6 @@ func asyncImage(img ImageContainerSizer, url string, procs []imgutil.Processor) 
 			w, h = imgutil.MaxSize(imgW, imgH, w, h)
 			if w != imgW || h != imgH {
 				l.SetSize(w, h)
-				execIfCtx(ctx, func() { img.SetSizeRequest(w, h) })
 			}
 		})
 	}
