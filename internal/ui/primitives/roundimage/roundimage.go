@@ -1,10 +1,12 @@
 package roundimage
 
 import (
+	"context"
 	"math"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
@@ -40,6 +42,7 @@ type Imager interface {
 type Image struct {
 	*gtk.Image
 	Radius float64
+	procs  []imgutil.Processor
 }
 
 var _ Imager = (*Image)(nil)
@@ -60,8 +63,17 @@ func NewImage(radius float64) (*Image, error) {
 	return image, nil
 }
 
+func (i *Image) AddProcessor(procs ...imgutil.Processor) {
+	i.procs = append(i.procs, procs...)
+}
+
 func (i *Image) GetImage() *gtk.Image {
 	return i.Image
+}
+
+func (i *Image) SetImageURL(url string) {
+	// No dynamic sizing support; yolo.
+	httputil.AsyncImage(context.Background(), i, url, i.procs...)
 }
 
 func (i *Image) SetRadius(r float64) {

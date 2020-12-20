@@ -40,24 +40,13 @@ var usernameCSS = primitives.PrepareCSS(`
 `)
 
 func NewContainer() *Container {
-	avatar := rich.NewIcon(AvatarSize)
-	avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
-	avatar.Show()
-
-	label := rich.NewLabel(text.Rich{})
-	label.SetMaxWidthChars(35)
-	label.Show()
-
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
-	box.PackStart(avatar, false, false, 0)
-	box.PackStart(label, false, false, 0)
 	box.Show()
 
 	primitives.AddClass(box, "username-view")
 	primitives.AttachCSS(box, usernameCSS)
 
 	rev, _ := gtk.RevealerNew()
-	rev.SetRevealChild(false)
 	rev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_RIGHT)
 	rev.SetTransitionDuration(50)
 	rev.Add(box)
@@ -67,12 +56,13 @@ func NewContainer() *Container {
 	// thread.
 	currentRevealer = rev.SetRevealChild
 
-	return &Container{
+	container := Container{
 		Revealer: rev,
 		main:     box,
-		avatar:   avatar,
-		label:    label,
 	}
+	container.Reset()
+
+	return &container
 }
 
 func (u *Container) SetRevealChild(reveal bool) {
@@ -87,8 +77,18 @@ func (u *Container) shouldReveal() bool {
 
 func (u *Container) Reset() {
 	u.SetRevealChild(false)
-	u.avatar.Reset()
-	u.label.Reset()
+
+	u.avatar = rich.NewIcon(AvatarSize)
+	u.avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
+	u.avatar.Show()
+
+	u.label = rich.NewLabel(text.Rich{})
+	u.label.SetMaxWidthChars(35)
+	u.label.Show()
+
+	primitives.RemoveChildren(u.main)
+	u.main.PackStart(u.avatar, false, false, 0)
+	u.main.PackStart(u.label, false, false, 0)
 }
 
 // Update is not thread-safe.

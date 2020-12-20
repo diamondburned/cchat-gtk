@@ -20,10 +20,3 @@ type nullLabel struct {
 }
 
 func (n *nullLabel) SetLabel(t text.Rich) { n.Rich = t }
-
-// used for grabbing url without changing state
-type nullIcon struct {
-	url string
-}
-
-func (i *nullIcon) SetIcon(url string) { i.url = url }

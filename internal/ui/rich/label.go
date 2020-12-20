@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
+	"github.com/pkg/errors"
 )
 
 type Labeler interface {
@@ -20,13 +21,11 @@ type Labeler interface {
 	SetLabelUnsafe(text.Rich)
 	GetLabel() text.Rich
 	GetText() string
-	Reset()
 }
 
 // SuperLabeler represents a label that inherits the current labeler.
 type SuperLabeler interface {
 	SetLabelUnsafe(text.Rich)
-	Reset()
 }
 
 type LabelerFn = func(context.Context, cchat.LabelContainer) (func(), error)
@@ -34,9 +33,6 @@ type LabelerFn = func(context.Context, cchat.LabelContainer) (func(), error)
 type Label struct {
 	gtk.Label
 	Current text.Rich
-
-	// Reusable primitive.
-	r *Reusable
 
 	// super unexported field for inheritance
 	super SuperLabeler
@@ -58,11 +54,6 @@ func NewLabel(content text.Rich) *Label {
 		Current: content,
 	}
 
-	// reusable primitive
-	l.r = NewReusable(func(nl *nullLabel) {
-		l.SetLabelUnsafe(nl.Rich)
-	})
-
 	return l
 }
 
@@ -80,23 +71,15 @@ func (l *Label) validsuper() bool {
 	return !ok && l.super != nil
 }
 
-// Reset wipes the state to be just after construction. If super is not nil,
-// then it's reset as well.
-func (l *Label) Reset() {
-	l.Current = text.Rich{}
-	l.r.Invalidate()
-	l.Label.SetText("")
-
-	if l.validsuper() {
-		l.super.Reset()
-	}
-}
-
 func (l *Label) AsyncSetLabel(fn LabelerFn, info string) {
-	AsyncUse(l.r, func(ctx context.Context) (interface{}, func(), error) {
-		nl := &nullLabel{}
-		f, err := fn(ctx, nl)
-		return nl, f, err
+	ctx := primitives.HandleDestroyCtx(context.Background(), l)
+	gts.Async(func() (func(), error) {
+		f, err := fn(ctx, l)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load iconer")
+		}
+
+		return func() { l.Connect("destroy", f) }, nil
 	})
 }
 

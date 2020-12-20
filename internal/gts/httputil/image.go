@@ -7,41 +7,31 @@ import (
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
 	"github.com/pkg/errors"
 )
 
 // TODO:
 
 type ImageContainer interface {
+	primitives.Connector
+
 	SetFromPixbuf(*gdk.Pixbuf)
 	SetFromAnimation(*gdk.PixbufAnimation)
 	GetSizeRequest() (w, h int)
-	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 
 // AsyncImage loads an image. This method uses the cache.
-func AsyncImage(img ImageContainer, url string, procs ...imgutil.Processor) {
-	asyncImage(img, url, procs)
-}
+func AsyncImage(ctx context.Context,
+	img ImageContainer, url string, procs ...imgutil.Processor) {
 
-// AsyncImageSized resizes using GdkPixbuf. This method uses the cache.
-func AsyncImageSized(img ImageContainer, url string, procs ...imgutil.Processor) {
-	asyncImage(img, url, procs)
-}
-
-func asyncImage(img ImageContainer, url string, procs []imgutil.Processor) {
 	if url == "" {
 		return
 	}
 
-	// // Add a processor to resize.
-	// procs = append(procs, imgutil.Resize(w, h))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	connectDestroyer(img, cancel)
+	ctx = primitives.HandleDestroyCtx(ctx, img)
 
 	gif := strings.Contains(url, ".gif")
 
@@ -65,12 +55,12 @@ func asyncImage(img ImageContainer, url string, procs []imgutil.Processor) {
 	go syncImage(ctx, l, url, procs, gif)
 }
 
-func connectDestroyer(img ImageContainer, cancel func()) {
-	img.Connect("destroy", func() {
-		cancel()
-		img.SetFromPixbuf(nil)
-	})
-}
+// func connectDestroyer(img ImageContainer, cancel func()) {
+// 	img.Connect("destroy", func() {
+// 		cancel()
+// 		img.SetFromPixbuf(nil)
+// 	})
+// }
 
 func areaPreparedFn(ctx context.Context, img ImageContainer, gif bool) func(l *gdk.PixbufLoader) {
 	return func(l *gdk.PixbufLoader) {

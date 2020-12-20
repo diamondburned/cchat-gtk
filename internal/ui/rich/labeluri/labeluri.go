@@ -1,6 +1,7 @@
 package labeluri
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"net/url"
@@ -211,7 +212,7 @@ func popoverImg(url string, round bool) gtk.IWidget {
 	img.SetHAlign(gtk.ALIGN_CENTER)
 	img.Show()
 
-	httputil.AsyncImageSized(idl, url)
+	httputil.AsyncImage(context.Background(), idl, url)
 
 	btn.SetHAlign(gtk.ALIGN_CENTER)
 	btn.SetRelief(gtk.RELIEF_NONE)
@@ -268,7 +269,7 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 			img.Show()
 
 			// Asynchronously fetch the image.
-			httputil.AsyncImageSized(img, uri)
+			httputil.AsyncImage(context.Background(), img, uri)
 
 			btn, _ := gtk.ButtonNew()
 			btn.Add(img)

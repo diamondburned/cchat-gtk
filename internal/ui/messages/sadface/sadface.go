@@ -29,6 +29,7 @@ func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
 	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 
 	stack, _ := gtk.StackNew()
+	stack.SetTransitionDuration(55)
 	stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
 	stack.AddNamed(parent, "main")
 	stack.AddNamed(placeholder, "placeholder")

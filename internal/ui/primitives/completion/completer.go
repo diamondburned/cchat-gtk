@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/diamondburned/cchat"
@@ -234,7 +235,7 @@ func (c *Completer) update() []gtk.IWidget {
 				pps = ppIcon
 			}
 
-			httputil.AsyncImageSized(img, entry.IconURL, pps...)
+			httputil.AsyncImage(context.Background(), img, entry.IconURL, pps...)
 		}
 
 		widgets[i] = b

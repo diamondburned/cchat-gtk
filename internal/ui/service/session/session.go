@@ -22,9 +22,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const IconSize = 48
-const IconName = "face-plain-symbolic"
-
 // Servicer extends server.RowController to add session.
 type Servicer interface {
 	// Service asks the controller for its service.
@@ -52,8 +49,9 @@ type Servicer interface {
 // Row represents a session row entry in the session List.
 type Row struct {
 	*gtk.ListBoxRow
-	avatar *roundimage.Avatar
-	icon   *rich.EventIcon // nilable
+	avatar  *roundimage.Avatar
+	iconBox *gtk.EventBox
+	icon    *rich.Icon // nillable
 
 	parentcrumb traverse.Breadcrumber
 
@@ -107,6 +105,10 @@ var rowCSS = primitives.PrepareClassCSS("session-row",
 			0.65
 		),  0.85);
 	}
+
+	.session-row.failed {
+		background-color: alpha(red, 0.45);
+	}
 `)
 
 var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
@@ -114,11 +116,18 @@ var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
 		padding: 4px;
 		margin:  0;
 	}
-
-	.session-icon.failed {
-		background-color: alpha(red, 0.45);
-	}
 `)
+
+const IconSize = 48
+const IconName = "face-plain-symbolic"
+
+func newIcon(img rich.RoundIconContainer) *rich.Icon {
+	icon := rich.NewCustomIcon(img, IconSize)
+	icon.SetPlaceholderIcon(IconName, IconSize)
+	icon.ShowAll()
+	rowIconCSS(icon)
+	return icon
+}
 
 func New(parent traverse.Breadcrumber, ses cchat.Session, ctrl Servicer) *Row {
 	row := newRow(parent, text.Rich{}, ctrl)
@@ -143,13 +152,8 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	row.avatar.SetText(name.Content)
 	row.avatar.Show()
 
-	icon := rich.NewCustomIcon(row.avatar, IconSize)
-	icon.Show()
-
-	row.icon = rich.WrapEventIcon(icon)
-	row.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
-	row.icon.Show()
-	rowIconCSS(row.icon.Icon)
+	row.iconBox, _ = gtk.EventBoxNew()
+	row.iconBox.Show()
 
 	row.ListBoxRow, _ = gtk.ListBoxRowNew()
 	row.ListBoxRow.Show()
@@ -165,7 +169,7 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	row.ActionsMenu.InsertActionGroup(row)
 
 	// Bind right clicks and show a popover menu on such event.
-	row.icon.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
+	row.iconBox.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			row.ActionsMenu.Popup(row)
 		}
@@ -215,8 +219,13 @@ func (r *Row) Reset() {
 	r.ActionsMenu.Reset() // wipe menu items
 	r.ActionsMenu.AddAction("Remove", r.RemoveSession)
 
+	if r.icon == nil {
+		r.icon = newIcon(r.avatar)
+		r.iconBox.Add(r.icon)
+	}
+
 	// Set a lame placeholder icon.
-	r.icon.Icon.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
+	r.icon.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
 
 	r.Session = nil
 	r.cmder = nil
@@ -258,13 +267,14 @@ func (r *Row) SetLoading() {
 	r.Session = nil
 
 	// Reset the icon.
-	r.icon.Icon.Reset()
+	primitives.RemoveChildren(r.iconBox)
+	r.icon = nil
 
 	// Remove everything from the row, including the icon.
 	primitives.RemoveChildren(r)
 
 	// Remove the failed class.
-	primitives.RemoveClass(r.icon.Icon, "failed")
+	primitives.RemoveClass(r, "failed")
 
 	// Add a loading circle.
 	spin := spinner.New()
@@ -287,15 +297,18 @@ func (r *Row) SetFailed(err error) {
 	r.SetSensitive(true)
 	// Remove everything off the row.
 	primitives.RemoveChildren(r)
-	// Add the icon.
-	r.Add(r.icon)
-	// Set the button to a retry icon.
-	r.icon.Icon.SetPlaceholderIcon("view-refresh-symbolic", IconSize)
-	// Mark the icon as failed.
-	primitives.AddClass(r.icon.Icon, "failed")
+	// Mark the row as failed.
+	primitives.AddClass(r, "failed")
 
-	// SetFailed, but also add the callback to retry.
-	// r.Row.SetFailed(err, r.ReconnectSession)
+	if r.icon == nil {
+		r.icon = newIcon(r.avatar)
+		r.iconBox.Add(r.icon)
+	}
+
+	// Add the icon.
+	r.Add(r.iconBox)
+	// Set the button to a retry icon.
+	r.icon.SetPlaceholderIcon("view-refresh-symbolic", IconSize)
 }
 
 func (r *Row) RestoreSession(res cchat.SessionRestorer, k keyring.Session) {
@@ -318,18 +331,24 @@ func (r *Row) SetSession(ses cchat.Session) {
 	r.Session = ses
 	r.sessionID = ses.ID()
 	r.SetTooltipMarkup(markup.Render(ses.Name()))
-	r.icon.Icon.SetPlaceholderIcon(IconName, IconSize)
 	r.avatar.SetText(ses.Name().Content)
+
+	if r.icon == nil {
+		r.icon = newIcon(r.avatar)
+		r.iconBox.Add(r.icon)
+	}
+
+	r.icon.SetPlaceholderIcon(IconName, IconSize)
 
 	// If the session has an icon, then use it.
 	if iconer := ses.AsIconer(); iconer != nil {
-		r.icon.Icon.AsyncSetIconer(iconer, "failed to set session icon")
+		r.icon.AsyncSetIconer(iconer, "failed to set session icon")
 	}
 
 	// Update to indicate that we're done.
 	primitives.RemoveChildren(r)
 	r.SetSensitive(true)
-	r.Add(r.icon)
+	r.Add(r.iconBox)
 
 	// Bind extra menu items before loading. These items won't be clickable
 	// during loading.

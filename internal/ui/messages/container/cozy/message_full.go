@@ -187,21 +187,22 @@ func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
 
 type Avatar struct {
 	roundimage.Button
-	url string
+	image *roundimage.StaticImage
+	url   string
 }
 
 func NewAvatar() *Avatar {
 	img, _ := roundimage.NewStaticImage(nil, 0)
+	img.SetSizeRequest(AvatarSize, AvatarSize)
 	img.Show()
 
 	avatar, _ := roundimage.NewCustomButton(img)
 	avatar.SetVAlign(gtk.ALIGN_START)
-	avatar.Image.SetSizeRequest(AvatarSize, AvatarSize)
 
 	// Default icon.
 	primitives.SetImageIcon(img, "user-available-symbolic", AvatarSize)
 
-	return &Avatar{*avatar, ""}
+	return &Avatar{*avatar, img, ""}
 }
 
 // SetURL updates the Avatar to be that URL. It does nothing if URL is empty or
@@ -215,7 +216,7 @@ func (a *Avatar) SetURL(url string) {
 	}
 
 	a.url = url
-	httputil.AsyncImageSized(a.Image, url)
+	a.image.SetImageURL(url)
 }
 
 // ManuallySetURL sets the URL without downloading the image. It assumes the

@@ -1,6 +1,8 @@
 package roundimage
 
 import (
+	"context"
+
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gdk"
@@ -24,6 +26,7 @@ func TrySetText(imager Imager, text string) {
 type Avatar struct {
 	handy.Avatar
 	pixbuf *gdk.Pixbuf
+	url    string
 	size   int
 }
 
@@ -57,32 +60,47 @@ func (a *Avatar) SetSizeRequest(w, h int) {
 		min = h
 	}
 
+	a.size = min
 	a.Avatar.SetSize(min)
 	a.Avatar.SetSizeRequest(w, h)
 }
 
 func (a *Avatar) loadFunc(size int) *gdk.Pixbuf {
-	if a.pixbuf == nil {
-		a.size = size
+	// No URL, draw nothing.
+	if a.url == "" {
 		return nil
 	}
 
-	if a.size != size {
-		a.size = size
-
-		p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
-		if err != nil {
-			return a.pixbuf
-		}
-
-		a.pixbuf = p
+	if a.pixbuf != nil && a.size == size {
+		return a.pixbuf
 	}
 
-	return a.pixbuf
+	// Refetch and rescale.
+	a.size = size
+	// Technically, this will recurse. However, we're changing the size, so
+	// eventually it should stop.
+	httputil.AsyncImage(context.Background(), a, a.url)
+
+	if a.pixbuf == nil {
+		return nil
+	}
+
+	// Temporarily resize for now.
+	p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
+	if err != nil {
+		p = a.pixbuf
+	}
+
+	return p
 }
 
 // SetRadius is a no-op.
 func (a *Avatar) SetRadius(float64) {}
+
+func (a *Avatar) SetImageURL(url string) {
+	a.url = url
+	a.Avatar.SetImageLoadFunc(a.loadFunc)
+}
 
 // SetFromPixbuf sets the pixbuf.
 func (a *Avatar) SetFromPixbuf(pb *gdk.Pixbuf) {

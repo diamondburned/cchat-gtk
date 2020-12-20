@@ -9,7 +9,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat/text"
-	"github.com/diamondburned/imgutil"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -19,9 +18,11 @@ type IconerFn = func(context.Context, cchat.IconContainer) (func(), error)
 
 type RoundIconContainer interface {
 	gtk.IWidget
-	httputil.ImageContainer
+
 	primitives.ImageIconSetter
 	roundimage.RadiusSetter
+
+	SetImageURL(url string)
 
 	GetStorageType() gtk.ImageType
 	GetPixbuf() *gdk.Pixbuf
@@ -35,11 +36,9 @@ var (
 
 // Icon represents a rounded image container.
 type Icon struct {
-	*gtk.Revealer
-	Image RoundIconContainer
-	procs []imgutil.Processor
+	*gtk.Revealer // TODO move out
 
-	r *Reusable
+	Image RoundIconContainer
 
 	// state
 	url string
@@ -49,13 +48,13 @@ const DefaultIconSize = 16
 
 var _ cchat.IconContainer = (*Icon)(nil)
 
-func NewIcon(sizepx int, procs ...imgutil.Processor) *Icon {
+func NewIcon(sizepx int) *Icon {
 	img, _ := roundimage.NewImage(0)
 	img.Show()
-	return NewCustomIcon(img, sizepx, procs...)
+	return NewCustomIcon(img, sizepx)
 }
 
-func NewCustomIcon(img RoundIconContainer, sizepx int, procs ...imgutil.Processor) *Icon {
+func NewCustomIcon(img RoundIconContainer, sizepx int) *Icon {
 	if sizepx == 0 {
 		sizepx = DefaultIconSize
 	}
@@ -69,22 +68,10 @@ func NewCustomIcon(img RoundIconContainer, sizepx int, procs ...imgutil.Processo
 	i := &Icon{
 		Revealer: rev,
 		Image:    img,
-		procs:    procs,
 	}
 	i.SetSize(sizepx)
-	i.r = NewReusable(func(ni *nullIcon) {
-		i.SetIconUnsafe(ni.url)
-	})
 
 	return i
-}
-
-// Reset wipes the state to be just after construction.
-func (i *Icon) Reset() {
-	i.url = ""
-	i.r.Invalidate() // invalidate async fetching images
-	i.Revealer.SetRevealChild(false)
-	i.Image.SetFromPixbuf(nil) // destroy old pb
 }
 
 // URL is not thread-safe.
@@ -127,11 +114,6 @@ func (i *Icon) Size() int {
 	return w
 }
 
-// AddProcessors is not thread-safe.
-func (i *Icon) AddProcessors(procs ...imgutil.Processor) {
-	i.procs = append(i.procs, procs...)
-}
-
 // SetIcon is thread-safe.
 func (i *Icon) SetIcon(url string) {
 	gts.ExecAsync(func() { i.SetIconUnsafe(url) })
@@ -141,45 +123,48 @@ func (i *Icon) AsyncSetIconer(iconer cchat.Iconer, errwrap string) {
 	// Reveal to show the placeholder.
 	i.SetRevealChild(true)
 
-	AsyncUse(i.r, func(ctx context.Context) (interface{}, func(), error) {
-		ni := &nullIcon{}
-		f, err := iconer.Icon(ctx, ni)
-		return ni, f, errors.Wrap(err, errwrap)
+	// I have a hunch this will never work; as long as Go keeps a reference with
+	// iconer.Icon, then destroy will never be triggered.
+	ctx := primitives.HandleDestroyCtx(context.Background(), i)
+	gts.Async(func() (func(), error) {
+		f, err := iconer.Icon(ctx, i)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load iconer")
+		}
+
+		return func() { i.Connect("destroy", f) }, nil
 	})
 }
 
 // SetIconUnsafe is not thread-safe.
 func (i *Icon) SetIconUnsafe(url string) {
-	i.Image.SetRadius(0) // round
+	// Setting the radius here since we resetted it for a placeholder icon.
+	i.Image.SetRadius(0)
 	i.SetRevealChild(true)
 	i.url = url
-	i.updateAsync()
+	i.Image.SetImageURL(i.url)
 }
 
-func (i *Icon) updateAsync() {
-	httputil.AsyncImageSized(i.Image, i.url, i.procs...)
-}
+// type EventIcon struct {
+// 	*gtk.EventBox
+// 	Icon *Icon
+// }
 
-type EventIcon struct {
-	*gtk.EventBox
-	Icon *Icon
-}
+// func NewEventIcon(sizepx int) *EventIcon {
+// 	icn := NewIcon(sizepx)
+// 	return WrapEventIcon(icn)
+// }
 
-func NewEventIcon(sizepx int, pp ...imgutil.Processor) *EventIcon {
-	icn := NewIcon(sizepx, pp...)
-	return WrapEventIcon(icn)
-}
+// func WrapEventIcon(icn *Icon) *EventIcon {
+// 	icn.Show()
+// 	evb, _ := gtk.EventBoxNew()
+// 	evb.Add(icn)
 
-func WrapEventIcon(icn *Icon) *EventIcon {
-	icn.Show()
-	evb, _ := gtk.EventBoxNew()
-	evb.Add(icn)
-
-	return &EventIcon{
-		EventBox: evb,
-		Icon:     icn,
-	}
-}
+// 	return &EventIcon{
+// 		EventBox: evb,
+// 		Icon:     icn,
+// 	}
+// }
 
 type ToggleButtonImage struct {
 	gtk.ToggleButton
@@ -231,9 +216,4 @@ func NewCustomToggleButtonImage(img RoundIconContainer, content text.Rich) *Togg
 		Image: i,
 		Box:   box,
 	}
-}
-
-func (t *ToggleButtonImage) Reset() {
-	t.Labeler.Reset()
-	t.Image.Reset()
 }

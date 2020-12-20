@@ -182,13 +182,28 @@ func ExecSync(fn func()) <-chan struct{} {
 	return ch
 }
 
+// DoAfter calls f after the given duration in the Gtk main loop.
+func DoAfter(d time.Duration, f func()) {
+	DoAfterMs(uint(d.Milliseconds()), f)
+}
+
+// DoAfterMs calls f after the given ms in the Gtk main loop.
+func DoAfterMs(ms uint, f func()) {
+	_, err := glib.TimeoutAdd(ms, f)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // AfterFunc mimics time.AfterFunc's API but runs the callback inside the Gtk
 // main loop.
 func AfterFunc(d time.Duration, f func()) (stop func()) {
-	h, err := glib.TimeoutAdd(
-		uint(d.Milliseconds()),
-		func() bool { f(); return true },
-	)
+	return AfterMsFunc(uint(d.Milliseconds()), f)
+}
+
+// AfterMsFunc is similar to AfterFunc but takes in milliseconds instead.
+func AfterMsFunc(ms uint, f func()) (stop func()) {
+	h, err := glib.TimeoutAdd(ms, func() bool { f(); return true })
 	if err != nil {
 		panic(err)
 	}

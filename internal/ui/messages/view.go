@@ -278,12 +278,20 @@ func (v *View) MemberListUpdated(c *memberlist.Container) {
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
 func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc traverse.Breadcrumber) {
-	// Reset before setting.
-	v.Reset()
-
 	// Set the screen to loading.
 	v.FaceView.SetLoading()
 	v.ctrl.OnMessageBusy()
+
+	// We can be dumb. Reset afterwards so the animation goes smoother.
+	gts.DoAfterMs(
+		v.FaceView.GetTransitionDuration(),
+		func() { v.joinServer(session, server, bc) },
+	)
+}
+
+func (v *View) joinServer(session cchat.Session, server cchat.Server, bc traverse.Breadcrumber) {
+	// Reset before setting.
+	v.Reset()
 
 	// Get the messenger once.
 	var messenger = server.AsMessenger()

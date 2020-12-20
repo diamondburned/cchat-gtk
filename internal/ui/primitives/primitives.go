@@ -1,6 +1,7 @@
 package primitives
 
 import (
+	"context"
 	"runtime/debug"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -166,6 +167,12 @@ func MenuItem(label string, fn interface{}) *gtk.MenuItem {
 
 type Connector interface {
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+}
+
+func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	connector.Connect("destroy", cancel)
+	return ctx
 }
 
 func BindMenu(connector Connector, menu *gtk.Menu) {
