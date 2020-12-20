@@ -11,6 +11,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+type messageKey struct {
+	id    string
+	nonce bool
+}
+
+func nonceKey(nonce string) messageKey { return messageKey{nonce, true} }
+func idKey(id cchat.ID) messageKey     { return messageKey{id, false} }
+
 type GridStore struct {
 	*gtk.Grid
 
@@ -19,7 +27,7 @@ type GridStore struct {
 
 	resetMe bool
 
-	messages    map[string]*gridMessage
+	messages    map[messageKey]*gridMessage
 	messageList *list.List
 }
 
@@ -37,14 +45,14 @@ func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
 		Grid:        grid,
 		Construct:   constr,
 		Controller:  ctrl,
-		messages:    make(map[string]*gridMessage, BacklogLimit+1),
+		messages:    make(map[messageKey]*gridMessage, BacklogLimit+1),
 		messageList: list.New(),
 	}
 }
 
 func (c *GridStore) Reset() {
 	primitives.RemoveChildren(c.Grid)
-	c.messages = make(map[string]*gridMessage, BacklogLimit+1)
+	c.messages = make(map[messageKey]*gridMessage, BacklogLimit+1)
 	c.messageList = list.New()
 }
 
@@ -128,7 +136,7 @@ func (c *GridStore) SwapMessage(msg GridMessage) bool {
 	c.attachGrid(ix, m.Attach())
 
 	// Set the message into the map.
-	c.messages[m.ID()] = m
+	c.messages[idKey(m.ID())] = m
 
 	return true
 }
@@ -243,7 +251,7 @@ func (c *GridStore) Message(msgID cchat.ID, nonce string) GridMessage {
 
 func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
 	// Search using the ID first.
-	m, ok := c.messages[msgID]
+	m, ok := c.messages[idKey(msgID)]
 	if ok {
 		return m
 	}
@@ -251,11 +259,11 @@ func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
 	// Is this an existing message?
 	if nonce != "" {
 		// Things in this map are guaranteed to have presend != nil.
-		m, ok := c.messages[nonce]
+		m, ok := c.messages[nonceKey(nonce)]
 		if ok {
 			// Replace the nonce key with ID.
-			delete(c.messages, nonce)
-			c.messages[msgID] = m
+			delete(c.messages, nonceKey(nonce))
+			c.messages[idKey(msgID)] = m
 
 			// Set the right ID.
 			m.presend.SetDone(msgID)
@@ -284,7 +292,7 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 	// Append the message.
 	c.messageList.PushBack(msgc)
 	// Set the NONCE into the message map.
-	c.messages[msgc.Nonce()] = msgc
+	c.messages[nonceKey(msgc.Nonce())] = msgc
 
 	return presend
 }
@@ -339,7 +347,7 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	c.attachGrid(index, msgc.Attach())
 
 	// Set the NONCE into the message map.
-	c.messages[msgc.Nonce()] = msgc
+	c.messages[nonceKey(msgc.Nonce())] = msgc
 
 	c.Controller.BindMenu(msgc)
 }
@@ -378,7 +386,7 @@ func (c *GridStore) PopMessage(id cchat.ID) (msg GridMessage) {
 	// Pop off the slice.
 	c.messageList.Remove(elem)
 	// Delete off the map.
-	delete(c.messages, id)
+	delete(c.messages, idKey(id))
 
 	return
 }
@@ -394,8 +402,14 @@ func (c *GridStore) DeleteEarliest(n int) {
 	// after deleting, so we have to call Next manually before Removing.
 	for elem := c.messageList.Front(); elem != nil && n != 0; n-- {
 		gridMsg := elem.Value.(*gridMessage)
-		delete(c.messages, gridMsg.ID())
-		delete(c.messages, gridMsg.Nonce()) // superfluous delete
+
+		if id := gridMsg.ID(); id != "" {
+			delete(c.messages, idKey(id))
+		}
+		if nonce := gridMsg.Nonce(); nonce != "" {
+			delete(c.messages, nonceKey(nonce))
+		}
+
 		c.Grid.RemoveRow(0)
 
 		next := elem.Next()

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"log"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -160,6 +162,9 @@ func (c *Children) SetServers(servers []cchat.Server) {
 		// Insert hollow servers.
 		c.Rows = make([]*ServerRow, len(servers))
 		for i, server := range servers {
+			if server == nil {
+				log.Panicln("one of given servers in SetServers is nil at ", i)
+			}
 			c.Rows[i] = NewHollowServer(c, server, c.rowctrl)
 		}
 
@@ -183,6 +188,8 @@ func (c *Children) insertAt(row *ServerRow, i int) {
 	c.Rows = append(c.Rows[:i], append([]*ServerRow{row}, c.Rows[i:]...)...)
 
 	if !c.IsHollow() {
+		row.Init()
+		row.Show()
 		c.Box.Add(row)
 		c.Box.ReorderChild(row, i)
 	}

@@ -5,6 +5,7 @@ package main
 import (
 	"log"
 	"os"
+	"os/exec"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -24,12 +25,18 @@ var _ = func() struct{} {
 
 	log.Println("execve(2)ing with madvdontneed=1 for aggressive GC.")
 
-	if err := syscall.Exec(os.Args[0], os.Args, environ); err != nil {
-		log.Fatalln("Fatal error while executing:", err)
-	} else {
-		os.Exit(0)
+	path, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return struct{}{}
 	}
 
+	if err := syscall.Exec(path, os.Args, environ); err != nil {
+		log.Println("Error while executing:", err)
+		log.Println("Starting up without madvdontneed=1...")
+		return struct{}{}
+	}
+
+	os.Exit(0)
 	return struct{}{}
 }()
 

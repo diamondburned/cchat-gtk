@@ -61,8 +61,8 @@ func (m *GenericPresendContainer) SetSensitive(sensitive bool) {
 func (m *GenericPresendContainer) SetDone(id string) {
 	// Apply the received ID.
 	m.id = id
-	// Set the sensitivity from false in SetLoading back to true.
-	m.SetSensitive(true)
+	m.nonce = ""
+
 	// Reset the state to be normal. Especially setting presend to nil should
 	// free it from memory.
 	m.presend = nil
@@ -74,6 +74,9 @@ func (m *GenericPresendContainer) SetDone(id string) {
 
 	// Re-add the content label.
 	m.contentBox.Add(m.ContentBody)
+
+	// Set the sensitivity from false in SetLoading back to true.
+	m.SetSensitive(true)
 }
 
 func (m *GenericPresendContainer) SetLoading() {
