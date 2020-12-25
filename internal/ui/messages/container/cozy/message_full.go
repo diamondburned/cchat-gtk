@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -31,7 +32,7 @@ type FullMessage struct {
 }
 
 type AvatarPixbufCopier interface {
-	CopyAvatarPixbuf(img httputil.ImageContainer)
+	CopyAvatarPixbuf(img httputil.SurfaceContainer)
 }
 
 var (
@@ -148,12 +149,15 @@ func (m *FullMessage) UpdateAuthor(author cchat.Author) {
 
 // CopyAvatarPixbuf sets the pixbuf into the given container. This shares the
 // same pixbuf, but gtk.Image should take its own reference from the pixbuf.
-func (m *FullMessage) CopyAvatarPixbuf(dst httputil.ImageContainer) {
-	switch img := m.Avatar.Image; img.GetImage().GetStorageType() {
+func (m *FullMessage) CopyAvatarPixbuf(dst httputil.SurfaceContainer) {
+	switch img := m.Avatar.Image.GetImage(); img.GetStorageType() {
 	case gtk.IMAGE_PIXBUF:
 		dst.SetFromPixbuf(img.GetPixbuf())
 	case gtk.IMAGE_ANIMATION:
 		dst.SetFromAnimation(img.GetAnimation())
+	case gtk.IMAGE_SURFACE:
+		v, _ := img.GetProperty("surface")
+		dst.SetFromSurface(v.(*cairo.Surface))
 	}
 }
 
@@ -187,7 +191,7 @@ func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
 
 type Avatar struct {
 	roundimage.Button
-	image *roundimage.StaticImage
+	Image *roundimage.StaticImage
 	url   string
 }
 
@@ -216,7 +220,7 @@ func (a *Avatar) SetURL(url string) {
 	}
 
 	a.url = url
-	a.image.SetImageURL(url)
+	a.Image.SetImageURL(url)
 }
 
 // ManuallySetURL sets the URL without downloading the image. It assumes the

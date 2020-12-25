@@ -9,7 +9,9 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/imgutil"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
@@ -23,7 +25,29 @@ type ImageContainer interface {
 	GetSizeRequest() (w, h int)
 }
 
-// AsyncImage loads an image. This method uses the cache.
+type SurfaceContainer interface {
+	ImageContainer
+	GetScaleFactor() int
+	SetFromSurface(*cairo.Surface)
+}
+
+var (
+	_ ImageContainer   = (*gtk.Image)(nil)
+	_ SurfaceContainer = (*gtk.Image)(nil)
+)
+
+type surfaceWrapper struct {
+	SurfaceContainer
+	scale int
+}
+
+func (wrapper surfaceWrapper) SetFromPixbuf(pb *gdk.Pixbuf) {
+	surface, _ := gdk.CairoSurfaceCreateFromPixbuf(pb, wrapper.scale, nil)
+	wrapper.SetFromSurface(surface)
+}
+
+// AsyncImage loads an image. This method uses the cache. It prefers loading
+// SetFromSurface over SetFromPixbuf, but will fallback if needed be.
 func AsyncImage(ctx context.Context,
 	img ImageContainer, url string, procs ...imgutil.Processor) {
 
@@ -31,9 +55,19 @@ func AsyncImage(ctx context.Context,
 		return
 	}
 
-	ctx = primitives.HandleDestroyCtx(ctx, img)
-
 	gif := strings.Contains(url, ".gif")
+	scale := 1
+
+	surfaceContainer, canSurface := img.(SurfaceContainer)
+
+	if canSurface = canSurface && !gif; canSurface {
+		// Only bother with this API if we even have HiDPI.
+		if scale = surfaceContainer.GetScaleFactor(); scale > 1 {
+			img = surfaceWrapper{surfaceContainer, scale}
+		}
+	}
+
+	ctx = primitives.HandleDestroyCtx(ctx, img)
 
 	l, err := gdk.PixbufLoaderNew()
 	if err != nil {
@@ -41,26 +75,18 @@ func AsyncImage(ctx context.Context,
 		return
 	}
 
-	if w, h := img.GetSizeRequest(); w > 0 && h > 0 {
-		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
-			w, h = imgutil.MaxSize(imgW, imgH, w, h)
-			if w != imgW || h != imgH {
-				l.SetSize(w, h)
-			}
-		})
-	}
+	w, h := img.GetSizeRequest()
+	l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
+		w, h = imgutil.MaxSize(imgW, imgH, w, h)
+		if w != imgW || h != imgH || scale > 1 {
+			l.SetSize(w*scale, h*scale)
+		}
+	})
 
 	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
 
-	go syncImage(ctx, l, url, procs, gif)
+	go downloadImage(ctx, l, url, procs, gif)
 }
-
-// func connectDestroyer(img ImageContainer, cancel func()) {
-// 	img.Connect("destroy", func() {
-// 		cancel()
-// 		img.SetFromPixbuf(nil)
-// 	})
-// }
 
 func areaPreparedFn(ctx context.Context, img ImageContainer, gif bool) func(l *gdk.PixbufLoader) {
 	return func(l *gdk.PixbufLoader) {
@@ -90,9 +116,9 @@ func execIfCtx(ctx context.Context, fn func()) {
 	})
 }
 
-func syncImage(ctx context.Context, l io.WriteCloser, url string, p []imgutil.Processor, gif bool) {
+func downloadImage(ctx context.Context, dst io.WriteCloser, url string, p []imgutil.Processor, gif bool) {
 	// Close at the end when done.
-	defer l.Close()
+	defer dst.Close()
 
 	r, err := get(ctx, url, true)
 	if err != nil {
@@ -104,13 +130,13 @@ func syncImage(ctx context.Context, l io.WriteCloser, url string, p []imgutil.Pr
 	// If we have processors, then write directly in there.
 	if len(p) > 0 {
 		if !gif {
-			err = imgutil.ProcessStream(l, r.Body, p)
+			err = imgutil.ProcessStream(dst, r.Body, p)
 		} else {
-			err = imgutil.ProcessAnimationStream(l, r.Body, p)
+			err = imgutil.ProcessAnimationStream(dst, r.Body, p)
 		}
 	} else {
 		// Else, directly copy the body over.
-		_, err = io.Copy(l, r.Body)
+		_, err = io.Copy(dst, r.Body)
 	}
 
 	if err != nil {

@@ -167,6 +167,7 @@ func MenuItem(label string, fn interface{}) *gtk.MenuItem {
 
 type Connector interface {
 	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+	ConnectAfter(string, interface{}, ...interface{}) (glib.SignalHandle, error)
 }
 
 func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context {

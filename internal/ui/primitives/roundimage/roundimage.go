@@ -60,6 +60,19 @@ func NewImage(radius float64) (*Image, error) {
 	// Connect to the draw callback and clip the context.
 	i.Connect("draw", image.drawer)
 
+	// Backup plan if Cairo's Surface is weird.
+
+	// var width, height int
+	// i.Connect("size-allocate", func() {
+	// 	w := i.GetAllocatedWidth()
+	// 	h := i.GetAllocatedHeight()
+
+	// 	if width != w || height != h {
+	// 		log.Println("Image allocate", width, height, i.GetScaleFactor())
+	// 		width, height = w, h
+	// 	}
+	// })
+
 	return image, nil
 }
 
