@@ -7,7 +7,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
@@ -103,7 +102,18 @@ func NewApplication() *App {
 	// The action name for this is "app.preferences".
 	gts.AddAppAction("preferences", preferences.SpawnPreferenceDialog)
 
-	primitives.LeafletOnFold(&app.Leaflet, app.MessageView.SetFolded)
+	// We should assert folded state based on the window's width instead of the
+	// leaflet's state, since doing that might cause a feedback loop.
+	const minWidth = 450
+	var foldedState bool
+
+	app.Leaflet.Connect("size-allocate", func(leaflet *handy.Leaflet) {
+		folded := leaflet.GetAllocatedWidth() < minWidth
+		if foldedState != folded {
+			foldedState = folded
+			app.MessageView.SetFolded(folded)
+		}
+	})
 
 	return app
 }
