@@ -65,7 +65,7 @@ func NewDialog(name text.Rich, authers []cchat.Authenticator, auth func(cchat.Se
 
 	d.back, _ = gtk.ButtonNewFromIconName("go-previous-symbolic", gtk.ICON_SIZE_BUTTON)
 	d.back.Show()
-	d.back.Connect("clicked", func() {
+	d.back.Connect("clicked", func(back *gtk.Button) {
 		// If check just in case.
 		if d.stageList != nil {
 			d.leaflet.SetVisibleChild(d.stageList)

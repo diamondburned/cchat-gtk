@@ -58,7 +58,7 @@ func New() *Container {
 	})
 
 	// On label destroy, stop the state loop as well.
-	l.Connect("destroy", state.stopper)
+	l.Connect("destroy", func(interface{}) { state.stopper() })
 
 	return &Container{
 		Revealer: r,

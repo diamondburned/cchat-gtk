@@ -85,13 +85,13 @@ func (a *Avatar) loadFunc(size int) *gdk.Pixbuf {
 		return nil
 	}
 
-	// Temporarily resize for now.
-	p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
-	if err != nil {
-		p = a.pixbuf
-	}
+	// 	// Temporarily resize for now.
+	// 	p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
+	// 	if err != nil {
+	// 		p = a.pixbuf
+	// 	}
 
-	return p
+	return a.pixbuf
 }
 
 // SetRadius is a no-op.

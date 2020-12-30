@@ -16,7 +16,7 @@ type State struct {
 }
 
 type Connector interface {
-	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+	Connect(string, interface{}) glib.SignalHandle
 }
 
 func Bind(app *gtk.Application) *State {
@@ -34,8 +34,8 @@ func Bind(app *gtk.Application) *State {
 }
 
 func (s *State) Connect(c Connector) {
-	c.Connect("focus-out-event", s.Start)
-	c.Connect("focus-in-event", s.Stop)
+	c.Connect("focus-out-event", func(interface{}) { s.Start() })
+	c.Connect("focus-in-event", func(interface{}) { s.Stop() })
 }
 
 func (s *State) Start() {

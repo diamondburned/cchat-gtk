@@ -6,10 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"runtime/debug"
-	"strings"
 	"syscall"
-	"time"
 )
 
 // Inject madvdontneed=1 as soon as possible.
@@ -39,16 +36,3 @@ var _ = func() struct{} {
 	os.Exit(0)
 	return struct{}{}
 }()
-
-func init() {
-	// Aggressive memory freeing you asked, so aggressive memory freeing we will
-	// deliver.
-	if strings.Contains(os.Getenv("GODEBUG"), "madvdontneed=1") {
-		go func() {
-			log.Println("Now attempting to free memory every 5s... (madvdontneed=1)")
-			for range time.Tick(5 * time.Second) {
-				debug.FreeOSMemory()
-			}
-		}()
-	}
-}

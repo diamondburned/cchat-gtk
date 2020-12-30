@@ -5,6 +5,7 @@ import (
 
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 )
 
@@ -36,13 +37,13 @@ func NewStaticImage(parent primitives.Connector, radius float64) (*StaticImage, 
 }
 
 func (s *StaticImage) ConnectHandlers(connector primitives.Connector) {
-	connector.Connect("enter-notify-event", func() {
+	connector.Connect("enter-notify-event", func(interface{}) {
 		if s.animation != nil && !s.animating {
 			s.animating = true
 			s.Image.SetFromAnimation(s.animation)
 		}
 	})
-	connector.Connect("leave-notify-event", func() {
+	connector.Connect("leave-notify-event", func(interface{}) {
 		if s.animation != nil && s.animating {
 			s.animating = false
 			s.Image.SetFromPixbuf(s.animation.GetStaticImage())
@@ -58,6 +59,11 @@ func (s *StaticImage) SetImageURL(url string) {
 func (s *StaticImage) SetFromPixbuf(pb *gdk.Pixbuf) {
 	s.animation = nil
 	s.Image.SetFromPixbuf(pb)
+}
+
+func (s *StaticImage) SetFromSurface(sf *cairo.Surface) {
+	s.animation = nil
+	s.Image.SetFromSurface(sf)
 }
 
 func (s *StaticImage) SetFromAnimation(anim *gdk.PixbufAnimation) {

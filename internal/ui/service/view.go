@@ -13,6 +13,8 @@ import (
 type Controller interface {
 	// SessionSelected is called when
 	SessionSelected(svc *Service, srow *session.Row)
+	// ClearMessenger is called when a nil slice of servers is set.
+	ClearMessenger(*session.Row)
 	// MessengerSelected is wrapped around session's MessengerSelected.
 	MessengerSelected(*session.Row, *server.ServerRow)
 	// AuthenticateSession is called to spawn the authentication dialog.

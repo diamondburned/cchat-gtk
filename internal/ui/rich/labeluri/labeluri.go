@@ -179,7 +179,6 @@ func NewPopoverMentioner(rel gtk.IWidget, input string, segment text.Segment) *g
 	p, _ := gtk.PopoverNew(rel)
 	p.Add(box)
 	p.SetSizeRequest(PopoverWidth, -1)
-	p.Connect("destroy", box.Destroy)
 	return p
 }
 
@@ -216,7 +215,7 @@ func popoverImg(url string, round bool) gtk.IWidget {
 
 	btn.SetHAlign(gtk.ALIGN_CENTER)
 	btn.SetRelief(gtk.RELIEF_NONE)
-	btn.Connect("clicked", func() { PromptOpen(url) })
+	btn.Connect("clicked", func(*gtk.Button) { PromptOpen(url) })
 	btn.Show()
 
 	return btn
@@ -236,7 +235,7 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 	// message, but we're also keeping alive the widget.
 
 	var x, y float64
-	connector.Connect("motion-notify-event", func(w gtk.IWidget, ev *gdk.Event) {
+	connector.Connect("motion-notify-event", func(_ interface{}, ev *gdk.Event) {
 		x, y = gdk.EventMotionNewFromEvent(ev).MotionVal()
 	})
 
@@ -274,12 +273,11 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 			btn, _ := gtk.ButtonNew()
 			btn.Add(img)
 			btn.SetRelief(gtk.RELIEF_NONE)
-			btn.Connect("clicked", func() { PromptOpen(uri) })
+			btn.Connect("clicked", func(*gtk.Button) { PromptOpen(uri) })
 			btn.Show()
 
 			p, _ := gtk.PopoverNew(c)
 			p.SetPointingTo(r)
-			p.Connect("closed", img.Destroy) // on close, destroy image
 			p.Add(btn)
 			p.Popup()
 

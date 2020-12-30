@@ -3,6 +3,10 @@ package httputil
 import (
 	"context"
 	"io"
+	"mime"
+	"net/http"
+	"net/url"
+	"path"
 	"strings"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -41,7 +45,7 @@ type surfaceWrapper struct {
 	scale int
 }
 
-func (wrapper surfaceWrapper) SetFromPixbuf(pb *gdk.Pixbuf) {
+func (wrapper *surfaceWrapper) SetFromPixbuf(pb *gdk.Pixbuf) {
 	surface, _ := gdk.CairoSurfaceCreateFromPixbuf(pb, wrapper.scale, nil)
 	wrapper.SetFromSurface(surface)
 }
@@ -49,98 +53,149 @@ func (wrapper surfaceWrapper) SetFromPixbuf(pb *gdk.Pixbuf) {
 // AsyncImage loads an image. This method uses the cache. It prefers loading
 // SetFromSurface over SetFromPixbuf, but will fallback if needed be.
 func AsyncImage(ctx context.Context,
-	img ImageContainer, url string, procs ...imgutil.Processor) {
+	img ImageContainer, imageURL string, procs ...imgutil.Processor) {
 
-	if url == "" {
-		return
-	}
-
-	gif := strings.Contains(url, ".gif")
-	scale := 1
-
-	surfaceContainer, canSurface := img.(SurfaceContainer)
-
-	if canSurface = canSurface && !gif; canSurface {
-		// Only bother with this API if we even have HiDPI.
-		if scale = surfaceContainer.GetScaleFactor(); scale > 1 {
-			img = surfaceWrapper{surfaceContainer, scale}
-		}
-	}
-
-	ctx = primitives.HandleDestroyCtx(ctx, img)
-
-	l, err := gdk.PixbufLoaderNew()
-	if err != nil {
-		log.Error(errors.Wrap(err, "Failed to make pixbuf loader"))
+	if imageURL == "" {
 		return
 	}
 
 	w, h := img.GetSizeRequest()
-	l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
-		w, h = imgutil.MaxSize(imgW, imgH, w, h)
-		if w != imgW || h != imgH || scale > 1 {
-			l.SetSize(w*scale, h*scale)
+	scale := 1
+
+	surfaceContainer, canSurface := img.(SurfaceContainer)
+	if canSurface {
+		scale = surfaceContainer.GetScaleFactor()
+	}
+
+	go func() {
+		ctx := primitives.HandleDestroyCtx(ctx, img)
+
+		// Try and guess the MIME type from the URL.
+		mimeType := mime.TypeByExtension(urlExt(imageURL))
+
+		r, err := get(ctx, imageURL, true)
+		if err != nil {
+			log.Error(errors.Wrap(err, "failed to GET"))
+			return
 		}
-	})
+		defer r.Body.Close()
 
-	l.Connect("area-prepared", areaPreparedFn(ctx, img, gif))
+		// Try and use the image type from the MIME header over the type from
+		// the URL, as it is more reliable.
+		if mime := mimeFromHeaders(r.Header); mime != "" {
+			mimeType = mime
+		}
 
-	go downloadImage(ctx, l, url, procs, gif)
+		_, fileType := path.Split(mimeType) // abuse split "a/b" to get b
+
+		isGIF := fileType == "gif"
+		if isGIF {
+			canSurface = false
+			scale = 1
+		}
+
+		// Only bother with this if we even have HiDPI. We also can't use a
+		// Surface for a GIF.
+		if canSurface && scale > 1 {
+			img = &surfaceWrapper{surfaceContainer, scale}
+		}
+
+		l, err := gdk.PixbufLoaderNewWithType(fileType)
+		if err != nil {
+			log.Error(errors.Wrap(err, "failed to make pixbuf loader"))
+			return
+		}
+
+		l.Connect("size-prepared", func(l *gdk.PixbufLoader, imgW, imgH int) {
+			w, h = imgutil.MaxSize(imgW, imgH, w, h)
+			if w != imgW || h != imgH || scale > 1 {
+				l.SetSize(w*scale, h*scale)
+			}
+		})
+
+		load := loadFn(ctx, img, isGIF)
+		l.Connect("area-prepared", load)
+		l.Connect("area-updated", load)
+
+		if err := downloadImage(r.Body, l, procs, isGIF); err != nil {
+			log.Error(errors.Wrapf(err, "failed to download %q", imageURL))
+			// Force close after downloading.
+		}
+
+		if err := l.Close(); err != nil {
+			log.Error(errors.Wrapf(err, "failed to close pixbuf loader for %q", imageURL))
+		}
+	}()
 }
 
-func areaPreparedFn(ctx context.Context, img ImageContainer, gif bool) func(l *gdk.PixbufLoader) {
+func urlExt(anyURL string) string {
+	u, err := url.Parse(anyURL)
+	if err != nil {
+		return path.Ext(strings.SplitN(anyURL, "?", 1)[0])
+	}
+
+	return path.Ext(u.Path)
+}
+
+func mimeFromHeaders(headers http.Header) string {
+	cType := headers.Get("Content-Type")
+	if cType == "" {
+		return ""
+	}
+	media, _, err := mime.ParseMediaType(cType)
+	if err != nil {
+		return ""
+	}
+	return media
+}
+
+func loadFn(ctx context.Context, img ImageContainer, isGIF bool) func(l *gdk.PixbufLoader) {
+	var pixbuf interface{}
+
 	return func(l *gdk.PixbufLoader) {
-		if !gif {
-			p, err := l.GetPixbuf()
-			if err != nil {
-				log.Error(errors.Wrap(err, "Failed to get pixbuf"))
-				return
+		if pixbuf == nil {
+			if !isGIF {
+				pixbuf, _ = l.GetPixbuf()
+			} else {
+				pixbuf, _ = l.GetAnimation()
 			}
-			execIfCtx(ctx, func() { img.SetFromPixbuf(p) })
-		} else {
-			p, err := l.GetAnimation()
-			if err != nil {
-				log.Error(errors.Wrap(err, "Failed to get animation"))
-				return
-			}
-			execIfCtx(ctx, func() { img.SetFromAnimation(p) })
+		}
+
+		switch pixbuf := pixbuf.(type) {
+		case *gdk.Pixbuf:
+			execIfCtx(ctx, func() { img.SetFromPixbuf(pixbuf) })
+		case *gdk.PixbufAnimation:
+			execIfCtx(ctx, func() { img.SetFromAnimation(pixbuf) })
 		}
 	}
 }
 
 func execIfCtx(ctx context.Context, fn func()) {
-	gts.ExecAsync(func() {
+	gts.ExecLater(func() {
 		if ctx.Err() == nil {
 			fn()
 		}
 	})
 }
 
-func downloadImage(ctx context.Context, dst io.WriteCloser, url string, p []imgutil.Processor, gif bool) {
-	// Close at the end when done.
-	defer dst.Close()
-
-	r, err := get(ctx, url, true)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer r.Body.Close()
+func downloadImage(src io.Reader, dst io.Writer, p []imgutil.Processor, isGIF bool) error {
+	var err error
 
 	// If we have processors, then write directly in there.
 	if len(p) > 0 {
-		if !gif {
-			err = imgutil.ProcessStream(dst, r.Body, p)
+		if !isGIF {
+			err = imgutil.ProcessStream(dst, src, p)
 		} else {
-			err = imgutil.ProcessAnimationStream(dst, r.Body, p)
+			err = imgutil.ProcessAnimationStream(dst, src, p)
 		}
 	} else {
 		// Else, directly copy the body over.
-		_, err = io.Copy(dst, r.Body)
+		_, err = io.Copy(dst, src)
 	}
 
 	if err != nil {
-		log.Error(errors.Wrap(err, "Error processing image"))
-		return
+		return errors.Wrap(err, "failed to process image")
 	}
+
+	return nil
 }

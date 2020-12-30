@@ -1,15 +1,12 @@
 package gts
 
 import (
-	"fmt"
-	"image"
 	"os"
 	"time"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts/throttler"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/handy"
-	"github.com/disintegration/imaging"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -66,15 +63,14 @@ func NewEmptyModalDialog() (*gtk.Dialog, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to get content area")
 	}
-
-	d.Remove(b)
+	b.Destroy()
 
 	return d, nil
 }
 
 func AddAppAction(name string, call func()) {
 	action := glib.SimpleActionNew(name, nil)
-	action.Connect("activate", call)
+	action.Connect("activate", func(*glib.SimpleAction) { call() })
 	App.AddAction(action)
 }
 
@@ -90,12 +86,12 @@ func init() {
 type MainApplication interface {
 	gtk.IWidget
 	Menu() *glib.MenuModel
-	Icon() *gdk.Pixbuf
+	Icon() *gdk.Pixbuf // assume scale 1
 	Close()
 }
 
 func Main(wfn func() MainApplication) {
-	App.Application.Connect("activate", func() {
+	App.Application.Connect("activate", func(*gtk.Application) {
 		handy.Init()
 
 		// Load all CSS onto the default screen.
@@ -119,17 +115,16 @@ func Main(wfn func() MainApplication) {
 		w := wfn()
 		App.Window.Add(w)
 		App.Window.SetIcon(w.Icon())
-		// App.Application.SetAppMenu(w.Menu())
 
 		// Connect the destructor.
-		App.Window.Window.Connect("destroy", func() {
+		App.Window.Window.Connect("destroy", func(window *handy.ApplicationWindow) {
 			// Hide the application window.
-			App.Window.Hide()
+			window.Hide()
 
 			// Let the main loop run once by queueing the stop loop afterwards.
 			// This is to allow the main loop to properly hide the Gtk window
 			// before trying to disconnect.
-			ExecAsync(func() {
+			ExecLater(func() {
 				// Stop the application loop.
 				App.Application.Quit()
 				// Finalize the application by running the closer.
@@ -164,9 +159,14 @@ func Async(fn func() (func(), error)) {
 	}()
 }
 
+// ExecLater executes the function asynchronously with a low priority.
+func ExecLater(fn func()) {
+	glib.IdleAddPriority(glib.PRIORITY_LOW, fn)
+}
+
 // ExecAsync executes function asynchronously in the Gtk main thread.
 func ExecAsync(fn func()) {
-	glib.IdleAdd(fn)
+	glib.IdleAddPriority(glib.PRIORITY_HIGH, fn)
 }
 
 // ExecSync executes the function asynchronously, but returns a channel that
@@ -174,7 +174,7 @@ func ExecAsync(fn func()) {
 func ExecSync(fn func()) <-chan struct{} {
 	var ch = make(chan struct{})
 
-	glib.IdleAdd(func() {
+	glib.IdleAddPriority(glib.PRIORITY_HIGH, func() {
 		fn()
 		close(ch)
 	})
@@ -189,10 +189,7 @@ func DoAfter(d time.Duration, f func()) {
 
 // DoAfterMs calls f after the given ms in the Gtk main loop.
 func DoAfterMs(ms uint, f func()) {
-	_, err := glib.TimeoutAdd(ms, f)
-	if err != nil {
-		panic(err)
-	}
+	glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, f)
 }
 
 // AfterFunc mimics time.AfterFunc's API but runs the callback inside the Gtk
@@ -203,41 +200,13 @@ func AfterFunc(d time.Duration, f func()) (stop func()) {
 
 // AfterMsFunc is similar to AfterFunc but takes in milliseconds instead.
 func AfterMsFunc(ms uint, f func()) (stop func()) {
-	h, err := glib.TimeoutAdd(ms, func() bool { f(); return true })
-	if err != nil {
-		panic(err)
-	}
-
+	h := glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, func() bool { f(); return true })
 	return func() { glib.SourceRemove(h) }
 }
 
 func EventIsRightClick(ev *gdk.Event) bool {
 	keyev := gdk.EventButtonNewFromEvent(ev)
 	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_SECONDARY
-}
-
-func RenderPixbuf(img image.Image) *gdk.Pixbuf {
-	var nrgba *image.NRGBA
-	if n, ok := img.(*image.NRGBA); ok {
-		nrgba = n
-	} else {
-		nrgba = imaging.Clone(img)
-	}
-
-	pix, err := gdk.PixbufNewFromData(
-		nrgba.Pix, gdk.COLORSPACE_RGB,
-		true, // NRGBA has alpha.
-		8,    // 8-bit aka 1-byte per sample.
-		nrgba.Rect.Dx(),
-		nrgba.Rect.Dy(), // We already know the image size.
-		nrgba.Stride,
-	)
-
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create pixbuf from *NRGBA: %v", err))
-	}
-
-	return pix
 }
 
 func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
@@ -276,7 +245,7 @@ func BindPreviewer(fc *gtk.FileChooserNativeDialog) {
 
 	fc.SetPreviewWidget(img)
 	fc.Connect("update-preview",
-		func(_ interface{}, img *gtk.Image) {
+		func(fc *gtk.FileChooserNativeDialog) {
 			file := fc.GetPreviewFilename()
 
 			b, err := gdk.PixbufNewFromFileAtScale(file, 256, 256, true)
@@ -288,6 +257,5 @@ func BindPreviewer(fc *gtk.FileChooserNativeDialog) {
 			img.SetFromPixbuf(b)
 			fc.SetPreviewWidgetActive(true)
 		},
-		img,
 	)
 }

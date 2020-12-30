@@ -13,6 +13,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+type WidgetDestroyer interface {
+	gtk.IWidget
+	Destroy()
+}
+
 type Container interface {
 	Remove(gtk.IWidget)
 	GetChildren() *glib.List
@@ -21,8 +26,12 @@ type Container interface {
 var _ Container = (*gtk.Container)(nil)
 
 func RemoveChildren(w Container) {
+	type destroyer interface {
+		Destroy()
+	}
+
 	w.GetChildren().Foreach(func(child interface{}) {
-		w.Remove(child.(gtk.IWidget))
+		child.(destroyer).Destroy()
 	})
 }
 
@@ -166,18 +175,18 @@ func MenuItem(label string, fn interface{}) *gtk.MenuItem {
 }
 
 type Connector interface {
-	Connect(string, interface{}, ...interface{}) (glib.SignalHandle, error)
-	ConnectAfter(string, interface{}, ...interface{}) (glib.SignalHandle, error)
+	Connect(string, interface{}) glib.SignalHandle
+	ConnectAfter(string, interface{}) glib.SignalHandle
 }
 
 func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
-	connector.Connect("destroy", cancel)
+	connector.Connect("destroy", func(c Connector) { cancel() })
 	return ctx
 }
 
 func BindMenu(connector Connector, menu *gtk.Menu) {
-	connector.Connect("button-press-event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+	connector.Connect("button-press-event", func(c Connector, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			menu.PopupAtPointer(ev)
 		}
@@ -185,7 +194,7 @@ func BindMenu(connector Connector, menu *gtk.Menu) {
 }
 
 func BindDynamicMenu(connector Connector, constr func(menu *gtk.Menu)) {
-	connector.Connect("button-press-event", func(_ *gtk.ToggleButton, ev *gdk.Event) {
+	connector.Connect("button-press-event", func(c Connector, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			menu, _ := gtk.MenuNew()
 			constr(menu)
@@ -287,7 +296,7 @@ func InlineCSS(ctx StyleContexter, css string) {
 // LeafletOnFold binds a callback to a leaflet that would be called when the
 // leaflet's folded state changes.
 func LeafletOnFold(leaflet *handy.Leaflet, foldedFn func(folded bool)) {
-	leaflet.ConnectAfter("notify::folded", func() {
+	leaflet.ConnectAfter("notify::folded", func(leaflet *handy.Leaflet) {
 		foldedFn(leaflet.GetFolded())
 	})
 }

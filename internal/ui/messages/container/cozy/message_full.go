@@ -66,9 +66,9 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	avatar := NewAvatar()
 	avatar.SetMarginTop(TopFullMargin)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
-	avatar.Connect("clicked", func() {
+	avatar.Connect("clicked", func(w gtk.IWidget) {
 		if output := gc.Username.Output(); len(output.Mentions) > 0 {
-			labeluri.PopoverMentioner(avatar, output.Input, output.Mentions[0])
+			labeluri.PopoverMentioner(w, output.Input, output.Mentions[0])
 		}
 	})
 	// We don't call avatar.Show(). That's called in Attach.

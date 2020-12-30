@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
@@ -205,27 +206,35 @@ func colorAttrs(c uint32, bg bool) []string {
 	rgb, a := splitRGBA(c)
 
 	// Render the hex representation beforehand.
-	hex := fmt.Sprintf("#%06X", rgb)
+	hex := "#" + strconv.FormatUint(uint64(rgb), 16)
 
 	attrs := make([]string, 1, 4)
-	attrs[0] = fmt.Sprintf(`color="%s"`, hex)
+	attrs[0] = wrapKeyValue("color", hex)
 
 	// If we have an alpha that isn't solid (100%), then write it.
 	if a < 0xFF {
 		// Calculate alpha percentage.
 		perc := a * 100 / 255
-		attrs = append(attrs, fmt.Sprintf(`fgalpha="%d%%"`, perc))
+		attrs = append(attrs, wrapKeyValue("fgalpha", strconv.Itoa(int(perc))))
 	}
 
 	// Draw a faded background if we explicitly requested for one.
 	if bg {
 		// Calculate how faded the background should be for visual purposes.
 		perc := a * 10 / 255 // always 10% or less.
-		attrs = append(attrs, fmt.Sprintf(`bgalpha="%d%%"`, perc))
-		attrs = append(attrs, fmt.Sprintf(`bgcolor="%s"`, hex))
+		attrs = append(attrs, wrapKeyValue("bgalpha", strconv.Itoa(int(perc))))
+		attrs = append(attrs, wrapKeyValue("bgcolor", hex))
 	}
 
 	return attrs
+}
+
+func hexPad(c uint32) string {
+	hex := strconv.FormatUint(uint64(c), 16)
+	if len(hex) >= 6 {
+		return hex
+	}
+	return strings.Repeat("0", 6-len(hex)) + hex
 }
 
 const (
@@ -294,6 +303,17 @@ func FragmentImageSize(URL string, maxw, maxh int) (w, h int, round bool) {
 
 func span(key, value string) string {
 	return "<span key=\"" + value + "\">"
+}
+
+func wrapKeyValue(key, value string) string {
+	buf := strings.Builder{}
+	buf.Grow(len(key) + len(value) + 3)
+	buf.WriteString(key)
+	buf.WriteByte('=')
+	buf.WriteByte('"')
+	buf.WriteString(value)
+	buf.WriteByte('"')
+	return buf.String()
 }
 
 func markupAttr(attr text.Attribute) string {

@@ -46,10 +46,6 @@ func Take(b, smallbutton Button, size int) {
 	childv, _ := b.GetChild()
 	widget := childv.ToWidget()
 
-	// As GetChild doesn't reference, we'll want our own reference.
-	widget.Ref()
-	defer widget.Unref()
-
 	// This will unreference.
 	b.Remove(widget)
 	// Wrap will reference.

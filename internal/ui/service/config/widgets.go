@@ -110,7 +110,7 @@ func newEntry(k string, conf map[string]string, change func()) *entry {
 	e, _ := gtk.EntryNew()
 	e.SetText(conf[k])
 	e.SetHExpand(true)
-	e.Connect("changed", func() {
+	e.Connect("changed", func(e *gtk.Entry) {
 		conf[k], _ = e.GetText()
 		change()
 	})

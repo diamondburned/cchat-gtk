@@ -22,16 +22,23 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Servicer extends server.RowController to add session.
 type Servicer interface {
 	// Service asks the controller for its service.
 	Service() cchat.Service
+}
+
+// Controller extends server.Controller to add session parameters.
+type Controller interface {
+	Servicer
+
 	// OnSessionDisconnect is called before a session is disconnected. This
 	// function is used for cleanups.
 	OnSessionDisconnect(*Row)
 	// SessionSelected is called when the row is clicked. The parent container
 	// should change the views to show this session's *Servers.
 	SessionSelected(*Row)
+	// ClearMessenger is called when a nil slice of servers is set.
+	ClearMessenger(*Row)
 	// MessengerSelected is called when a server that can display messages (aka
 	// implements Messenger) is called.
 	MessengerSelected(*Row, *server.ServerRow)
@@ -53,13 +60,13 @@ type Row struct {
 	iconBox *gtk.EventBox
 	icon    *rich.Icon // nillable
 
+	ctrl        Controller
 	parentcrumb traverse.Breadcrumber
 
 	Session   cchat.Session // state; nilable
 	sessionID string
 
 	Servers *Servers // accessed by View for the right view
-	svcctrl Servicer
 
 	ActionsMenu *actions.Menu // session.*
 
@@ -129,22 +136,22 @@ func newIcon(img rich.RoundIconContainer) *rich.Icon {
 	return icon
 }
 
-func New(parent traverse.Breadcrumber, ses cchat.Session, ctrl Servicer) *Row {
+func New(parent traverse.Breadcrumber, ses cchat.Session, ctrl Controller) *Row {
 	row := newRow(parent, text.Rich{}, ctrl)
 	row.SetSession(ses)
 	return row
 }
 
-func NewLoading(parent traverse.Breadcrumber, id, name string, ctrl Servicer) *Row {
+func NewLoading(parent traverse.Breadcrumber, id, name string, ctrl Controller) *Row {
 	row := newRow(parent, text.Rich{Content: name}, ctrl)
 	row.sessionID = id
 	row.SetLoading()
 	return row
 }
 
-func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
+func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Controller) *Row {
 	row := &Row{
-		svcctrl:     ctrl,
+		ctrl:        ctrl,
 		parentcrumb: parent,
 	}
 
@@ -169,7 +176,7 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Servicer) *Row {
 	row.ActionsMenu.InsertActionGroup(row)
 
 	// Bind right clicks and show a popover menu on such event.
-	row.iconBox.Connect("button-press-event", func(_ gtk.IWidget, ev *gdk.Event) {
+	row.iconBox.Connect("button-press-event", func(_ interface{}, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {
 			row.ActionsMenu.Popup(row)
 		}
@@ -242,6 +249,10 @@ func (r *Row) Breadcrumb() string {
 	return r.Session.Name().Content
 }
 
+func (r *Row) ClearMessenger() {
+	r.ctrl.ClearMessenger(r)
+}
+
 // Activate executes whatever needs to be done. If the row has failed, then this
 // method will reconnect. If the row is already loaded, then SessionSelected
 // will be called.
@@ -257,7 +268,7 @@ func (r *Row) Activate() {
 	}
 
 	// Display the empty server list first, then try and reconnect.
-	r.svcctrl.SessionSelected(r)
+	r.ctrl.SessionSelected(r)
 }
 
 // SetLoading sets the session button to have a spinner circle. DO NOT CONFUSE
@@ -371,13 +382,13 @@ func (r *Row) SetSession(ses cchat.Session) {
 }
 
 func (r *Row) MessengerSelected(sr *server.ServerRow) {
-	r.svcctrl.MessengerSelected(r, sr)
+	r.ctrl.MessengerSelected(r, sr)
 }
 
 // RemoveSession removes itself from the session list.
 func (r *Row) RemoveSession() {
 	// Remove the session off the list.
-	r.svcctrl.RemoveSession(r)
+	r.ctrl.RemoveSession(r)
 
 	var session = r.Session
 	if session == nil {
@@ -404,7 +415,7 @@ func (r *Row) ReconnectSession() {
 	// Set the row as loading.
 	r.SetLoading()
 	// Try to restore the session.
-	r.svcctrl.RestoreSession(r, r.sessionID)
+	r.ctrl.RestoreSession(r, r.sessionID)
 }
 
 // DisconnectSession disconnects the current session. It does nothing if the row
@@ -416,7 +427,7 @@ func (r *Row) DisconnectSession() {
 	}
 
 	// Call the disconnect function from the controller first.
-	r.svcctrl.OnSessionDisconnect(r)
+	r.ctrl.OnSessionDisconnect(r)
 
 	// Copy the session to avoid data race and allow us to reset.
 	session := r.Session

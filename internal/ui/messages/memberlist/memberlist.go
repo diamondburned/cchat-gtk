@@ -87,7 +87,7 @@ func (c *Container) Reset() {
 	c.Revealer.SetRevealChild(false)
 
 	for _, section := range c.Sections {
-		c.Main.Remove(section)
+		section.Destroy()
 	}
 
 	c.Sections = map[string]*Section{}
@@ -276,7 +276,7 @@ func (s *Section) RemoveMember(id string) {
 	}
 }
 
-func listSortNameAsc(r1, r2 *gtk.ListBoxRow, _ ...interface{}) int {
+func listSortNameAsc(r1, r2 *gtk.ListBoxRow) int {
 	n1, _ := r1.GetName()
 	n2, _ := r2.GetName()
 
@@ -400,7 +400,7 @@ func (m *Member) Popup(evq EventQueuer) {
 		// Unbounded concurrency is kind of bad. We should deal with
 		// this in the future.
 		evq.Activate()
-		p.Connect("closed", evq.Deactivate)
+		p.Connect("closed", func(interface{}) { evq.Deactivate() })
 
 		p.SetPosition(gtk.POS_LEFT)
 		p.Popup()

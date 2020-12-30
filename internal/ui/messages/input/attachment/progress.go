@@ -6,6 +6,7 @@ import (
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -47,7 +48,12 @@ func NewProgressBar(file File) *ProgressBar {
 	bar.SetVAlign(gtk.ALIGN_CENTER)
 	bar.Show()
 
-	name, _ := gtk.LabelNew(file.Name)
+	var label = file.Name
+	if file.Size > 0 {
+		label += " - " + glib.FormatSize(uint64(file.Size))
+	}
+
+	name, _ := gtk.LabelNew(label)
 	name.SetMaxWidthChars(45)
 	name.SetSingleLineMode(true)
 	name.SetEllipsize(pango.ELLIPSIZE_MIDDLE)

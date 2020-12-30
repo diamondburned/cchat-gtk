@@ -10,6 +10,7 @@ import (
 )
 
 type ViewController interface {
+	ClearMessenger(*session.Row)
 	MessengerSelected(*session.Row, *server.ServerRow)
 	SessionSelected(*Service, *session.Row)
 	AuthenticateSession(*List, *Service)

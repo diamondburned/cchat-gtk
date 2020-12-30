@@ -84,23 +84,23 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 			return false
 		}
 
+		// TODO: make this asynchronous.
+
 		// Is there an image in the clipboard?
 		if !gts.Clipboard.WaitIsImageAvailable() {
-			// No.
 			return false
 		}
-		// Yes.
 
-		p, err := gts.Clipboard.WaitForImage()
-		if err != nil {
-			log.Error(errors.Wrap(err, "Failed to get image from clipboard"))
-			return true // interrupt as technically valid
-		}
+		gts.Async(func() (func(), error) {
+			p, err := gts.Clipboard.WaitForImage()
+			if err != nil {
+				return nil, errors.Wrap(err, "Failed to get image from clipboard")
+			}
 
-		if err := f.Attachments.AddPixbuf(p); err != nil {
-			log.Error(errors.Wrap(err, "Failed to add image to attachment list"))
-			return true
-		}
+			return func() { f.Attachments.AddPixbuf(p) }, nil
+		})
+
+		return true
 	}
 
 	// If the server supports typing indication, then announce that we are

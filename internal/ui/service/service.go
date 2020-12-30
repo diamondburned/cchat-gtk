@@ -20,6 +20,8 @@ import (
 const IconSize = 48
 
 type ListController interface {
+	// ClearMessenger is called when a nil slice of servers is set.
+	ClearMessenger(*session.Row)
 	// MessengerSelected is called when a server message row is clicked.
 	MessengerSelected(*session.Row, *server.ServerRow)
 	// SessionSelected tells the view to change the session view.
@@ -35,6 +37,8 @@ type ListController interface {
 
 // Service holds everything that a single service has.
 type Service struct {
+	ListController
+
 	*gtk.Box
 	Button *gtk.ToggleButton
 	Icon   *rich.Icon
@@ -42,8 +46,7 @@ type Service struct {
 	BodyRev  *gtk.Revealer // revealed
 	BodyList *session.List // not really supposed to be here
 
-	svclctrl ListController
-	service  cchat.Service // state
+	service cchat.Service // state
 }
 
 var serviceCSS = primitives.PrepareClassCSS("service", `
@@ -81,8 +84,8 @@ var serviceIconCSS = primitives.PrepareClassCSS("service-icon", `
 
 func NewService(svc cchat.Service, svclctrl ListController) *Service {
 	service := &Service{
-		service:  svc,
-		svclctrl: svclctrl,
+		service:        svc,
+		ListController: svclctrl,
 	}
 
 	service.BodyList = session.NewList(service)
@@ -148,11 +151,11 @@ func (s *Service) GetRevealChild() bool {
 }
 
 func (s *Service) SessionSelected(srow *session.Row) {
-	s.svclctrl.SessionSelected(s, srow)
+	s.ListController.SessionSelected(s, srow)
 }
 
 func (s *Service) AuthenticateSession() {
-	s.svclctrl.AuthenticateSession(s)
+	s.ListController.AuthenticateSession(s)
 }
 
 func (s *Service) AddLoadingSession(id, name string) *session.Row {
@@ -196,15 +199,11 @@ func (s *Service) OnSessionDisconnect(row *session.Row) {
 		s.BodyList.UnselectAll()
 	}
 
-	s.svclctrl.OnSessionDisconnect(s, row)
-}
-
-func (s *Service) MessengerSelected(r *session.Row, sv *server.ServerRow) {
-	s.svclctrl.MessengerSelected(r, sv)
+	s.ListController.OnSessionDisconnect(s, row)
 }
 
 func (s *Service) RemoveSession(row *session.Row) {
-	s.svclctrl.OnSessionRemove(s, row)
+	s.ListController.OnSessionRemove(s, row)
 	s.BodyList.RemoveSessionRow(row.ID())
 	s.SaveAllSessions()
 }

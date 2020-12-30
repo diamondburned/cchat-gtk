@@ -104,21 +104,21 @@ func BindDraggable(dg MainDraggable, icon string, fn Swapper, draggers ...Dragga
 		dragger.DragSourceSet(gdk.BUTTON1_MASK, dragEntries, gdk.ACTION_MOVE)
 
 		dragger.Connect("drag-data-get",
-			func(_ gtk.IWidget, ctx *gdk.DragContext, data *gtk.SelectionData) {
+			func(_ interface{}, ctx *gdk.DragContext, data *gtk.SelectionData) {
 				// Set the index-in-bytes.
 				data.SetData(dragAtom, []byte(dg.ID()))
 			},
 		)
 
 		dragger.Connect("drag-begin",
-			func(_ gtk.IWidget, ctx *gdk.DragContext) {
+			func(_ interface{}, ctx *gdk.DragContext) {
 				gtk.DragSetIconName(ctx, icon, 0, 0)
 				dg.SetSensitive(false)
 			},
 		)
 
 		dragger.Connect("drag-end",
-			func() {
+			func(interface{}) {
 				dg.SetSensitive(true)
 			},
 		)

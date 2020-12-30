@@ -135,7 +135,7 @@ func (r *ServerRow) Init() {
 	r.SetIconer(r.Server)
 
 	// Connect the destroyer, if any.
-	r.Connect("destroy", r.cancelUnread)
+	r.Connect("destroy", func(interface{}) { r.cancelUnread() })
 
 	// Restore the read state.
 	r.Button.SetUnreadUnsafe(r.unread, r.mentioned) // update with state
@@ -269,11 +269,8 @@ func (r *ServerRow) load(finish func(error)) {
 // Reset clears off all children servers. It's a no-op if there are none.
 func (r *ServerRow) Reset() {
 	if r.children != nil {
-		// Remove everything from the children container.
 		r.children.Reset()
-
-		// Remove the children container itself.
-		r.Box.Remove(r.children)
+		r.children.Destroy()
 	}
 
 	// Reset the state.

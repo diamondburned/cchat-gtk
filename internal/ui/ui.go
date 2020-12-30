@@ -142,12 +142,20 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 	app.MessageView.Reset()
 }
 
+func (app *App) ClearMessenger(ses *session.Row) {
+	if app.MessageView.SessionID() == ses.Session.ID() {
+		return
+	}
+}
+
 func (app *App) MessengerSelected(ses *session.Row, srv *server.ServerRow) {
 	// Change to the message view.
 	app.Leaflet.SetVisibleChild(app.MessageView)
 
 	// Assert that the new server is not the same one.
-	if app.MessageView.ServerID() == srv.Server.ID() {
+	if app.MessageView.SessionID() == ses.Session.ID() &&
+		app.MessageView.ServerID() == srv.Server.ID() {
+
 		return
 	}
 
@@ -210,7 +218,7 @@ func (app *App) Close() {
 }
 
 func (app *App) Icon() *gdk.Pixbuf {
-	return icons.Logo256(0)
+	return icons.Logo256Pixbuf()
 }
 
 func (app *App) Menu() *glib.MenuModel {

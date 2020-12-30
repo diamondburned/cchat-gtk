@@ -95,12 +95,12 @@ func (h *Header) Reset() {
 }
 
 func (h *Header) OnBackPressed(fn func()) {
-	h.BackButton.Connect("clicked", fn)
+	h.BackButton.Connect("clicked", func(*gtk.Button) { fn() })
 }
 
 func (h *Header) OnShowMembersToggle(fn func(show bool)) {
-	h.ShowMembers.Connect("toggled", func() {
-		fn(h.ShowMembers.GetActive())
+	h.ShowMembers.Connect("toggled", func(showMembers *gtk.ToggleButton) {
+		fn(showMembers.GetActive())
 	})
 }
 

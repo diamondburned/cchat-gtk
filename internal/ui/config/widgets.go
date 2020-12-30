@@ -36,7 +36,7 @@ func (c *_combo) Construct() gtk.IWidget {
 		combo.Append(opt, opt)
 	}
 
-	combo.Connect("changed", func() { c.set(combo.GetActive()) })
+	combo.Connect("changed", func(combo *gtk.ComboBoxText) { c.set(combo.GetActive()) })
 	combo.SetActive(*c.selected)
 	combo.SetHAlign(gtk.ALIGN_END)
 	combo.Show()
@@ -76,7 +76,7 @@ func (s *_switch) set(v bool) {
 func (s *_switch) Construct() gtk.IWidget {
 	sw, _ := gtk.SwitchNew()
 	sw.SetActive(*s.value)
-	sw.Connect("notify::active", func() { s.set(sw.GetActive()) })
+	sw.Connect("notify::active", func(sw *gtk.Switch) { s.set(sw.GetActive()) })
 	sw.SetHAlign(gtk.ALIGN_END)
 	sw.Show()
 
@@ -118,7 +118,7 @@ func (e *_inputentry) Construct() gtk.IWidget {
 	entry.SetHExpand(true)
 	entry.SetText(*e.value)
 
-	entry.Connect("changed", func() {
+	entry.Connect("changed", func(entry *gtk.Entry) {
 		v, err := entry.GetText()
 		if err != nil {
 			return

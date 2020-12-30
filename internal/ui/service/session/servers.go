@@ -17,12 +17,21 @@ import (
 const FaceSize = 48 // gtk.ICON_SIZE_DIALOG
 const ListWidth = 200
 
+// SessionController extends server.Controller to add needed methods that the
+// specific top-level servers container needs.
+type SessionController interface {
+	server.Controller
+	ClearMessenger()
+}
+
 // Servers wraps around a list of servers inherited from Children. It's the
 // container that's displayed on the right of the service sidebar.
 type Servers struct {
 	*gtk.Box
 	Children *server.Children
 	spinner  *spinner.Boxed // non-nil if loading.
+
+	ctrl SessionController
 
 	// state
 	ServerList cchat.Lister
@@ -35,7 +44,7 @@ var toplevelCSS = primitives.PrepareClassCSS("top-level", `
 	}
 `)
 
-func NewServers(p traverse.Breadcrumber, ctrl server.Controller) *Servers {
+func NewServers(p traverse.Breadcrumber, ctrl SessionController) *Servers {
 	c := server.NewChildren(p, ctrl)
 	c.SetMarginStart(0) // children is top level; there is no main row
 	c.SetVExpand(true)
@@ -47,6 +56,7 @@ func NewServers(p traverse.Breadcrumber, ctrl server.Controller) *Servers {
 	return &Servers{
 		Box:      b,
 		Children: c,
+		ctrl:     ctrl,
 	}
 }
 
@@ -88,7 +98,7 @@ func (s *Servers) load() {
 	s.setLoading()
 
 	go func() {
-		err := s.ServerList.Servers(s.Children)
+		err := s.ServerList.Servers(s)
 		gts.ExecAsync(func() {
 			if err != nil {
 				s.setFailed(err)
@@ -97,6 +107,22 @@ func (s *Servers) load() {
 			}
 		})
 	}()
+}
+
+// SetServers is reserved for cchat.ServersContainer.
+func (s *Servers) SetServers(servers []cchat.Server) {
+	gts.ExecAsync(func() {
+		s.Children.SetServersUnsafe(servers)
+
+		if servers == nil {
+			s.ctrl.ClearMessenger()
+		}
+	})
+}
+
+// SetServers is reserved for cchat.ServersContainer.
+func (s *Servers) UpdateServer(update cchat.ServerUpdate) {
+	gts.ExecAsync(func() { s.Children.UpdateServerUnsafe(update) })
 }
 
 // setDone changes the view to show the servers.
@@ -139,7 +165,7 @@ func (s *Servers) setFailed(err error) {
 	// Create a retry button.
 	btn, _ := gtk.ButtonNewFromIconName("view-refresh-symbolic", gtk.ICON_SIZE_DIALOG)
 	btn.Show()
-	btn.Connect("clicked", s.load)
+	btn.Connect("clicked", func(interface{}) { s.load() })
 
 	// Create a bottom label for the error itself.
 	lerr, _ := gtk.LabelNew("")

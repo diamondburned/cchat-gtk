@@ -6,6 +6,7 @@ import (
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
@@ -68,9 +69,9 @@ func NewCompleter(input *gtk.TextView) *Completer {
 	}
 
 	// This one is for buffer modification.
-	ibuf.Connect("end-user-action", c.onChange)
+	ibuf.Connect("end-user-action", func(interface{}) { c.onChange() })
 	// This one is for when the cursor moves.
-	input.Connect("move-cursor", c.onChange)
+	input.Connect("move-cursor", func(interface{}) { c.onChange() })
 
 	l.Connect("row-activated", func(l *gtk.ListBox, r *gtk.ListBoxRow) {
 		SwapWord(ibuf, c.entries[r.GetIndex()].Raw, c.cursor)
@@ -115,9 +116,7 @@ func (c *Completer) Clear() {
 	}
 
 	children.Foreach(func(i interface{}) {
-		w := i.(gtk.IWidget).ToWidget()
-		c.List.Remove(w)
-		w.Destroy()
+		i.(primitives.WidgetDestroyer).Destroy()
 	})
 }
 

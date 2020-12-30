@@ -63,7 +63,7 @@ func NewImage(radius float64) (*Image, error) {
 	// Backup plan if Cairo's Surface is weird.
 
 	// var width, height int
-	// i.Connect("size-allocate", func() {
+	// i.Connect("size-allocate", func(i *gtk.Image) {
 	// 	w := i.GetAllocatedWidth()
 	// 	h := i.GetAllocatedHeight()
 
@@ -93,7 +93,7 @@ func (i *Image) SetRadius(r float64) {
 	i.Radius = r
 }
 
-func (i *Image) drawer(widget gtk.IWidget, cc *cairo.Context) bool {
+func (i *Image) drawer(_ interface{}, cc *cairo.Context) bool {
 	var w = float64(i.GetAllocatedWidth())
 	var h = float64(i.GetAllocatedHeight())
 

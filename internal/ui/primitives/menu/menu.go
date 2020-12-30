@@ -117,7 +117,7 @@ func SimpleItem(name string, fn func()) Item {
 
 func (item Item) ToMenuItem() *gtk.MenuItem {
 	mb, _ := gtk.MenuItemNewWithLabel(item.Name)
-	mb.Connect("activate", item.Func)
+	mb.Connect("activate", func(interface{}) { item.Func() })
 	mb.Show()
 
 	if item.Extra != nil {
@@ -129,7 +129,7 @@ func (item Item) ToMenuItem() *gtk.MenuItem {
 
 func (item Item) ToToolButton() *gtk.ToolButton {
 	tb, _ := gtk.ToolButtonNew(nil, item.Name)
-	tb.Connect("clicked", item.Func)
+	tb.Connect("clicked", func(interface{}) { item.Func() })
 	tb.Show()
 
 	return tb

@@ -132,7 +132,7 @@ func (i *Icon) AsyncSetIconer(iconer cchat.Iconer, errwrap string) {
 			return nil, errors.Wrap(err, "failed to load iconer")
 		}
 
-		return func() { i.Connect("destroy", f) }, nil
+		return func() { i.Connect("destroy", func(interface{}) { f() }) }, nil
 	})
 }
 

@@ -81,7 +81,7 @@ func NewPreferenceDialog() *Dialog {
 
 func SpawnPreferenceDialog() {
 	p := NewPreferenceDialog()
-	p.Connect("destroy", func() {
+	p.Connect("destroy", func(interface{}) {
 		// On close, save the settings.
 		if err := config.Save(); err != nil {
 			log.Error(errors.Wrap(err, "Failed to save settings"))

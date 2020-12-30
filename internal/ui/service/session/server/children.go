@@ -96,7 +96,7 @@ func (c *Children) Reset() {
 			if row.IsHollow() {
 				continue
 			}
-			c.Box.Remove(row)
+			row.Destroy()
 		}
 	}
 
@@ -141,38 +141,40 @@ func (c *Children) setNotLoading() {
 	// Do we have the spinning circle button? If yes, remove it.
 	if c.load != nil {
 		// Stop the loading mode. The reset function should do everything for us.
-		c.Box.Remove(c.load)
+		c.load.Destroy()
 		c.load = nil
 	}
 }
 
 // SetServers is reserved for cchat.ServersContainer.
 func (c *Children) SetServers(servers []cchat.Server) {
-	gts.ExecAsync(func() {
-		// Save the current state (if any) if the children container is not
-		// hollow.
-		if !c.IsHollow() {
-			restore := c.saveSelectedRow()
-			defer restore()
+	gts.ExecAsync(func() { c.SetServersUnsafe(servers) })
+}
+
+func (c *Children) SetServersUnsafe(servers []cchat.Server) {
+	// Save the current state (if any) if the children container is not
+	// hollow.
+	if !c.IsHollow() {
+		restore := c.saveSelectedRow()
+		defer restore()
+	}
+
+	// Reset before inserting new servers.
+	c.Reset()
+
+	// Insert hollow servers.
+	c.Rows = make([]*ServerRow, len(servers))
+	for i, server := range servers {
+		if server == nil {
+			log.Panicln("one of given servers in SetServers is nil at ", i)
 		}
+		c.Rows[i] = NewHollowServer(c, server, c.rowctrl)
+	}
 
-		// Reset before inserting new servers.
-		c.Reset()
-
-		// Insert hollow servers.
-		c.Rows = make([]*ServerRow, len(servers))
-		for i, server := range servers {
-			if server == nil {
-				log.Panicln("one of given servers in SetServers is nil at ", i)
-			}
-			c.Rows[i] = NewHollowServer(c, server, c.rowctrl)
-		}
-
-		// We should not unhollow everything here, but rather on uncollapse.
-		// Since the root node is always unhollow, calls to this function will
-		// pass the hollow test and unhollow its children nodes. That should not
-		// happen.
-	})
+	// We should not unhollow everything here, but rather on uncollapse.
+	// Since the root node is always unhollow, calls to this function will
+	// pass the hollow test and unhollow its children nodes. That should not
+	// happen.
 }
 
 func (c *Children) findID(id cchat.ID) (int, *ServerRow) {
@@ -196,35 +198,37 @@ func (c *Children) insertAt(row *ServerRow, i int) {
 }
 
 func (c *Children) UpdateServer(update cchat.ServerUpdate) {
-	gts.ExecAsync(func() {
-		prevID, replace := update.PreviousID()
+	gts.ExecAsync(func() { c.UpdateServerUnsafe(update) })
+}
 
-		// TODO: I don't think this code unhollows a new server.
-		var newServer = NewHollowServer(c, update, c.rowctrl)
-		var i, oldRow = c.findID(prevID)
+func (c *Children) UpdateServerUnsafe(update cchat.ServerUpdate) {
+	prevID, replace := update.PreviousID()
 
-		// If we're appending a new row, then replace is false.
-		if !replace {
-			// Increment the old row's index so we know where to insert.
-			c.insertAt(newServer, i+1)
-			return
-		}
+	// TODO: I don't think this code unhollows a new server.
+	var newServer = NewHollowServer(c, update, c.rowctrl)
+	var i, oldRow = c.findID(prevID)
 
-		// Only update the server if the old row was found.
-		if oldRow == nil {
-			return
-		}
+	// If we're appending a new row, then replace is false.
+	if !replace {
+		// Increment the old row's index so we know where to insert.
+		c.insertAt(newServer, i+1)
+		return
+	}
 
-		c.Rows[i] = newServer
+	// Only update the server if the old row was found.
+	if oldRow == nil {
+		return
+	}
 
-		if !c.IsHollow() {
-			// Update the UI as well.
-			// TODO: check if this reorder is correct.
-			c.Box.Remove(oldRow)
-			c.Box.Add(newServer)
-			c.Box.ReorderChild(newServer, i)
-		}
-	})
+	c.Rows[i] = newServer
+
+	if !c.IsHollow() {
+		// Update the UI as well.
+		// TODO: check if this reorder is correct.
+		oldRow.Destroy()
+		c.Box.Add(newServer)
+		c.Box.ReorderChild(newServer, i)
+	}
 }
 
 // LoadAll forces all children rows to be unhollowed (initialized). It does

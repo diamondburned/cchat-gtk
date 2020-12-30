@@ -196,16 +196,23 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	// Bind text events.
 	text.Connect("key-press-event", field.keyDown)
 	// Bind the send button.
-	field.send.Connect("clicked", field.sendInput)
+	field.send.Connect("clicked", func(*gtk.Button) { field.sendInput() })
 	// Bind the attach button.
-	field.attach.Connect("clicked", func() { gts.SpawnUploader("", field.Attachments.AddFiles) })
+	field.attach.Connect("clicked", func(attach *gtk.Button) {
+		gts.SpawnUploader("", field.Attachments.AddFiles)
+	})
+
+	// allocatedWidthGetter is used below.
+	type allocatedWidthGetter interface {
+		GetAllocatedWidth() int
+	}
 
 	// Connect to the field's revealer. On resize, we want the attachments
 	// carousel to have the same padding too.
-	field.Username.Connect("size-allocate", func(w gtk.IWidget) {
+	field.Username.Connect("size-allocate", func(w allocatedWidthGetter) {
 		// Calculate the left width: from the left of the message box to the
 		// right of the attach button, covering the username container.
-		var leftWidth = 5 + field.attach.GetAllocatedWidth() + w.ToWidget().GetAllocatedWidth()
+		var leftWidth = 5 + field.attach.GetAllocatedWidth() + w.GetAllocatedWidth()
 		// Set the autocompleter's left margin to be the same.
 		field.Attachments.SetMarginStart(leftWidth)
 	})

@@ -79,7 +79,7 @@ func (l *Label) AsyncSetLabel(fn LabelerFn, info string) {
 			return nil, errors.Wrap(err, "failed to load iconer")
 		}
 
-		return func() { l.Connect("destroy", f) }, nil
+		return func() { l.Connect("destroy", func(interface{}) { f() }) }, nil
 	})
 }
 

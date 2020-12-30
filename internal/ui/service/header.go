@@ -18,7 +18,7 @@ type AppMenu struct {
 
 func NewAppMenu() *AppMenu {
 	img, _ := gtk.ImageNew()
-	img.SetFromPixbuf(icons.Logo256(24))
+	img.SetFromSurface(icons.Logo256(24, img.GetScaleFactor()))
 	img.Show()
 
 	appmenu, _ := gtk.MenuButtonNew()
@@ -131,7 +131,7 @@ type sizeBinder interface {
 var _ sizeBinder = (*List)(nil)
 
 func (h *Header) AppMenuBindSize(c sizeBinder) {
-	c.Connect("size-allocate", func() {
+	c.Connect("size-allocate", func(c sizeBinder) {
 		h.AppMenu.SetSizeRequest(c.GetAllocatedWidth(), -1)
 	})
 }

@@ -53,8 +53,8 @@ func NewModal(body gtk.IWidget, title, button string, clicked func(m *Modal)) *M
 		header,
 	}
 
-	cancel.Connect("clicked", dialog.Destroy)
-	action.Connect("clicked", func() { clicked(modald) })
+	cancel.Connect("clicked", func(interface{}) { dialog.Destroy() })
+	action.Connect("clicked", func(interface{}) { clicked(modald) })
 
 	return modald
 }
@@ -78,7 +78,7 @@ func newCSD(body, header gtk.IWidget) *gtk.Dialog {
 	dialog.Add(body)
 
 	if oldh, _ := dialog.GetHeaderBar(); oldh != nil {
-		dialog.Remove(oldh)
+		oldh.ToWidget().Destroy()
 	}
 	dialog.SetTitlebar(header)
 

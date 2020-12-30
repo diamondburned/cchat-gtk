@@ -155,7 +155,8 @@ func NewView(c Controller) *View {
 	drag.BindFileDest(view.LeftBox, view.InputView.Attachments.AddFiles)
 
 	// placeholder logo
-	logo, _ := gtk.ImageNewFromPixbuf(icons.Logo256Variant2(128))
+	logo, _ := gtk.ImageNew()
+	logo.SetFromSurface(icons.Logo256Variant2(128, logo.GetScaleFactor()))
 	logo.Show()
 
 	view.FaceView = sadface.New(view.Leaflet, logo)
@@ -201,6 +202,7 @@ func (v *View) createMessageContainer() {
 
 	// Remove the old message container.
 	if v.Container != nil {
+		v.Container.Reset()
 		v.MsgBox.Remove(v.Container)
 	}
 
@@ -221,13 +223,19 @@ func (v *View) createMessageContainer() {
 
 func (v *View) Bottomed() bool { return v.Scroller.Bottomed }
 
+// Reset resets the message view.
 func (v *View) Reset() {
+	v.FaceView.Reset() // Switch back to the main screen.
+	v.reset()
+}
+
+// reset resets the message view, but does not change visible containers.
+func (v *View) reset() {
 	v.Header.Reset()     // Reset the header.
 	v.state.Reset()      // Reset the state variables.
 	v.Typing.Reset()     // Reset the typing state.
 	v.InputView.Reset()  // Reset the input.
 	v.MemberList.Reset() // Reset the member list.
-	v.FaceView.Reset()   // Switch back to the main screen.
 
 	// Bring the leaflet view back to the message.
 	v.Leaflet.SetVisibleChild(v.LeftBox)
@@ -282,16 +290,8 @@ func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc travers
 	v.FaceView.SetLoading()
 	v.ctrl.OnMessageBusy()
 
-	// We can be dumb. Reset afterwards so the animation goes smoother.
-	gts.DoAfterMs(
-		v.FaceView.GetTransitionDuration(),
-		func() { v.joinServer(session, server, bc) },
-	)
-}
-
-func (v *View) joinServer(session cchat.Session, server cchat.Server, bc traverse.Breadcrumber) {
 	// Reset before setting.
-	v.Reset()
+	v.reset()
 
 	// Get the messenger once.
 	var messenger = server.AsMessenger()

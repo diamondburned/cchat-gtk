@@ -2,22 +2,21 @@ module github.com/diamondburned/cchat-gtk
 
 go 1.14
 
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201225074909-7bf1378bcba4
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201229104206-9bea3709a385
 
-//replace github.com/diamondburned/cchat-discord => ../cchat-discord
-
-//replace github.com/diamondburned/ningen/v2 => ../../ningen
-
-//replace github.com/diamondburned/arikawa/v2 => ../../arikawa
+// replace github.com/diamondburned/gotk3-tcmalloc => ../../gotk3-tcmalloc
+// replace github.com/diamondburned/cchat-discord => ../cchat-discord
+// replace github.com/diamondburned/ningen/v2 => ../../ningen
+// replace github.com/diamondburned/arikawa/v2 => ../../arikawa
 
 require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.3.15
-	github.com/diamondburned/cchat-discord v0.0.0-20201220081640-288591a535af
+	github.com/diamondburned/cchat-discord v0.0.0-20201227035212-6beff5225092
 	github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db
-	github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894
-	github.com/diamondburned/handy v0.0.0-20200829011954-4667e7a918f4
+	github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828
+	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374
 	github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972
 	github.com/disintegration/imaging v1.6.2
 	github.com/goodsign/monday v1.0.0

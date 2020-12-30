@@ -1,28 +1,42 @@
 { pkgs ? import <nixpkgs> {} }:
 
-let libhandy = pkgs.libhandy.overrideAttrs(old: {
-	name = "libhandy-1.0.1";
-	src  = builtins.fetchGit {
-		url = "https://gitlab.gnome.org/GNOME/libhandy.git";
-		rev = "5cee0927b8b39dea1b2a62ec6d19169f73ba06c6";
-	};
-	patches = [];
+let nostrip = pkg: pkgs.enableDebugging (pkg.overrideAttrs(old: {
+		dontStrip = true;
+		doCheck   = false;
+		NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " -g";
+	}));
 
-	buildInputs = old.buildInputs ++ (with pkgs; [
-		gnome3.librsvg
-		gdk-pixbuf
-	]);
-});
+	libhandy = pkgs.libhandy.overrideAttrs(old: {
+		name = "libhandy-1.0.1";
+		src  = builtins.fetchGit {
+			url = "https://gitlab.gnome.org/GNOME/libhandy.git";
+			rev = "5cee0927b8b39dea1b2a62ec6d19169f73ba06c6";
+		};
+		patches = [];
+
+		buildInputs = old.buildInputs ++ (with pkgs; [
+			(nostrip gnome3.librsvg)
+			(nostrip gdk-pixbuf)
+		]);
+	});
 
 in pkgs.stdenv.mkDerivation rec {
 	name = "cchat-gtk";
 	version = "0.0.2";
 
-	buildInputs = [ libhandy ] ++ (with pkgs; [
-		gnome3.gspell gnome3.glib gnome3.gtk
-	]);
+	buildInputs = [
+		(nostrip libhandy)
+		(nostrip pkgs.gnome3.gspell)
+		(nostrip pkgs.gnome3.glib)
+		(nostrip pkgs.gnome3.gtk)
+	];
 
 	nativeBuildInputs = with pkgs; [
 		pkgconfig go
+		gperftools
 	];
+
+	# Debug flags.
+	CGO_CFLAGS   = "-g";
+	CGO_CXXFLAGS = "-g";
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
+	"github.com/gotk3/gotk3/gtk"
 )
 
 const UnreadColorDefs = `
@@ -61,10 +62,14 @@ func WrapToggleButtonImage(b *rich.ToggleButtonImage) *ToggleButtonImage {
 
 	tb := &ToggleButtonImage{
 		ToggleButtonImage: b,
-
-		clicked: func(bool) {},
+		clicked:           func(bool) {},
 	}
-	tb.Connect("clicked", func() { tb.clicked(tb.GetActive()) })
+
+	type activeGetter interface {
+		GetActive() bool
+	}
+
+	tb.Connect("clicked", func(w *gtk.ToggleButton) { tb.clicked(w.GetActive()) })
 	serverButtonCSS(tb)
 
 	return tb

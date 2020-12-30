@@ -1,31 +1,22 @@
 package attachment
 
 import (
-	"bytes"
 	"fmt"
-	"image"
-	"image/png"
 	"io"
-	"io/ioutil"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
-	"github.com/disintegration/imaging"
+	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
-
-var pngEncoder = png.Encoder{
-	CompressionLevel: png.BestCompression,
-}
 
 const (
 	ThumbSize = 72
@@ -37,7 +28,7 @@ const (
 type File struct {
 	Prog *Progress
 	Name string
-	Size int64
+	Size int64 // -1 = stream
 }
 
 // NewFile creates a new attachment file with a progress state.
@@ -70,7 +61,7 @@ type Container struct {
 
 	// states
 	files []File
-	items map[string]gtk.IWidget
+	items map[string]primitives.WidgetDestroyer
 }
 
 var attachmentsCSS = primitives.PrepareCSS(`
@@ -120,7 +111,7 @@ func New() *Container {
 		Revealer: rev,
 		Scroll:   scr,
 		Box:      box,
-		items:    map[string]gtk.IWidget{},
+		items:    map[string]primitives.WidgetDestroyer{},
 	}
 }
 
@@ -155,11 +146,11 @@ func (c *Container) Reset() {
 
 	// Clear all items.
 	for _, item := range c.items {
-		c.Box.Remove(item)
+		item.Destroy()
 	}
 
 	// Reset the map.
-	c.items = map[string]gtk.IWidget{}
+	c.items = map[string]primitives.WidgetDestroyer{}
 
 	// Hide the window.
 	c.SetRevealChild(false)
@@ -187,61 +178,31 @@ func (c *Container) AddFile(path string) error {
 		func() (io.ReadCloser, error) { return os.Open(path) },
 	)
 
+	scale := c.GetScaleFactor()
+
 	// Maybe try making a preview. A nil image is fine, so we can skip the error
 	// check.
 	// TODO: add a filesize check
-	i, _ := imaging.Open(path, imaging.AutoOrientation(true))
-	c.addPreview(filename, i)
-
+	pixbuf, _ := gdk.PixbufNewFromFileAtScale(path, ThumbSize*scale, ThumbSize*scale, true)
+	c.addPreview(filename, thumbnailPixbuf(pixbuf, scale))
 	return nil
 }
 
 // AddPixbuf is used for adding pixbufs from the clipboard.
-func (c *Container) AddPixbuf(pb *gdk.Pixbuf) error {
-	// Pixbuf's colorspace is only RGB. This is indicated with
-	// GDK_COLORSPACE_RGB.
-	if pb.GetColorspace() != gdk.COLORSPACE_RGB {
-		return errors.New("Pixbuf has unsupported colorspace")
-	}
-
-	// Assert that the pixbuf has alpha, as we're using RGBA.
-	if !pb.GetHasAlpha() {
-		return errors.New("Pixbuf has no alpha channel")
-	}
-
-	// Assert that there are 4 channels: red, green, blue and alpha.
-	if pb.GetNChannels() != 4 {
-		return errors.New("Pixbuf has unexpected channel count")
-	}
-
-	// Assert that there are 8 bits in a channel/sample.
-	if pb.GetBitsPerSample() != 8 {
-		return errors.New("Pixbuf has unexpected bits per sample")
-	}
-
-	var img = &image.NRGBA{
-		Pix:    pb.GetPixels(),
-		Stride: pb.GetRowstride(),
-		Rect:   image.Rect(0, 0, pb.GetWidth(), pb.GetHeight()),
-	}
-
-	// Store the image in memory.
-	var buf bytes.Buffer
-
-	if err := pngEncoder.Encode(&buf, img); err != nil {
-		return errors.Wrap(err, "Failed to encode PNG")
-	}
-
+func (c *Container) AddPixbuf(pb *gdk.Pixbuf) {
 	var filename = c.append(
-		fmt.Sprintf("clipboard_%d.png", len(c.files)+1), int64(buf.Len()),
+		fmt.Sprintf("clipboard_%d.png", len(c.files)+1), -1,
 		func() (io.ReadCloser, error) {
-			return ioutil.NopCloser(bytes.NewReader(buf.Bytes())), nil
+			r, w := io.Pipe()
+			go func() { w.CloseWithError(pb.WritePNG(w, 9)) }()
+			return r, nil
 		},
 	)
 
-	c.addPreview(filename, img)
+	scale := c.GetScaleFactor()
 
-	return nil
+	c.addPreview(filename, thumbnailPixbuf(pb, scale))
+	return
 }
 
 // -- internal methods --
@@ -273,7 +234,7 @@ func (c *Container) remove(name string) {
 	}
 
 	if w, ok := c.items[name]; ok {
-		c.Box.Remove(w)
+		w.Destroy()
 		delete(c.items, name)
 	}
 
@@ -309,7 +270,7 @@ var deleteAttBtnCSS = primitives.PrepareCSS(`
 	}
 `)
 
-func (c *Container) addPreview(name string, src image.Image) {
+func (c *Container) addPreview(name string, thumbnail *cairo.Surface) {
 	// Make a fallback image first.
 	gimg, _ := roundimage.NewImage(4) // border-radius: 4px
 	primitives.SetImageIcon(gimg.Image, iconFromName(name), IconSize)
@@ -322,19 +283,8 @@ func (c *Container) addPreview(name string, src image.Image) {
 	primitives.AttachCSS(gimg, previewCSS)
 
 	// Determine if we could generate an image preview.
-	if src != nil {
-		// Get the minimum dimension.
-		var w, h = minsize(src.Bounds().Dx(), src.Bounds().Dy(), ThumbSize)
-
-		var img *image.NRGBA
-		// Downscale the image.
-		img = imaging.Resize(src, w, h, imaging.Lanczos)
-
-		// Crop to a square.
-		img = imaging.CropCenter(img, ThumbSize, ThumbSize)
-
-		// Copy the image to a pixbuf.
-		gimg.SetFromPixbuf(gts.RenderPixbuf(img))
+	if thumbnail != nil {
+		gimg.SetFromSurface(thumbnail)
 	}
 
 	// BLOAT!!! Make an overlay of an event box that, when hovered, will show
@@ -343,7 +293,7 @@ func (c *Container) addPreview(name string, src image.Image) {
 	del.SetVAlign(gtk.ALIGN_CENTER)
 	del.SetHAlign(gtk.ALIGN_CENTER)
 	del.SetTooltipText("Remove " + name)
-	del.Connect("clicked", func() { c.remove(name) })
+	del.Connect("clicked", func(del *gtk.Button) { c.remove(name) })
 	del.Show()
 	primitives.AddClass(del, "delete-attachment")
 	primitives.AttachCSS(del, deleteAttBtnCSS)
@@ -356,6 +306,58 @@ func (c *Container) addPreview(name string, src image.Image) {
 
 	c.items[name] = ovl
 	c.Box.PackStart(ovl, false, false, 0)
+}
+
+func thumbnailPixbuf(pixbuf *gdk.Pixbuf, scale int) *cairo.Surface {
+	if pixbuf == nil {
+		return nil
+	}
+
+	var (
+		originalWidth  = pixbuf.GetWidth()
+		originalHeight = pixbuf.GetHeight()
+
+		scaledThumbSize           = ThumbSize * scale
+		scaledWidth, scaledHeight = minsize(originalWidth, originalHeight, scaledThumbSize)
+
+		// offset of src on thumbnail; one of those will be 0
+		offsetX = float64(scaledThumbSize-scaledWidth) / 2
+		offsetY = float64(scaledThumbSize-scaledHeight) / 2
+	)
+
+	thumbnail, err := gdk.PixbufNew(
+		pixbuf.GetColorspace(),
+		true, 8, // always have alpha, 8bpc
+		scaledThumbSize, scaledThumbSize,
+	)
+
+	if err != nil {
+		panic("failed to allocate upload thumbnail pixbuf: " + err.Error())
+	}
+
+	// Fill with transparent pixels.
+	thumbnail.Fill(0x0)
+
+	pixbuf.Scale(
+		thumbnail,
+		int(offsetX), int(offsetY),
+		// size of src on thumbnail
+		scaledWidth, scaledHeight,
+		// no offset on source image
+		offsetX, offsetY,
+		// scale ratio for both sides
+		float64(scaledWidth)/float64(originalWidth),
+		float64(scaledHeight)/float64(originalHeight),
+		// expensive rescale algorithm
+		gdk.INTERP_HYPER,
+	)
+
+	surface, err := gdk.CairoSurfaceCreateFromPixbuf(thumbnail, scale, nil)
+	if err != nil {
+		panic("failed to create thumbnail cairo surface: " + err.Error())
+	}
+
+	return surface
 }
 
 func iconFromName(filename string) string {
@@ -376,12 +378,27 @@ func iconFromName(filename string) string {
 	}
 }
 
+// minsize returns the scaled size so that the largest edge is maxsz.
 func minsize(w, h, maxsz int) (int, int) {
-	if w < h {
+	if w > h {
 		// return the scaled width as max
 		// h*max/w is the same as h/w*max but with more accuracy
 		return maxsz, h * maxsz / w
 	}
 
 	return w * maxsz / h, maxsz
+}
+
+func min(w, h int) int {
+	if w > h {
+		return h
+	}
+	return w
+}
+
+func max(w, h int) int {
+	if w > h {
+		return w
+	}
+	return h
 }
