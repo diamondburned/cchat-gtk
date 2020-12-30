@@ -254,9 +254,6 @@ func (v *View) SetFolded(folded bool) {
 	// Change to a mini breadcrumb if we're collapsed.
 	v.Header.SetMiniBreadcrumb(folded)
 
-	// Show the right back button if we're collapsed.
-	v.Header.SetShowBackButton(folded)
-
 	// Hide the username in the input bar if we're collapsed.
 	v.InputView.Username.SetRevealChild(!folded)
 

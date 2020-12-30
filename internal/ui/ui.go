@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config/preferences"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/auth"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
@@ -114,6 +115,11 @@ func NewApplication() *App {
 			app.MessageView.SetFolded(folded)
 		}
 	})
+
+	// We'd still want to control the visibility of the back button when we
+	// fold, however.
+	primitives.LeafletOnFold(&app.Leaflet,
+		app.MessageView.Header.SetShowBackButton)
 
 	return app
 }

@@ -1,6 +1,7 @@
 package gts
 
 import (
+	"io"
 	"os"
 	"time"
 
@@ -216,8 +217,7 @@ func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 		"Upload", "Cancel",
 	)
 
-	App.Throttler.Connect(dialog)
-	BindPreviewer(dialog)
+	// BindPreviewer(dialog)
 
 	if dirpath == "" {
 		p, err := os.Getwd()
@@ -231,7 +231,10 @@ func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 	dialog.SetCurrentFolder(dirpath)
 	dialog.SetSelectMultiple(true)
 
-	if res := dialog.Run(); res != int(gtk.RESPONSE_ACCEPT) {
+	res := dialog.Run()
+	dialog.Destroy()
+
+	if res != int(gtk.RESPONSE_ACCEPT) {
 		return
 	}
 
@@ -244,18 +247,54 @@ func BindPreviewer(fc *gtk.FileChooserNativeDialog) {
 	img, _ := gtk.ImageNew()
 
 	fc.SetPreviewWidget(img)
-	fc.Connect("update-preview",
-		func(fc *gtk.FileChooserNativeDialog) {
-			file := fc.GetPreviewFilename()
+	fc.Connect("update-preview", func(interface{}) { loadImage(fc, img) })
+}
 
-			b, err := gdk.PixbufNewFromFileAtScale(file, 256, 256, true)
-			if err != nil {
-				fc.SetPreviewWidgetActive(false)
-				return
+func loadImage(fc *gtk.FileChooserNativeDialog, img *gtk.Image) {
+	file := fc.GetPreviewFilename()
+
+	go func() {
+		var animation *gdk.PixbufAnimation
+		var pixbuf *gdk.Pixbuf
+
+		defer ExecAsync(func() {
+			if fc.GetPreviewFilename() == file {
+				if animation == nil && pixbuf == nil {
+					fc.SetPreviewWidgetActive(false)
+					return
+				}
+
+				if animation != nil {
+					img.SetFromAnimation(animation)
+				} else {
+					img.SetFromPixbuf(pixbuf)
+				}
+
+				fc.SetPreviewWidgetActive(true)
 			}
+		})
 
-			img.SetFromPixbuf(b)
-			fc.SetPreviewWidgetActive(true)
-		},
-	)
+		l, err := gdk.PixbufLoaderNew()
+		if err != nil {
+			return
+		}
+
+		f, err := os.Open(file)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(l, f); err != nil {
+			return
+		}
+
+		if err := l.Close(); err != nil {
+			return
+		}
+
+		if pixbuf == nil {
+			return
+		}
+	}()
 }
