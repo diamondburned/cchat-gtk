@@ -2,7 +2,7 @@ module github.com/diamondburned/cchat-gtk
 
 go 1.14
 
-replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201229104206-9bea3709a385
+replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201230071527-a77c32eb3876
 
 // replace github.com/diamondburned/gotk3-tcmalloc => ../../gotk3-tcmalloc
 // replace github.com/diamondburned/cchat-discord => ../cchat-discord

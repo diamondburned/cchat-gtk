@@ -88,6 +88,8 @@ github.com/diamondburned/gotk3 v0.0.0-20201229092333-f5c9db5d1d59 h1:9nYQE9MZDcu
 github.com/diamondburned/gotk3 v0.0.0-20201229092333-f5c9db5d1d59/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gotk3 v0.0.0-20201229104206-9bea3709a385 h1:nmlMCeEWmT6z9GAslxkTBZd9mH0Yt2QtWFD1yxGCJ98=
 github.com/diamondburned/gotk3 v0.0.0-20201229104206-9bea3709a385/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
+github.com/diamondburned/gotk3 v0.0.0-20201230071527-a77c32eb3876 h1:8Hacuan9iBgoYyjJFYOP/TgghY4QWxT70qoV5NFGKmc=
+github.com/diamondburned/gotk3 v0.0.0-20201230071527-a77c32eb3876/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894 h1:QgI21deaQbCUMnxKkQQUXzQolnAe1dMIXAWwqAyOp2g=
 github.com/diamondburned/gspell v0.0.0-20200830182722-77e5d27d6894/go.mod h1:IoyMxPKSJOMoP0BiBuFwf2RDMeA4Uqx0HPKN5BzqTtA=
 github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828 h1:Lm1F+GwrDdAaaMzrR7AYl4GGd/T+FE2OgOz25QWwsIg=
