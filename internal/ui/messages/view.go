@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"runtime"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -308,18 +309,22 @@ func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc travers
 	// such as determinining if it's deletable or not.
 	v.InputView.SetMessenger(session, messenger)
 
-	gts.Async(func() (func(), error) {
+	go func() {
 		// We can use a background context here, as the user can't go anywhere
 		// that would require cancellation anyway. This is done in ui.go.
 		s, err := messenger.JoinServer(context.Background(), v.Container)
 		if err != nil {
-			err = errors.Wrap(err, "Failed to join server")
+			log.Error(errors.Wrap(err, "Failed to join server"))
 			// Even if we're erroring out, we're running the done() callback
 			// anyway.
-			return func() { v.ctrl.OnMessageDone(); v.FaceView.SetError(err) }, err
+			gts.ExecAsync(func() {
+				v.ctrl.OnMessageDone()
+				v.FaceView.SetError(err)
+			})
+			return
 		}
 
-		return func() {
+		gts.ExecAsync(func() {
 			// Run the done() callback.
 			v.ctrl.OnMessageDone()
 
@@ -337,8 +342,12 @@ func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc travers
 
 			// Try and use the list.
 			v.MemberList.TryAsyncList(messenger)
-		}, nil
-	})
+		})
+
+		// Collect garbage after a channel switch since a lot of images will
+		// need to be freed.
+		runtime.GC()
+	}()
 }
 
 func (v *View) FetchBacklog() {

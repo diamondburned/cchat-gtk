@@ -20,7 +20,7 @@ import (
 func init() {
 	go func() {
 		// If you GC more, you have shorter STWs. Easy.
-		for range time.Tick(10 * time.Second) {
+		for range time.Tick(time.Minute) {
 			runtime.GC()
 		}
 	}()

@@ -70,7 +70,7 @@ func NewEmptyModalDialog() (*gtk.Dialog, error) {
 
 func AddAppAction(name string, call func()) {
 	action := glib.SimpleActionNew(name, nil)
-	action.Connect("activate", func(*glib.SimpleAction) { call() })
+	action.Connect("activate", func(interface{}) { call() })
 	App.AddAction(action)
 }
 
@@ -161,7 +161,7 @@ func Async(fn func() (func(), error)) {
 
 // ExecLater executes the function asynchronously with a low priority.
 func ExecLater(fn func()) {
-	glib.IdleAddPriority(glib.PRIORITY_LOW, fn)
+	glib.IdleAddPriority(glib.PRIORITY_DEFAULT_IDLE, fn)
 }
 
 // ExecAsync executes function asynchronously in the Gtk main thread.
