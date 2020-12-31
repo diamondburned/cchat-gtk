@@ -78,6 +78,8 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	gc.Timestamp.SetVAlign(gtk.ALIGN_END) // bottom-align
 	gc.Timestamp.SetMarginStart(0)        // clear margins
 
+	gc.Username.SetMaxWidthChars(75)
+
 	// Attach the class and CSS for the left avatar.
 	avatarCSS(avatar)
 

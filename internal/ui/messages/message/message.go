@@ -19,6 +19,7 @@ type Container interface {
 	ID() string
 	Time() time.Time
 	AuthorID() string
+	AuthorName() string
 	AvatarURL() string // avatar
 	Nonce() string
 
@@ -47,11 +48,12 @@ func RefreshContainer(c Container, gc *GenericContainer) {
 // GenericContainer provides a single generic message container for subpackages
 // to use.
 type GenericContainer struct {
-	id        string
-	time      time.Time
-	authorID  string
-	avatarURL string // avatar
-	nonce     string
+	id         string
+	time       time.Time
+	authorID   string
+	authorName string
+	avatarURL  string // avatar
+	nonce      string
 
 	Timestamp *gtk.Label
 	Username  *labeluri.Label
@@ -94,7 +96,6 @@ func NewEmptyContainer() *GenericContainer {
 	ts.Show()
 
 	user := labeluri.NewLabel(text.Rich{})
-	user.SetMaxWidthChars(35)
 	user.SetLineWrap(true)
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
 	user.SetXAlign(1) // right align
@@ -168,6 +169,10 @@ func (m *GenericContainer) AuthorID() string {
 	return m.authorID
 }
 
+func (m *GenericContainer) AuthorName() string {
+	return m.authorName
+}
+
 func (m *GenericContainer) AvatarURL() string {
 	return m.avatarURL
 }
@@ -189,8 +194,11 @@ func (m *GenericContainer) UpdateAuthor(author cchat.Author) {
 }
 
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
-	var out = markup.RenderCmplxWithConfig(name, markup.NoMentionLinks)
-	m.Username.SetOutput(out)
+	cfg := markup.RenderConfig{}
+	cfg.SetForegroundAnchor(m.ContentBody)
+
+	m.authorName = name.String()
+	m.Username.SetOutput(markup.RenderCmplxWithConfig(name, cfg))
 }
 
 func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {

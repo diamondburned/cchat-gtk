@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/hl"
 	"github.com/diamondburned/cchat/text"
 	"github.com/diamondburned/imgutil"
+	"github.com/gotk3/gotk3/gtk"
 )
 
 // Hyphenate controls whether or not texts should have hyphens on wrap.
@@ -24,9 +26,10 @@ func hyphenate(text string) string {
 
 // RenderOutput is the output of a render.
 type RenderOutput struct {
-	Markup   string
-	Input    string // useless to keep parts, as Go will keep all alive anyway
-	Mentions []MentionSegment
+	Markup     string
+	Input      string // useless to keep parts, as Go will keep all alive anyway
+	Mentions   []MentionSegment
+	References []ReferenceSegment
 }
 
 // MentionSegment is a type that satisfies both Segment and Mentioner.
@@ -35,22 +38,39 @@ type MentionSegment struct {
 	text.Mentioner
 }
 
-// f_Mention is used to print and parse mention URIs.
-const f_Mention = "cchat://mention/%d" // %d == Mentions[i]
+// ReferenceSegment is a type that satisfies both Segment and MessageReferencer.
+type ReferenceSegment struct {
+	text.Segment
+	text.MessageReferencer
+}
+
+const (
+	// f_Mention is used to print and parse mention URIs.
+	f_Mention   = "cchat://mention/%d"   // %d == Mentions[i]
+	f_Reference = "cchat://reference/%d" // %d == References[i]
+)
 
 // IsMention returns the mention if the URI is correct, or nil if none.
 func (r RenderOutput) IsMention(uri string) text.Segment {
 	var i int
 
-	if _, err := fmt.Sscanf(uri, f_Mention, &i); err != nil {
-		return nil
-	}
-
-	if i >= len(r.Mentions) {
+	_, err := fmt.Sscanf(uri, f_Mention, &i)
+	if err != nil || i >= len(r.Mentions) {
 		return nil
 	}
 
 	return r.Mentions[i]
+}
+
+func (r RenderOutput) IsReference(uri string) text.Segment {
+	var i int
+
+	_, err := fmt.Sscanf(uri, f_Reference, &i)
+	if err != nil || i >= len(r.References) {
+		return nil
+	}
+
+	return r.References[i]
 }
 
 func Render(content text.Rich) string {
@@ -63,15 +83,32 @@ func RenderCmplx(content text.Rich) RenderOutput {
 }
 
 type RenderConfig struct {
-	// NoMentionLinks prevents the renderer from wrapping mentions with a
-	// hyperlink. This prevents invalid colors.
+	// NoMentionLinks, if true, will not render any mentions.
 	NoMentionLinks bool
+
+	// AnchorColor forces all anchors to be of a certain color. This is used if
+	// the boolean is true. Else, all mention links will not work and regular
+	// links will be of the default color.
+	AnchorColor struct {
+		uint32
+		bool
+	}
 }
 
-// NoMentionLinks is the config to render author names. It disables author
-// mention links, as there's no way to make normal names not appear blue.
-var NoMentionLinks = RenderConfig{
-	NoMentionLinks: true,
+// SetForegroundAnchor sets the AnchorColor of the render config to be that of
+// the regular text foreground color.
+func (c *RenderConfig) SetForegroundAnchor(styler primitives.StyleContexter) {
+	styleCtx, _ := styler.GetStyleContext()
+
+	if rgba := styleCtx.GetColor(gtk.STATE_FLAG_NORMAL); rgba != nil {
+		var color uint32
+		for _, v := range rgba.Floats() { // [0.0, 1.0]
+			color = (color << 8) + uint32(v*0xFF)
+		}
+
+		c.AnchorColor.bool = true
+		c.AnchorColor.uint32 = color
+	}
 }
 
 func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
@@ -104,15 +141,21 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	// map to append strings to indices
 	var appended = attrmap.NewAppendedMap()
 
-	// map to store mentions
+	// map to store mentions and references
 	var mentions []MentionSegment
+	var references []ReferenceSegment
 
 	// Parse all segments.
 	for _, segment := range content.Segments {
 		start, end := segment.Bounds()
 
+		// hasAnchor is used to determine if the current segment has inserted
+		// any anchor tags; it is used for AnchorColor.
+		var hasAnchor bool
+
 		if linker := segment.AsLinker(); linker != nil {
 			appended.Anchor(start, end, linker.Link())
+			hasAnchor = true
 		}
 
 		// Only inline images if start == end per specification.
@@ -127,19 +170,14 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 			}
 		}
 
-		if colorer := segment.AsColorer(); colorer != nil {
-			appended.Span(start, end, colorAttrs(colorer.Color(), false)...)
-		}
-
 		// Mentioner needs to be before colorer, as we'd want the below color
 		// segment to also highlight the full mention as well as make the
 		// padding part of the hyperlink.
-		if mentioner := segment.AsMentioner(); mentioner != nil {
+		if mentioner := segment.AsMentioner(); mentioner != nil && !cfg.NoMentionLinks {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
-			if !cfg.NoMentionLinks {
-				appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
-			}
+			appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
+			hasAnchor = true
 
 			// Add the mention segment into the list regardless of hyperlinks.
 			mentions = append(mentions, MentionSegment{
@@ -147,15 +185,44 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 				Mentioner: mentioner,
 			})
 
-			if colorer := segment.AsColorer(); colorer != nil {
-				// Only pad the name and add a dimmed background if the bounds
-				// do not cover the whole segment.
-				var cover = (start == 0) && (end == len(content.Content))
-				appended.Span(start, end, colorAttrs(colorer.Color(), !cover)...)
-				if !cover {
-					appended.Pad(start, end)
-				}
-			}
+			// TODO: figure out a way to readd Pad. Right now, backend
+			// implementations can arbitrarily add multiple mentions onto the
+			// author for overloading, which we don't want to break.
+
+			// // Determine if the mention segment covers the entire label.
+			// // Only pad the name and add a dimmed background if the bounds do
+			// // not cover the whole segment.
+			// var cover = (start == 0) && (end == len(content.Content))
+			// if !cover {
+			// 	appended.Pad(start, end)
+			// }
+
+			// // If we don't have a mention color for this segment, then try to
+			// // use our own AnchorColor.
+			// if !hasColor && cfg.AnchorColor.bool {
+			// 	appended.Span(start, end, colorAttrs(cfg.AnchorColor.uint32, false)...)
+			// }
+		}
+
+		if colorer := segment.AsColorer(); colorer != nil {
+			appended.Span(start, end, colorAttrs(colorer.Color(), false)...)
+		} else if hasAnchor && cfg.AnchorColor.bool {
+			appended.Span(start, end, colorAttrs(cfg.AnchorColor.uint32, false)...)
+		}
+
+		// Don't use AnchorColor for the link, as we're technically just
+		// borrowing the anchor tag for its use. We should also prefer the
+		// username popover (Mention) over this.
+		if reference := segment.AsMessageReferencer(); !hasAnchor && reference != nil {
+			// Render the mention into "cchat://reference:0" or such. Other
+			// components will take care of showing the information.
+			appended.AnchorNU(start, end, fmt.Sprintf(f_Reference, len(references)))
+
+			// Add the mention segment into the list regardless of hyperlinks.
+			references = append(references, ReferenceSegment{
+				Segment:           segment,
+				MessageReferencer: reference,
+			})
 		}
 
 		if attributor := segment.AsAttributor(); attributor != nil {
@@ -165,7 +232,12 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		if codeblocker := segment.AsCodeblocker(); codeblocker != nil {
 			start, end := segment.Bounds()
 			// Syntax highlight the codeblock.
-			hl.Segments(&appended, content.Content, start, end, codeblocker.CodeblockLanguage())
+			hl.Segments(
+				&appended,
+				content.Content,
+				start, end,
+				codeblocker.CodeblockLanguage(),
+			)
 		}
 
 		// TODO: make this not shit. Maybe make it somehow not rely on green
@@ -187,9 +259,10 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	}
 
 	return RenderOutput{
-		Markup:   hyphenate(buf.String()),
-		Input:    content.Content,
-		Mentions: mentions,
+		Markup:     hyphenate(buf.String()),
+		Input:      content.Content,
+		Mentions:   mentions,
+		References: references,
 	}
 }
 

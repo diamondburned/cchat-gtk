@@ -1,3 +1,4 @@
+// Package hl provides a syntax highlighted renderer for the markup API.
 package hl
 
 import (

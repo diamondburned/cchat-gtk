@@ -4,8 +4,8 @@ go 1.14
 
 replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201230071527-a77c32eb3876
 
-// replace github.com/diamondburned/gotk3-tcmalloc => ../../gotk3-tcmalloc
 // replace github.com/diamondburned/cchat-discord => ../cchat-discord
+// replace github.com/diamondburned/gotk3-tcmalloc => ../../gotk3-tcmalloc
 // replace github.com/diamondburned/ningen/v2 => ../../ningen
 // replace github.com/diamondburned/arikawa/v2 => ../../arikawa
 
@@ -13,7 +13,7 @@ require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.3.15
-	github.com/diamondburned/cchat-discord v0.0.0-20201227035212-6beff5225092
+	github.com/diamondburned/cchat-discord v0.0.0-20201231025836-96e97aa11705
 	github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db
 	github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828
 	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374

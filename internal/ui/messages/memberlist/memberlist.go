@@ -364,6 +364,10 @@ func NewMember(member cchat.ListMember) *Member {
 	return m
 }
 
+var noMentionLinks = markup.RenderConfig{
+	NoMentionLinks: true,
+}
+
 func (m *Member) Update(member cchat.ListMember) {
 	m.ListBoxRow.SetName(member.Name().Content)
 
@@ -371,7 +375,7 @@ func (m *Member) Update(member cchat.ListMember) {
 		m.Avatar.AsyncSetIconer(iconer, "Failed to get member list icon")
 	}
 
-	m.output = markup.RenderCmplxWithConfig(member.Name(), markup.NoMentionLinks)
+	m.output = markup.RenderCmplxWithConfig(member.Name(), noMentionLinks)
 	txt := strings.Builder{}
 	txt.WriteString(fmt.Sprintf(
 		`<span color="#%06X">●</span> %s`,

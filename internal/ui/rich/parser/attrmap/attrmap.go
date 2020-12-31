@@ -1,6 +1,7 @@
 package attrmap
 
 import (
+	"bytes"
 	"fmt"
 	"html"
 	"sort"
@@ -10,15 +11,15 @@ import (
 )
 
 type AppendMap struct {
-	appended  map[int]string // for opening tags
-	prepended map[int]string // for closing tags
+	appended  map[int][]byte // for opening tags
+	prepended map[int][]byte // for closing tags
 	indices   []int
 }
 
 func NewAppendedMap() AppendMap {
 	return AppendMap{
-		appended:  map[int]string{},
-		prepended: map[int]string{},
+		appended:  map[int][]byte{},
+		prepended: map[int][]byte{},
 		indices:   []int{},
 	}
 }
@@ -40,7 +41,7 @@ func (a *AppendMap) Anchor(start, end int, href string) {
 
 // AnchorNU makes a new <a> tag without underlines and colors.
 func (a *AppendMap) AnchorNU(start, end int, href string) {
-	a.Openf(start, `<a href="`+html.EscapeString(href)+`%s">`)
+	a.Openf(start, `<a href="`+html.EscapeString(href)+`">`)
 	a.Close(end, "</a>")
 	// a.Anchor(start, end, href)
 	a.Span(start, end, `underline="none"`)
@@ -63,7 +64,7 @@ func (a *AppendMap) Pad(start, end int) {
 	}
 }
 
-func posHaveSpace(tags map[int]string, pos int) bool {
+func posHaveSpace(tags map[int][]byte, pos int) bool {
 	tg, ok := tags[pos]
 	if !ok || len(tg) == 0 {
 		return false
@@ -78,7 +79,7 @@ func posHaveSpace(tags map[int]string, pos int) bool {
 	}
 
 	// Check spaces mid-tag. This works because strings are always escaped.
-	return strings.Contains(tg, "> <")
+	return bytes.Contains(tg, []byte("> <"))
 }
 
 func (a *AppendMap) Pair(start, end int, open, close string) {
@@ -92,32 +93,31 @@ func (a *AppendMap) Openf(ind int, f string, argv ...interface{}) {
 
 func (a *AppendMap) Open(ind int, attr string) {
 	if str, ok := a.appended[ind]; ok {
-		a.appended[ind] = str + attr // append
+		a.appended[ind] = append(str, []byte(attr)...) // append
 		return
 	}
 
-	a.appended[ind] = attr
+	a.appended[ind] = []byte(attr)
 	a.appendIndex(ind)
 }
 
 func (a *AppendMap) Close(ind int, attr string) {
 	if str, ok := a.prepended[ind]; ok {
-		a.prepended[ind] = attr + str // prepend
+		a.prepended[ind] = append([]byte(attr), str...) // prepend
 		return
 	}
 
-	a.prepended[ind] = attr
+	a.prepended[ind] = []byte(attr)
 	a.appendIndex(ind)
 }
 
 func (a AppendMap) Get(ind int) (tags string) {
-	if t, ok := a.appended[ind]; ok {
-		tags += t
-	}
-	if t, ok := a.prepended[ind]; ok {
-		tags += t
-	}
-	return
+	appended := a.appended[ind]
+	prepended := a.prepended[ind]
+
+	// Borrowing appended's backing array to add prepended is probably fine, as
+	// the length of the actual appended slice is going to stay the same.
+	return string(append(appended, prepended...))
 }
 
 func (a *AppendMap) Finalize(strlen int) []int {

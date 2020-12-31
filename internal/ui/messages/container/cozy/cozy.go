@@ -1,9 +1,6 @@
 package cozy
 
 import (
-	"context"
-	"runtime/pprof"
-
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
@@ -85,7 +82,7 @@ func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
 	// We can do the check here since we're never using NewPresendMessage for
 	// backlog messages.
-	if c.lastMessageIsAuthor(msg.AuthorID(), 0) {
+	if c.lastMessageIsAuthor(msg.AuthorID(), msg.Author().String(), 0) {
 		return NewCollapsedSendingMessage(msg)
 	}
 
@@ -123,53 +120,52 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 	}
 }
 
-func (c *Container) lastMessageIsAuthor(id string, offset int) bool {
+func (c *Container) lastMessageIsAuthor(id cchat.ID, name string, offset int) bool {
 	// Get the offfsetth message from last.
 	var last = c.GridStore.NthMessage((c.GridStore.MessagesLen() - 1) + offset)
-	return last != nil && last.AuthorID() == id
+	return gridMessageIsAuthor(last, id, name)
 }
 
-var createMessageLabel = pprof.Labels("cozy", "createMessage")
+func gridMessageIsAuthor(gridMsg container.GridMessage, id cchat.ID, name string) bool {
+	return gridMsg != nil &&
+		gridMsg.AuthorID() == id &&
+		gridMsg.AuthorName() == name
+}
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
-		pprof.Do(context.Background(), createMessageLabel, func(context.Context) {
+		// Create the message in the parent's handler. This handler will also
+		// wipe old messages.
+		c.GridContainer.CreateMessageUnsafe(msg)
 
-			// Create the message in the parent's handler. This handler will also
-			// wipe old messages.
-			c.GridContainer.CreateMessageUnsafe(msg)
+		// Did the handler wipe old messages? It will only do so if the user is
+		// scrolled to the bottom.
+		if c.GridContainer.CleanMessages() {
+			// We need to uncollapse the first (top) message. No length check is
+			// needed here, as we just inserted a message.
+			c.uncompact(c.FirstMessage())
+		}
 
-			// Did the handler wipe old messages? It will only do so if the user is
-			// scrolled to the bottom.
-			if c.GridContainer.CleanMessages() {
-				// We need to uncollapse the first (top) message. No length check is
-				// needed here, as we just inserted a message.
-				c.uncompact(c.FirstMessage())
+		switch msg.ID() {
+		// Should we collapse this message? Yes, if the current message is
+		// inserted at the end and its author is the same as the last author.
+		case c.GridContainer.LastMessage().ID():
+			author := msg.Author()
+			if c.lastMessageIsAuthor(author.ID(), author.Name().String(), -1) {
+				c.compact(c.GridContainer.LastMessage())
 			}
 
-			switch msg.ID() {
-			// Should we collapse this message? Yes, if the current message is
-			// inserted at the end and its author is the same as the last author.
-			case c.GridContainer.LastMessage().ID():
-				if c.lastMessageIsAuthor(msg.Author().ID(), -1) {
-					c.compact(c.GridContainer.LastMessage())
-				}
-
-			// If we've prepended the message, then see if we need to collapse the
-			// second message.
-			case c.GridContainer.FirstMessage().ID():
-				if sec := c.NthMessage(1); sec != nil {
-					// If the author isn't the same, then ignore.
-					if sec.AuthorID() != msg.Author().ID() {
-						return
-					}
-
-					// The author is the same; collapse.
+		// If we've prepended the message, then see if we need to collapse the
+		// second message.
+		case c.GridContainer.FirstMessage().ID():
+			if sec := c.NthMessage(1); sec != nil {
+				// The author is the same; collapse.
+				author := msg.Author()
+				if gridMessageIsAuthor(sec, author.ID(), author.Name().String()) {
 					c.compact(sec)
 				}
 			}
-
-		})
+		}
 	})
 }
 
