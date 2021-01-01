@@ -279,7 +279,7 @@ func colorAttrs(c uint32, bg bool) []string {
 	rgb, a := splitRGBA(c)
 
 	// Render the hex representation beforehand.
-	hex := "#" + strconv.FormatUint(uint64(rgb), 16)
+	hex := "#" + hexPad(rgb)
 
 	attrs := make([]string, 1, 4)
 	attrs[0] = wrapKeyValue("color", hex)

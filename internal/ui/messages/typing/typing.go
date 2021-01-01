@@ -12,7 +12,8 @@ import (
 
 var typingIndicatorCSS = primitives.PrepareCSS(`
 	.typing-indicator {
-		margin: 0 6px;
+		margin:   0 6px;
+		margin-top: 2px;
 		border-radius: 6px 6px 0 0;
 		color: alpha(@theme_fg_color, 0.8);
 		background-color: @theme_base_color;
@@ -44,7 +45,7 @@ func New() *Container {
 	b.Show()
 
 	r, _ := gtk.RevealerNew()
-	r.SetTransitionDuration(50)
+	r.SetTransitionDuration(100)
 	r.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_CROSSFADE)
 	r.SetRevealChild(false)
 	r.Add(b)
@@ -85,6 +86,10 @@ func (c *Container) TrySubscribe(svmsg cchat.Messenger) bool {
 	return true
 }
 
+var noMentionLinks = markup.RenderConfig{
+	NoMentionLinks: true,
+}
+
 func render(typers []cchat.Typer) string {
 	// fast path
 	if len(typers) == 0 {
@@ -94,8 +99,10 @@ func render(typers []cchat.Typer) string {
 	var builder strings.Builder
 
 	for i, typer := range typers {
+		output := markup.RenderCmplxWithConfig(typer.Name(), noMentionLinks)
+
 		builder.WriteString("<b>")
-		builder.WriteString(markup.Render(typer.Name()))
+		builder.WriteString(output.Markup)
 		builder.WriteString("</b>")
 
 		switch i {
