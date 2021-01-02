@@ -135,7 +135,7 @@ func NewView(c Controller) *View {
 	sep.SetHExpand(true)
 	sep.Show()
 
-	view.InputView = input.NewView(view)
+	view.InputView = input.NewView(view, view.Typing)
 	view.InputView.SetHExpand(true)
 	view.InputView.Show()
 
@@ -363,10 +363,7 @@ func (v *View) FetchBacklog() {
 
 	var done = func() {
 		v.ctrl.OnMessageDone()
-
-		// Restore scrolling.
-		y := v.Container.TranslateCoordinates(v.MsgBox, firstMsg)
-		v.Scroller.GetVAdjustment().SetValue(float64(y))
+		v.Container.Highlight(firstMsg)
 	}
 
 	gts.Async(func() (func(), error) {
@@ -403,13 +400,22 @@ func (v *View) AuthorEvent(author cchat.Author) {
 	}
 }
 
+func (v *View) MessageAuthorMarkup(msgID cchat.ID) (string, bool) {
+	msg := v.Container.Message(msgID, "")
+	if msg == nil {
+		return "", false
+	}
+
+	return msg.AuthorMarkup(), true
+}
+
 // LatestMessageFrom returns the last message ID with that author.
 func (v *View) LatestMessageFrom(userID string) (msgID string, ok bool) {
 	return v.Container.LatestMessageFrom(userID)
 }
 
 // retryMessage sends the message.
-func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendGridMessage) {
+func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendMessageRow) {
 	var sender = v.InputView.Sender
 	if sender == nil {
 		return
@@ -426,9 +432,13 @@ func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendG
 
 // BindMenu attaches the menu constructor into the message with the needed
 // states and callbacks.
-func (v *View) BindMenu(msg container.GridMessage) {
+func (v *View) BindMenu(msg container.MessageRow) {
 	// Add 1 for the edit menu item.
-	var mitems []menu.Item
+	var mitems = []menu.Item{
+		menu.SimpleItem(
+			"Reply", func() { v.InputView.StartReplyingTo(msg.ID()) },
+		),
+	}
 
 	// Do we have editing capabilities? If yes, append a button to allow it.
 	if v.InputView.Editable(msg.ID()) {

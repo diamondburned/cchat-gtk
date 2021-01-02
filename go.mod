@@ -12,8 +12,8 @@ replace github.com/gotk3/gotk3 => github.com/diamondburned/gotk3 v0.0.0-20201230
 require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
-	github.com/diamondburned/cchat v0.3.15
-	github.com/diamondburned/cchat-discord v0.0.0-20210101084233-d8599a528770
+	github.com/diamondburned/cchat v0.3.17
+	github.com/diamondburned/cchat-discord v0.0.0-20210102085253-a691813b9041
 	github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db
 	github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828
 	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374

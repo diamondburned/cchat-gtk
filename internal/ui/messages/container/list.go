@@ -2,13 +2,14 @@ package container
 
 import (
 	"container/list"
+	"log"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/pkg/errors"
 )
 
 type messageKey struct {
@@ -19,57 +20,51 @@ type messageKey struct {
 func nonceKey(nonce string) messageKey { return messageKey{nonce, true} }
 func idKey(id cchat.ID) messageKey     { return messageKey{id, false} }
 
-type GridStore struct {
-	*gtk.Grid
+var messageListCSS = primitives.PrepareClassCSS("message-list", `
+	.message-list { background: transparent; }
+`)
+
+type ListStore struct {
+	*gtk.ListBox
 
 	Construct  Constructor
 	Controller Controller
 
 	resetMe bool
 
-	messages    map[messageKey]*gridMessage
+	messages    map[messageKey]*messageRow
 	messageList *list.List
 }
 
-func NewGridStore(constr Constructor, ctrl Controller) *GridStore {
-	grid, _ := gtk.GridNew()
-	grid.SetColumnSpacing(ColumnSpacing)
-	grid.SetRowSpacing(5)
-	grid.SetMarginStart(5)
-	grid.SetMarginEnd(5)
-	grid.Show()
+func NewListStore(constr Constructor, ctrl Controller) *ListStore {
+	listBox, _ := gtk.ListBoxNew()
+	listBox.SetSelectionMode(gtk.SELECTION_NONE)
+	listBox.Show()
+	messageListCSS(listBox)
 
-	primitives.AddClass(grid, "message-grid")
-
-	return &GridStore{
-		Grid:        grid,
+	return &ListStore{
+		ListBox:     listBox,
 		Construct:   constr,
 		Controller:  ctrl,
-		messages:    make(map[messageKey]*gridMessage, BacklogLimit+1),
+		messages:    make(map[messageKey]*messageRow, BacklogLimit+1),
 		messageList: list.New(),
 	}
 }
 
-func (c *GridStore) Reset() {
-	primitives.RemoveChildren(c.Grid)
-	c.messages = make(map[messageKey]*gridMessage, BacklogLimit+1)
+func (c *ListStore) Reset() {
+	primitives.RemoveChildren(c.ListBox)
+	c.messages = make(map[messageKey]*messageRow, BacklogLimit+1)
 	c.messageList = list.New()
 }
 
-func (c *GridStore) MessagesLen() int {
+func (c *ListStore) MessagesLen() int {
 	return c.messageList.Len()
 }
 
-func (c *GridStore) attachGrid(row int, widgets []gtk.IWidget) {
-	for i, w := range widgets {
-		c.Grid.Attach(w, i, row, 1, 1)
-	}
-}
-
-func (c *GridStore) findElement(id cchat.ID) (*list.Element, *gridMessage, int) {
+func (c *ListStore) findElement(id cchat.ID) (*list.Element, *messageRow, int) {
 	var index = c.messageList.Len() - 1
 	for elem := c.messageList.Back(); elem != nil; elem = elem.Prev() {
-		if gridMsg := elem.Value.(*gridMessage); gridMsg.ID() == id {
+		if gridMsg := elem.Value.(*messageRow); gridMsg.ID() == id {
 			return elem, gridMsg, index
 		}
 		index--
@@ -78,89 +73,62 @@ func (c *GridStore) findElement(id cchat.ID) (*list.Element, *gridMessage, int) 
 }
 
 // findIndex searches backwards for id.
-func (c *GridStore) findIndex(id cchat.ID) (*gridMessage, int) {
+func (c *ListStore) findIndex(id cchat.ID) (*messageRow, int) {
 	_, gridMsg, ix := c.findElement(id)
 	return gridMsg, ix
-}
-
-type CoordinateTranslator interface {
-	TranslateCoordinates(dest gtk.IWidget, srcX int, srcY int) (destX int, destY int, e error)
-}
-
-var _ CoordinateTranslator = (*gtk.Widget)(nil)
-
-func (c *GridStore) TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y int) {
-	m, i := c.findIndex(msg.ID())
-	if i < 0 {
-		return 0
-	}
-
-	w, _ := m.Focusable().(CoordinateTranslator)
-
-	// x is not needed.
-	_, y, err := w.TranslateCoordinates(parent, 0, 0)
-	if err != nil {
-		log.Error(errors.Wrap(err, "Failed to translate coords while focusing"))
-		return
-	}
-
-	return y
 }
 
 // Swap changes the message with the ID to the given message. This provides a
 // low level API for edits that need a new Attach method.
 //
 // TODO: combine compact and full so they share the same attach method.
-func (c *GridStore) SwapMessage(msg GridMessage) bool {
-	// Wrap msg inside a *gridMessage if it's not already.
-	m, ok := msg.(*gridMessage)
+func (c *ListStore) SwapMessage(msg MessageRow) bool {
+	// Wrap msg inside a *messageRow if it's not already.
+	m, ok := msg.(*messageRow)
 	if !ok {
-		m = &gridMessage{GridMessage: msg}
+		m = &messageRow{MessageRow: msg}
 	}
 
 	// Get the current message's index.
-	_, ix := c.findIndex(msg.ID())
+	oldMsg, ix := c.findIndex(msg.ID())
 	if ix == -1 {
 		return false
 	}
 
 	// Add a row at index. The actual row we want to delete will be shifted
 	// downwards.
-	c.Grid.InsertRow(ix)
+	c.ListBox.Insert(m.Row(), ix)
 
-	// Delete the to-be-replaced message, which we have shifted downwards
-	// earlier, so we add 1.
-	c.Grid.RemoveRow(ix + 1)
-
-	// Let the new message be attached on top of the to-be-replaced message.
-	c.attachGrid(ix, m.Attach())
+	// Delete the to-be-replaced message.
+	oldMsg.Row().Destroy()
 
 	// Set the message into the map.
-	c.messages[idKey(m.ID())] = m
+	row := c.messages[idKey(m.ID())]
+	*row = *m
 
 	return true
 }
 
 // Around returns the message before and after the given ID, or nil if none.
-func (c *GridStore) Around(id cchat.ID) (before, after GridMessage) {
+func (c *ListStore) Around(id cchat.ID) (before, after MessageRow) {
 	gridBefore, gridAfter := c.around(id)
 
 	if gridBefore != nil {
-		before = gridBefore.GridMessage
+		before = gridBefore.MessageRow
 	}
 	if gridAfter != nil {
-		after = gridAfter.GridMessage
+		after = gridAfter.MessageRow
 	}
 
 	return
 }
 
-func (c *GridStore) around(id cchat.ID) (before, after *gridMessage) {
-	var last *gridMessage
+func (c *ListStore) around(id cchat.ID) (before, after *messageRow) {
+	var last *messageRow
 	var next bool
 
 	for elem := c.messageList.Front(); elem != nil; elem = elem.Next() {
-		message := elem.Value.(*gridMessage)
+		message := elem.Value.(*messageRow)
 		if next {
 			after = message
 			break
@@ -179,9 +147,9 @@ func (c *GridStore) around(id cchat.ID) (before, after *gridMessage) {
 
 // LatestMessageFrom returns the latest message with the given user ID. This is
 // used for the input prompt.
-func (c *GridStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
+func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
 	// FindMessage already looks from the latest messages.
-	var msg = c.FindMessage(func(msg GridMessage) bool {
+	var msg = c.FindMessage(func(msg MessageRow) bool {
 		return msg.AuthorID() == userID
 	})
 
@@ -194,14 +162,14 @@ func (c *GridStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
 
 // FindMessage iterates backwards and returns the message if isMessage() returns
 // true on that message.
-func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessage {
+func (c *ListStore) FindMessage(isMessage func(msg MessageRow) bool) MessageRow {
 	for elem := c.messageList.Back(); elem != nil; elem = elem.Prev() {
-		gridMsg := elem.Value.(*gridMessage)
+		gridMsg := elem.Value.(*messageRow)
 		// Ignore sending messages.
 		if gridMsg.presend != nil {
 			continue
 		}
-		if gridMsg := gridMsg.GridMessage; isMessage(gridMsg) {
+		if gridMsg := gridMsg.MessageRow; isMessage(gridMsg) {
 			return gridMsg
 		}
 	}
@@ -210,11 +178,11 @@ func (c *GridStore) FindMessage(isMessage func(msg GridMessage) bool) GridMessag
 }
 
 // NthMessage returns the nth message.
-func (c *GridStore) NthMessage(n int) GridMessage {
+func (c *ListStore) NthMessage(n int) MessageRow {
 	var index = 0
 	for elem := c.messageList.Front(); elem != nil; elem = elem.Next() {
 		if index == n {
-			return elem.Value.(*gridMessage).GridMessage
+			return elem.Value.(*messageRow).MessageRow
 		}
 		index++
 	}
@@ -223,33 +191,33 @@ func (c *GridStore) NthMessage(n int) GridMessage {
 }
 
 // FirstMessage returns the first message.
-func (c *GridStore) FirstMessage() GridMessage {
+func (c *ListStore) FirstMessage() MessageRow {
 	if c.messageList.Len() == 0 {
 		return nil
 	}
 	// Long unwrap.
-	return c.messageList.Front().Value.(*gridMessage).GridMessage
+	return c.messageList.Front().Value.(*messageRow).MessageRow
 }
 
 // LastMessage returns the latest message.
-func (c *GridStore) LastMessage() GridMessage {
+func (c *ListStore) LastMessage() MessageRow {
 	if c.messageList.Len() == 0 {
 		return nil
 	}
 	// Long unwrap.
-	return c.messageList.Back().Value.(*gridMessage).GridMessage
+	return c.messageList.Back().Value.(*messageRow).MessageRow
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
 // exists for backwards compatibility.
-func (c *GridStore) Message(msgID cchat.ID, nonce string) GridMessage {
+func (c *ListStore) Message(msgID cchat.ID, nonce string) MessageRow {
 	if m := c.message(msgID, nonce); m != nil {
-		return m.GridMessage
+		return m.MessageRow
 	}
 	return nil
 }
 
-func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
+func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 	// Search using the ID first.
 	m, ok := c.messages[idKey(msgID)]
 	if ok {
@@ -279,16 +247,16 @@ func (c *GridStore) message(msgID cchat.ID, nonce string) *gridMessage {
 
 // AddPresendMessage inserts an input.PresendMessage into the container and
 // returning a wrapped widget interface.
-func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessage {
+func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRow {
 	presend := c.Construct.NewPresendMessage(msg)
 
-	msgc := &gridMessage{
-		GridMessage: presend,
-		presend:     presend,
+	msgc := &messageRow{
+		MessageRow: presend,
+		presend:    presend,
 	}
 
-	// Set the message into the grid.
-	c.attachGrid(c.MessagesLen(), msgc.Attach())
+	// Set the message into the list.
+	c.ListBox.Insert(msgc.Row(), c.MessagesLen())
 	// Append the message.
 	c.messageList.PushBack(msgc)
 	// Set the NONCE into the message map.
@@ -297,26 +265,31 @@ func (c *GridStore) AddPresendMessage(msg input.PresendMessage) PresendGridMessa
 	return presend
 }
 
+func (c *ListStore) bindMessage(msgc *messageRow) {
+	msgc.SetReferenceHighlighter(c)
+	c.Controller.BindMenu(msgc.MessageRow)
+}
+
 // Many attempts were made to have CreateMessageUnsafe return an index. That is
 // unreliable. The index might be off if the message buffer is cleaned up. Don't
 // rely on it.
 
-func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
+func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	// Call the event handler last.
 	defer c.Controller.AuthorEvent(msg.Author())
 
-	// Attempt to update before insertion (aka upsert).
+	// Do not attempt to update before insertion (aka upsert).
 	if msgc := c.message(msg.ID(), msg.Nonce()); msgc != nil {
 		msgc.UpdateAuthor(msg.Author())
 		msgc.UpdateContent(msg.Content(), false)
 		msgc.UpdateTimestamp(msg.Time())
 
-		c.Controller.BindMenu(msgc.GridMessage)
+		c.bindMessage(msgc)
 		return
 	}
 
-	msgc := &gridMessage{
-		GridMessage: c.Construct.NewMessage(msg),
+	msgc := &messageRow{
+		MessageRow: c.Construct.NewMessage(msg),
 	}
 	msgTime := msg.Time()
 
@@ -325,7 +298,7 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 
 	// Iterate and compare timestamp to find where to insert a message.
 	for after != nil {
-		if msgTime.After(after.Value.(*gridMessage).Time()) {
+		if msgTime.After(after.Value.(*messageRow).Time()) {
 			break
 		}
 		index--
@@ -343,16 +316,15 @@ func (c *GridStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	}
 
 	// Set the message into the grid.
-	c.Grid.InsertRow(index)
-	c.attachGrid(index, msgc.Attach())
+	c.ListBox.Insert(msgc.Row(), index)
 
-	// Set the NONCE into the message map.
-	c.messages[nonceKey(msgc.Nonce())] = msgc
+	// Set the ID into the message map.
+	c.messages[idKey(msgc.ID())] = msgc
 
-	c.Controller.BindMenu(msgc)
+	c.bindMessage(msgc)
 }
 
-func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
+func (c *ListStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
 	// Call the event handler last.
 	defer c.Controller.AuthorEvent(msg.Author())
 
@@ -368,21 +340,21 @@ func (c *GridStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
 	return
 }
 
-func (c *GridStore) DeleteMessageUnsafe(msg cchat.MessageDelete) {
+func (c *ListStore) DeleteMessageUnsafe(msg cchat.MessageDelete) {
 	c.PopMessage(msg.ID())
 }
 
 // PopMessage deletes a message off of the list and return the deleted message.
-func (c *GridStore) PopMessage(id cchat.ID) (msg GridMessage) {
+func (c *ListStore) PopMessage(id cchat.ID) (msg MessageRow) {
 	// Get the raw element to delete it off the list.
-	elem, gridMsg, ix := c.findElement(id)
+	elem, gridMsg, _ := c.findElement(id)
 	if elem == nil {
 		return nil
 	}
-	msg = gridMsg.GridMessage
+	msg = gridMsg.MessageRow
 
 	// Remove off of the Gtk grid.
-	c.Grid.RemoveRow(ix)
+	gridMsg.Row().Destroy()
 	// Pop off the slice.
 	c.messageList.Remove(elem)
 	// Delete off the map.
@@ -393,7 +365,7 @@ func (c *GridStore) PopMessage(id cchat.ID) (msg GridMessage) {
 
 // DeleteEarliest deletes the n earliest messages. It does nothing if n is or
 // less than 0.
-func (c *GridStore) DeleteEarliest(n int) {
+func (c *ListStore) DeleteEarliest(n int) {
 	if n <= 0 {
 		return
 	}
@@ -401,7 +373,7 @@ func (c *GridStore) DeleteEarliest(n int) {
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.
 	for elem := c.messageList.Front(); elem != nil && n != 0; n-- {
-		gridMsg := elem.Value.(*gridMessage)
+		gridMsg := elem.Value.(*messageRow)
 
 		if id := gridMsg.ID(); id != "" {
 			delete(c.messages, idKey(id))
@@ -410,10 +382,30 @@ func (c *GridStore) DeleteEarliest(n int) {
 			delete(c.messages, nonceKey(nonce))
 		}
 
-		c.Grid.RemoveRow(0)
+		gridMsg.Row().Destroy()
 
 		next := elem.Next()
 		c.messageList.Remove(elem)
 		elem = next
 	}
+}
+
+func (c *ListStore) HighlightReference(ref markup.ReferenceSegment) {
+	msg := c.message(ref.MessageID(), "")
+	log.Println("Highlighting", ref.MessageID())
+	if msg != nil {
+		c.Highlight(msg)
+	}
+}
+
+func (c *ListStore) Highlight(msg MessageRow) {
+	gts.ExecLater(func() {
+		row := msg.Row()
+		row.GrabFocus()
+		c.ListBox.DragHighlightRow(row)
+	})
+}
+
+func (c *ListStore) Unhighlight() {
+	c.ListBox.DragUnhighlightRow()
 }

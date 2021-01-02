@@ -15,9 +15,9 @@ type LazyMenu struct {
 }
 
 func NewLazyMenu(bindTo primitives.Connector) *LazyMenu {
-	l := &LazyMenu{}
+	l := LazyMenu{}
 	bindTo.Connect("button-press-event", l.popup)
-	return l
+	return &l
 }
 
 func (m *LazyMenu) popup(w gtk.IWidget, ev *gdk.Event) {

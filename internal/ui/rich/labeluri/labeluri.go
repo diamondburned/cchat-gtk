@@ -48,6 +48,7 @@ type Labeler interface {
 // Label implements a label that's already bounded to the markup URI handlers.
 type Label struct {
 	*rich.Label
+	*BoundBox
 	output markup.RenderOutput
 }
 
@@ -62,7 +63,7 @@ func NewLabel(txt text.Rich) *Label {
 	l.Label.SetLabelUnsafe(txt) // test
 
 	// Bind and return.
-	BindRichLabel(l)
+	l.BoundBox = BindRichLabel(l)
 	return l
 }
 
@@ -87,21 +88,50 @@ func (l *Label) SetOutput(o markup.RenderOutput) {
 	l.SetMarkup(o.Markup)
 }
 
-func BindRichLabel(label Labeler) {
-	bind(label, func(uri string, ptr gdk.Rectangle) bool {
-		var output = label.Output()
+type ReferenceHighlighter interface {
+	HighlightReference(ref markup.ReferenceSegment)
+}
 
-		if segment := output.IsMention(uri); segment != nil {
-			if p := NewPopoverMentioner(label, output.Input, segment); p != nil {
-				p.SetPointingTo(ptr)
-				p.Popup()
-			}
+// BoundBox is a box wrapping elements that can be interacted with from the
+// parsed labels.
+type BoundBox struct {
+	label Labeler
+	refer ReferenceHighlighter
+}
 
-			return true
+func BindRichLabel(label Labeler) *BoundBox {
+	bound := BoundBox{label: label}
+	bind(label, bound.activate)
+	return &bound
+}
+
+func (bound *BoundBox) activate(uri string, ptr gdk.Rectangle) bool {
+	var output = bound.label.Output()
+
+	switch segment := output.URISegment(uri).(type) {
+	case markup.MentionSegment:
+		popover := NewPopoverMentioner(bound.label, output.Input, segment)
+		if popover != nil {
+			popover.SetPointingTo(ptr)
+			popover.Popup()
 		}
 
+		return true
+
+	case markup.ReferenceSegment:
+		if bound.refer != nil {
+			bound.refer.HighlightReference(segment)
+		}
+
+		return true
+
+	default:
 		return false
-	})
+	}
+}
+
+func (bound *BoundBox) SetReferenceHighlighter(refer ReferenceHighlighter) {
+	bound.refer = refer
 }
 
 func PopoverMentioner(rel gtk.IWidget, input string, mention text.Segment) {

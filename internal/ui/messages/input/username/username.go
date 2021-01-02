@@ -114,6 +114,11 @@ func (u *Container) GetLabel() text.Rich {
 	return u.label.GetLabel()
 }
 
+// GetLabelMarkup is not thread-safe.
+func (u *Container) GetLabelMarkup() string {
+	return u.label.Label.GetLabel()
+}
+
 // SetLabel is thread-safe.
 func (u *Container) SetLabel(content text.Rich) {
 	gts.ExecAsync(func() {

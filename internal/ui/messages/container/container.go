@@ -5,6 +5,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -12,18 +13,18 @@ import (
 // once.
 const BacklogLimit = 35
 
-type GridMessage interface {
+type MessageRow interface {
 	message.Container
-	// Focusable should return a widget that can be focused.
-	Focusable() gtk.IWidget
 	// Attach should only be called once.
-	Attach() []gtk.IWidget
+	Row() *gtk.ListBoxRow
 	// AttachMenu should override the stored constructor.
 	AttachMenu(items []menu.Item) // save memory
+	// SetReferenceHighlighter sets the reference highlighter into the message.
+	SetReferenceHighlighter(refer labeluri.ReferenceHighlighter)
 }
 
-type PresendGridMessage interface {
-	GridMessage
+type PresendMessageRow interface {
+	MessageRow
 	message.PresendContainer
 }
 
@@ -31,11 +32,6 @@ type PresendGridMessage interface {
 // packages.
 type Container interface {
 	gtk.IWidget
-
-	// Thread-safe methods.
-	// cchat.MessagesContainer
-
-	// Thread-unsafe methods.
 
 	// Reset resets the message container to its original state.
 	Reset()
@@ -48,13 +44,18 @@ type Container interface {
 
 	// FirstMessage returns the first message in the buffer. Nil is returned if
 	// there's nothing.
-	FirstMessage() GridMessage
-	// TranslateCoordinates is used for scrolling to the message.
-	TranslateCoordinates(parent gtk.IWidget, msg GridMessage) (y int)
+	FirstMessage() MessageRow
 	// AddPresendMessage adds and displays an unsent message.
-	AddPresendMessage(msg input.PresendMessage) PresendGridMessage
+	AddPresendMessage(msg input.PresendMessage) PresendMessageRow
 	// LatestMessageFrom returns the last message ID with that author.
 	LatestMessageFrom(authorID string) (msgID string, ok bool)
+	// Message finds and returns the message, if any.
+	Message(id cchat.ID, nonce string) MessageRow
+
+	// Highlight temporarily highlights the given message.
+	Highlight(msg MessageRow)
+	// Unhighlight removes the message highlight.
+	Unhighlight()
 
 	// UI methods.
 
@@ -65,7 +66,7 @@ type Container interface {
 // Controller is for menu actions.
 type Controller interface {
 	// BindMenu expects the controller to add actioner into the message.
-	BindMenu(GridMessage)
+	BindMenu(MessageRow)
 	// Bottomed returns whether or not the message scroller is at the bottom.
 	Bottomed() bool
 	// AuthorEvent is called on message create/update. This is used to update
@@ -74,45 +75,45 @@ type Controller interface {
 }
 
 // Constructor is an interface for making custom message implementations which
-// allows GridContainer to generically work with.
+// allows ListContainer to generically work with.
 type Constructor interface {
-	NewMessage(cchat.MessageCreate) GridMessage
-	NewPresendMessage(input.PresendMessage) PresendGridMessage
+	NewMessage(cchat.MessageCreate) MessageRow
+	NewPresendMessage(input.PresendMessage) PresendMessageRow
 }
 
-const ColumnSpacing = 10
+const ColumnSpacing = 8
 
-// GridContainer is an implementation of Container, which allows flexible
+// ListContainer is an implementation of Container, which allows flexible
 // message grids.
-type GridContainer struct {
-	*GridStore
+type ListContainer struct {
+	*ListStore
 	Controller
 }
 
-// gridMessage w/ required internals
-type gridMessage struct {
-	GridMessage
+// messageRow w/ required internals
+type messageRow struct {
+	MessageRow
 	presend message.PresendContainer // this shouldn't be here but i'm lazy
 }
 
-var _ Container = (*GridContainer)(nil)
+var _ Container = (*ListContainer)(nil)
 
-func NewGridContainer(constr Constructor, ctrl Controller) *GridContainer {
-	return &GridContainer{
-		GridStore:  NewGridStore(constr, ctrl),
+func NewListContainer(constr Constructor, ctrl Controller) *ListContainer {
+	return &ListContainer{
+		ListStore:  NewListStore(constr, ctrl),
 		Controller: ctrl,
 	}
 }
 
 // CreateMessageUnsafe inserts a message. It does not clean up old messages.
-func (c *GridContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
+func (c *ListContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	// Insert the message first.
-	c.GridStore.CreateMessageUnsafe(msg)
+	c.ListStore.CreateMessageUnsafe(msg)
 }
 
 // CleanMessages cleans up the oldest messages if the user is scrolled to the
 // bottom. True is returned if there were changes.
-func (c *GridContainer) CleanMessages() bool {
+func (c *ListContainer) CleanMessages() bool {
 	// Determine if the user is scrolled to the bottom for cleaning up.
 	if c.Bottomed() {
 		// Clean up the backlog.

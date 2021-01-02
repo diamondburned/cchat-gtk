@@ -7,10 +7,12 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
@@ -42,11 +44,13 @@ type Service struct {
 	*gtk.Box
 	Button *gtk.ToggleButton
 	Icon   *rich.Icon
+	Menu   *actions.Menu
 
 	BodyRev  *gtk.Revealer // revealed
 	BodyList *session.List // not really supposed to be here
 
-	service cchat.Service // state
+	service      cchat.Service // state
+	Configurator cchat.Configurator
 }
 
 var serviceCSS = primitives.PrepareClassCSS("service", `
@@ -126,6 +130,20 @@ func NewService(svc cchat.Service, svclctrl ListController) *Service {
 		tb.SetActive(revealed)
 	})
 	serviceButtonCSS(service.Button)
+
+	// Bind session.* actions into row.
+	service.Menu = actions.NewMenu("service")
+	// Bind right clicks and show a popover menu on such event.
+	service.Menu.BindRightClick(service.Button)
+
+	if configurator := svc.AsConfigurator(); configurator != nil {
+		cfg := config.Configurator{
+			Service:      svc,
+			Configurator: configurator,
+		}
+		config.Restore(cfg)
+		service.Menu.AddAction("Configure", func() { config.Spawn(cfg) })
+	}
 
 	// Intermediary box to contain both the icon and the revealer.
 	service.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)

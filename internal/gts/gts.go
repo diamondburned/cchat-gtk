@@ -190,7 +190,11 @@ func DoAfter(d time.Duration, f func()) {
 
 // DoAfterMs calls f after the given ms in the Gtk main loop.
 func DoAfterMs(ms uint, f func()) {
-	glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, f)
+	if secs := ms / 1000; secs*1000 == ms {
+		glib.TimeoutSecondsAddPriority(secs, glib.PRIORITY_HIGH_IDLE, f)
+	} else {
+		glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, f)
+	}
 }
 
 // AfterFunc mimics time.AfterFunc's API but runs the callback inside the Gtk
@@ -201,7 +205,15 @@ func AfterFunc(d time.Duration, f func()) (stop func()) {
 
 // AfterMsFunc is similar to AfterFunc but takes in milliseconds instead.
 func AfterMsFunc(ms uint, f func()) (stop func()) {
-	h := glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, func() bool { f(); return true })
+	fn := func() bool { f(); return true }
+
+	var h glib.SourceHandle
+	if secs := ms / 1000; secs*1000 == ms {
+		h = glib.TimeoutSecondsAddPriority(secs, glib.PRIORITY_HIGH_IDLE, fn)
+	} else {
+		h = glib.TimeoutAddPriority(ms, glib.PRIORITY_HIGH_IDLE, fn)
+	}
+
 	return func() { glib.SourceRemove(h) }
 }
 

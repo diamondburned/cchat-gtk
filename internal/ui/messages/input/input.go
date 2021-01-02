@@ -18,7 +18,14 @@ import (
 // Controller is an interface to control message containers.
 type Controller interface {
 	AddPresendMessage(msg PresendMessage) (onErr func(error))
-	LatestMessageFrom(userID string) (messageID string, ok bool)
+	LatestMessageFrom(userID cchat.ID) (messageID cchat.ID, ok bool)
+	MessageAuthorMarkup(msgID cchat.ID) (markup string, ok bool)
+}
+
+// LabelBorrower is an interface that allows the caller to borrow a label.
+type LabelBorrower interface {
+	BorrowLabel(markup string)
+	Unborrow()
 }
 
 type InputView struct {
@@ -53,7 +60,7 @@ var inputBoxCSS = primitives.PrepareClassCSS("input-box", `
 	}
 `)
 
-func NewView(ctrl Controller) *InputView {
+func NewView(ctrl Controller, labeler LabelBorrower) *InputView {
 	text, _ := gtk.TextViewNew()
 	text.SetSensitive(false)
 	text.SetWrapMode(gtk.WRAP_WORD_CHAR)
@@ -72,7 +79,7 @@ func NewView(ctrl Controller) *InputView {
 	c := completion.NewCompleter(text)
 
 	// Bind the input callback later.
-	f := NewField(text, ctrl)
+	f := NewField(text, ctrl, labeler)
 	f.Show()
 
 	return &InputView{f, c}
@@ -99,6 +106,13 @@ func (v *InputView) SetMessenger(session cchat.Session, messenger cchat.Messenge
 // wrapSpellCheck is a no-op but is replaced by gspell in ./spellcheck.go.
 var wrapSpellCheck = func(textView *gtk.TextView) {}
 
+const (
+	sendButtonIcon  = "mail-send-symbolic"
+	editButtonIcon  = "document-edit-symbolic"
+	replyButtonIcon = "mail-reply-sender-symbolic"
+	sendButtonSize  = gtk.ICON_SIZE_BUTTON
+)
+
 type Field struct {
 	// Box contains the field box and the attachment container.
 	*gtk.Box
@@ -113,10 +127,13 @@ type Field struct {
 	text       *gtk.TextView   // const
 	buffer     *gtk.TextBuffer // const
 
-	send   *gtk.Button
+	sendIcon *gtk.Image
+	send     *gtk.Button
+
 	attach *gtk.Button
 
-	ctrl Controller
+	ctrl      Controller
+	indicator LabelBorrower
 
 	// Embed a state field which allows us to easily reset it.
 	fieldState
@@ -130,7 +147,9 @@ type fieldState struct {
 	editor    cchat.Editor
 	typing    cchat.TypingIndicator
 
-	editingID string // never empty
+	replyingID cchat.ID
+	editingID  cchat.ID
+
 	lastTyped time.Time
 	typerDura time.Duration
 }
@@ -152,8 +171,12 @@ var scrolledInputCSS = primitives.PrepareClassCSS("scrolled-input", `
 	}
 `)
 
-func NewField(text *gtk.TextView, ctrl Controller) *Field {
-	field := &Field{text: text, ctrl: ctrl}
+func NewField(text *gtk.TextView, ctrl Controller, labeler LabelBorrower) *Field {
+	field := &Field{
+		text:      text,
+		ctrl:      ctrl,
+		indicator: labeler,
+	}
 	field.buffer, _ = text.GetBuffer()
 
 	field.Username = username.NewContainer()
@@ -163,13 +186,17 @@ func NewField(text *gtk.TextView, ctrl Controller) *Field {
 	field.TextScroll.Show()
 	scrolledInputCSS(field.TextScroll)
 
-	field.attach, _ = gtk.ButtonNewFromIconName("mail-attachment-symbolic", gtk.ICON_SIZE_BUTTON)
+	field.attach, _ = gtk.ButtonNewFromIconName("mail-attachment-symbolic", sendButtonSize)
 	field.attach.SetRelief(gtk.RELIEF_NONE)
 	field.attach.SetSensitive(false)
 	// Only show this if the server supports it (upload == true).
 	primitives.AddClass(field.attach, "attach-button")
 
-	field.send, _ = gtk.ButtonNewFromIconName("mail-send-symbolic", gtk.ICON_SIZE_BUTTON)
+	field.sendIcon, _ = gtk.ImageNewFromIconName(sendButtonIcon, sendButtonSize)
+	field.sendIcon.Show()
+
+	field.send, _ = gtk.ButtonNew()
+	field.send.SetImage(field.sendIcon)
 	field.send.SetRelief(gtk.RELIEF_NONE)
 	field.send.Show()
 	primitives.AddClass(field.send, "send-button")
@@ -278,12 +305,27 @@ func (f *Field) SetAllowUpload(allow bool) {
 	}
 }
 
+func (f *Field) StartReplyingTo(msgID cchat.ID) {
+	// Clear the input to prevent mixing.
+	f.clearText()
+
+	f.replyingID = msgID
+	f.sendIcon.SetFromIconName(replyButtonIcon, gtk.ICON_SIZE_BUTTON)
+
+	name, ok := f.ctrl.MessageAuthorMarkup(msgID)
+	if !ok {
+		name = "message"
+	}
+
+	f.indicator.BorrowLabel("Replying to " + name)
+}
+
 // Editable returns whether or not the input field can be edited.
-func (f *Field) Editable(msgID string) bool {
+func (f *Field) Editable(msgID cchat.ID) bool {
 	return f.editor != nil && f.editor.IsEditable(msgID)
 }
 
-func (f *Field) StartEditing(msgID string) bool {
+func (f *Field) StartEditing(msgID cchat.ID) bool {
 	// Do we support message editing? If not, exit.
 	if !f.Editable(msgID) {
 		return false
@@ -297,10 +339,17 @@ func (f *Field) StartEditing(msgID string) bool {
 		return false
 	}
 
+	// Clear the input before editing to prevent mixing replying and editing
+	// together.
+	f.clearText()
+
 	// Set the current editing state and set the input after requesting the
 	// content.
 	f.editingID = msgID
 	f.buffer.SetText(content)
+
+	f.indicator.BorrowLabel("Editing Message")
+	f.sendIcon.SetFromIconName(editButtonIcon, sendButtonSize)
 
 	return true
 }
@@ -312,15 +361,17 @@ func (f *Field) StopEditing() bool {
 		return false
 	}
 
-	f.editingID = ""
 	f.clearText()
-
 	return true
 }
 
 // clearText resets the input field
 func (f *Field) clearText() {
+	f.editingID = ""
+	f.replyingID = ""
 	f.buffer.Delete(f.buffer.GetBounds())
+	f.sendIcon.SetFromIconName(sendButtonIcon, sendButtonSize)
+	f.indicator.Unborrow()
 	f.Attachments.Reset()
 }
 

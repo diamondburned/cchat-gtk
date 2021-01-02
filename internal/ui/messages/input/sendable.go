@@ -40,8 +40,8 @@ func (f *Field) sendInput() {
 		return
 	}
 
-	// Get the input text.
-	var text = f.getText()
+	// Get the input text and the reply ID.
+	text := f.getText()
 
 	// Are we editing anything?
 	if id := f.editingID; f.Editable(id) && id != "" {
@@ -70,6 +70,7 @@ func (f *Field) sendInput() {
 		authorID:  f.UserID,
 		authorURL: f.Username.GetIconURL(),
 		nonce:     f.generateNonce(),
+		replyID:   f.replyingID,
 		files:     attachments,
 	})
 
@@ -94,23 +95,38 @@ func (f *Field) SendMessage(data PresendMessage) {
 	})
 }
 
+// Files is a list of attachments.
+type Files []attachment.File
+
+// Attachments returns the list of files as a list of cchat attachments.
+func (files Files) Attachments() []cchat.MessageAttachment {
+	var attachments = make([]cchat.MessageAttachment, len(files))
+	for i, file := range files {
+		attachments[i] = file.AsAttachment()
+	}
+	return attachments
+}
+
+// SendMessageData contains what is to be sent in a message. It behaves
+// similarly to a regular CreateMessage.
 type SendMessageData struct {
 	time      time.Time
 	content   string
 	author    text.Rich
-	authorID  string
+	authorID  cchat.ID
 	authorURL string // avatar
 	nonce     string
-	files     []attachment.File
+	replyID   cchat.ID
+	files     Files
 }
 
 var _ cchat.SendableMessage = (*SendMessageData)(nil)
 
+// PresendMessage is an interface for any message about to be sent.
 type PresendMessage interface {
 	cchat.MessageHeader // returns nonce and time
 	cchat.SendableMessage
 	cchat.Noncer
-	cchat.Attachments
 
 	// These methods are reserved for internal use.
 
@@ -123,50 +139,15 @@ type PresendMessage interface {
 var _ PresendMessage = (*SendMessageData)(nil)
 
 // ID returns a pseudo ID for internal use.
-func (s SendMessageData) ID() string {
-	return s.nonce
-}
-
-func (s SendMessageData) Time() time.Time {
-	return s.time
-}
-
-func (s SendMessageData) Content() string {
-	return s.content
-}
-
-func (s SendMessageData) Author() text.Rich {
-	return s.author
-}
-
-func (s SendMessageData) AuthorID() string {
-	return s.authorID
-}
-
-func (s SendMessageData) AuthorAvatarURL() string {
-	return s.authorURL
-}
-
-func (s SendMessageData) AsNoncer() cchat.Noncer {
-	return s
-}
-
-func (s SendMessageData) Nonce() string {
-	return s.nonce
-}
-
-func (s SendMessageData) Files() []attachment.File {
-	return s.files
-}
-
-func (s SendMessageData) AsAttachments() cchat.Attachments {
-	return s
-}
-
-func (s SendMessageData) Attachments() []cchat.MessageAttachment {
-	var attachments = make([]cchat.MessageAttachment, len(s.files))
-	for i, file := range s.files {
-		attachments[i] = file.AsAttachment()
-	}
-	return attachments
-}
+func (s SendMessageData) ID() string                 { return s.nonce }
+func (s SendMessageData) Time() time.Time            { return s.time }
+func (s SendMessageData) Content() string            { return s.content }
+func (s SendMessageData) Author() text.Rich          { return s.author }
+func (s SendMessageData) AuthorID() string           { return s.authorID }
+func (s SendMessageData) AuthorAvatarURL() string    { return s.authorURL }
+func (s SendMessageData) AsNoncer() cchat.Noncer     { return s }
+func (s SendMessageData) Nonce() string              { return s.nonce }
+func (s SendMessageData) Files() []attachment.File   { return s.files }
+func (s SendMessageData) AsAttacher() cchat.Attacher { return s.files }
+func (s SendMessageData) AsReplier() cchat.Replier   { return s }
+func (s SendMessageData) ReplyingTo() cchat.ID       { return s.replyID }

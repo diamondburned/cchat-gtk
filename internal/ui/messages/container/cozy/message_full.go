@@ -36,9 +36,9 @@ type AvatarPixbufCopier interface {
 }
 
 var (
-	_ AvatarPixbufCopier    = (*FullMessage)(nil)
-	_ message.Container     = (*FullMessage)(nil)
-	_ container.GridMessage = (*FullMessage)(nil)
+	_ AvatarPixbufCopier   = (*FullMessage)(nil)
+	_ message.Container    = (*FullMessage)(nil)
+	_ container.MessageRow = (*FullMessage)(nil)
 )
 
 var boldCSS = primitives.PrepareCSS(`
@@ -64,14 +64,14 @@ func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
 
 func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	avatar := NewAvatar()
-	avatar.SetMarginTop(TopFullMargin)
+	avatar.SetMarginTop(TopFullMargin / 2)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
 	avatar.Connect("clicked", func(w gtk.IWidget) {
 		if output := gc.Username.Output(); len(output.Mentions) > 0 {
 			labeluri.PopoverMentioner(w, output.Input, output.Mentions[0])
 		}
 	})
-	// We don't call avatar.Show(). That's called in Attach.
+	avatar.Show()
 
 	// Style the timestamp accordingly.
 	gc.Timestamp.SetXAlign(0.0)           // left-align
@@ -96,10 +96,15 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	main.PackStart(gc.Content, false, false, 0)
 	main.SetMarginTop(TopFullMargin)
 	main.SetMarginEnd(container.ColumnSpacing * 2)
+	main.SetMarginStart(container.ColumnSpacing)
 	main.Show()
 
 	// Also attach a class for the main box shown on the right.
 	primitives.AddClass(main, "cozy-main")
+
+	gc.PackStart(avatar, false, false, 0)
+	gc.PackStart(main, true, true, 0)
+	gc.SetClass("cozy-full")
 
 	return &FullMessage{
 		GenericContainer: gc,
@@ -111,7 +116,7 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 
 func (m *FullMessage) Collapsed() bool { return false }
 
-func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
+func (m *FullMessage) Unwrap() *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
 	m.HeaderBox.Remove(m.Username)
 	m.HeaderBox.Remove(m.Timestamp)
@@ -122,20 +127,11 @@ func (m *FullMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
 	m.Avatar.Hide()
 
 	// Remove the message from the grid.
-	grid.Remove(m.Avatar)
-	grid.Remove(m.MainBox)
+	m.Remove(m.Avatar)
+	m.Remove(m.MainBox)
 
 	// Return after removing.
 	return m.GenericContainer
-}
-
-func (m *FullMessage) Attach() []gtk.IWidget {
-	m.Avatar.Show()
-	return []gtk.IWidget{m.Avatar, m.MainBox}
-}
-
-func (m *FullMessage) Focusable() gtk.IWidget {
-	return m.Avatar
 }
 
 func (m *FullMessage) UpdateTimestamp(t time.Time) {
@@ -177,9 +173,8 @@ type FullSendingMessage struct {
 }
 
 var (
-	// _ AvatarPixbufCopier    = (*FullSendingMessage)(nil)
-	_ message.Container     = (*FullSendingMessage)(nil)
-	_ container.GridMessage = (*FullSendingMessage)(nil)
+	_ message.Container    = (*FullSendingMessage)(nil)
+	_ container.MessageRow = (*FullSendingMessage)(nil)
 )
 
 func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {

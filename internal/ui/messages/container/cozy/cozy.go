@@ -7,13 +7,12 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/gotk3/gotk3/gtk"
 )
 
 // Unwrapper provides an interface for messages to be unwrapped. This is used to
 // convert between collapsed and full messages.
 type Unwrapper interface {
-	Unwrap(grid *gtk.Grid) *message.GenericContainer
+	Unwrap() *message.GenericContainer
 }
 
 var (
@@ -43,20 +42,20 @@ const (
 )
 
 type Container struct {
-	*container.GridContainer
+	*container.ListContainer
 }
 
 func NewContainer(ctrl container.Controller) *Container {
 	c := &Container{}
-	c.GridContainer = container.NewGridContainer(c, ctrl)
+	c.ListContainer = container.NewListContainer(c, ctrl)
 	// A not-so-generous row padding, as we will rely on margins per widget.
-	c.GridContainer.Grid.SetRowSpacing(4)
+	// c.ListContainer.Grid.SetRowSpacing(4)
 
 	primitives.AddClass(c, "cozy-container")
 	return c
 }
 
-func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
+func (c *Container) NewMessage(msg cchat.MessageCreate) container.MessageRow {
 	// We're not checking for a collapsed message here anymore, as the
 	// CreateMessage method will do that.
 
@@ -79,7 +78,7 @@ func (c *Container) NewMessage(msg cchat.MessageCreate) container.GridMessage {
 	return full
 }
 
-func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendGridMessage {
+func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendMessageRow {
 	// We can do the check here since we're never using NewPresendMessage for
 	// backlog messages.
 	if c.lastMessageIsAuthor(msg.AuthorID(), msg.Author().String(), 0) {
@@ -95,9 +94,9 @@ func (c *Container) NewPresendMessage(msg input.PresendMessage) container.Presen
 	return full
 }
 
-func (c *Container) findAuthorID(authorID string) container.GridMessage {
+func (c *Container) findAuthorID(authorID string) container.MessageRow {
 	// Search the old author if we have any.
-	return c.GridStore.FindMessage(func(msgc container.GridMessage) bool {
+	return c.ListStore.FindMessage(func(msgc container.MessageRow) bool {
 		return msgc.AuthorID() == authorID
 	})
 }
@@ -122,11 +121,11 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 
 func (c *Container) lastMessageIsAuthor(id cchat.ID, name string, offset int) bool {
 	// Get the offfsetth message from last.
-	var last = c.GridStore.NthMessage((c.GridStore.MessagesLen() - 1) + offset)
+	var last = c.ListStore.NthMessage((c.ListStore.MessagesLen() - 1) + offset)
 	return gridMessageIsAuthor(last, id, name)
 }
 
-func gridMessageIsAuthor(gridMsg container.GridMessage, id cchat.ID, name string) bool {
+func gridMessageIsAuthor(gridMsg container.MessageRow, id cchat.ID, name string) bool {
 	return gridMsg != nil &&
 		gridMsg.AuthorID() == id &&
 		gridMsg.AuthorName() == name
@@ -136,11 +135,11 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
 		// Create the message in the parent's handler. This handler will also
 		// wipe old messages.
-		c.GridContainer.CreateMessageUnsafe(msg)
+		c.ListContainer.CreateMessageUnsafe(msg)
 
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
-		if c.GridContainer.CleanMessages() {
+		if c.ListContainer.CleanMessages() {
 			// We need to uncollapse the first (top) message. No length check is
 			// needed here, as we just inserted a message.
 			c.uncompact(c.FirstMessage())
@@ -149,15 +148,15 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 		switch msg.ID() {
 		// Should we collapse this message? Yes, if the current message is
 		// inserted at the end and its author is the same as the last author.
-		case c.GridContainer.LastMessage().ID():
+		case c.ListContainer.LastMessage().ID():
 			author := msg.Author()
 			if c.lastMessageIsAuthor(author.ID(), author.Name().String(), -1) {
-				c.compact(c.GridContainer.LastMessage())
+				c.compact(c.ListContainer.LastMessage())
 			}
 
 		// If we've prepended the message, then see if we need to collapse the
 		// second message.
-		case c.GridContainer.FirstMessage().ID():
+		case c.ListContainer.FirstMessage().ID():
 			if sec := c.NthMessage(1); sec != nil {
 				// The author is the same; collapse.
 				author := msg.Author()
@@ -179,17 +178,17 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() {
 		// Get the previous and next message before deleting. We'll need them to
 		// evaluate whether we need to change anything.
-		prev, next := c.GridStore.Around(msg.ID())
+		prev, next := c.ListStore.Around(msg.ID())
 
 		// The function doesn't actually try and re-collapse the bottom message
 		// when a sandwiched message is deleted. This is fine.
 
 		// Delete the message off of the parent's container.
-		msg := c.GridStore.PopMessage(msg.ID())
+		msg := c.ListStore.PopMessage(msg.ID())
 
 		// Don't calculate if we don't have any messages, or no messages before
 		// and after.
-		if c.GridStore.MessagesLen() == 0 || prev == nil || next == nil {
+		if c.ListStore.MessagesLen() == 0 || prev == nil || next == nil {
 			return
 		}
 
@@ -211,7 +210,7 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	})
 }
 
-func (c *Container) uncompact(msg container.GridMessage) {
+func (c *Container) uncompact(msg container.MessageRow) {
 	// We should only uncompact the message if it's compacted in the first
 	// place.
 	if collapse, ok := msg.(Collapsible); !ok || !collapse.Collapsed() {
@@ -225,17 +224,17 @@ func (c *Container) uncompact(msg container.GridMessage) {
 	}
 
 	// Start the "lengthy" uncollapse process.
-	full := WrapFullMessage(uw.Unwrap(c.Grid))
+	full := WrapFullMessage(uw.Unwrap())
 	// Update the container to reformat everything including the timestamps.
 	message.RefreshContainer(full, full.GenericContainer)
 	// Update the avatar if needed be, since we're now showing it.
 	c.reuseAvatar(msg.AuthorID(), msg.AvatarURL(), full)
 
 	// Swap the old next message out for a new one.
-	c.GridStore.SwapMessage(full)
+	c.ListStore.SwapMessage(full)
 }
 
-func (c *Container) compact(msg container.GridMessage) {
+func (c *Container) compact(msg container.MessageRow) {
 	// Exit if the message is already collapsed.
 	if collapse, ok := msg.(Collapsible); !ok || collapse.Collapsed() {
 		return
@@ -246,8 +245,8 @@ func (c *Container) compact(msg container.GridMessage) {
 		return
 	}
 
-	compact := WrapCollapsedMessage(uw.Unwrap(c.Grid))
+	compact := WrapCollapsedMessage(uw.Unwrap())
 	message.RefreshContainer(compact, compact.GenericContainer)
 
-	c.GridStore.SwapMessage(compact)
+	c.ListStore.SwapMessage(compact)
 }

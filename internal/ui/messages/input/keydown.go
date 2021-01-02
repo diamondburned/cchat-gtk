@@ -67,14 +67,9 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 		// Take the event.
 		return true
 
-	// There are multiple things to do here when we press the Escape key.
+	// Clear text when the Escape key is pressed.
 	case key == gdk.KEY_Escape:
-		// First, we'd want to cancel editing if we have one.
-		if f.editingID != "" {
-			return f.StopEditing() // always returns true
-		}
-
-		// Second... Nothing yet?
+		f.clearText()
 
 	// Ctrl+V is paste.
 	case key == gdk.KEY_v && bithas(mask, cntrlMask):

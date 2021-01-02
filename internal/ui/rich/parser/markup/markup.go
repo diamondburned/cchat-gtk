@@ -45,32 +45,38 @@ type ReferenceSegment struct {
 }
 
 const (
-	// f_Mention is used to print and parse mention URIs.
-	f_Mention   = "cchat://mention/%d"   // %d == Mentions[i]
-	f_Reference = "cchat://reference/%d" // %d == References[i]
+	MentionType   = "mention"
+	ReferenceType = "reference"
 )
 
-// IsMention returns the mention if the URI is correct, or nil if none.
-func (r RenderOutput) IsMention(uri string) text.Segment {
-	var i int
-
-	_, err := fmt.Sscanf(uri, f_Mention, &i)
-	if err != nil || i >= len(r.Mentions) {
-		return nil
+func fmtSegmentURI(stype string, ix int) string {
+	u := url.URL{
+		Scheme: "cchat",
+		Host:   stype,
+		Path:   strconv.Itoa(ix),
 	}
-
-	return r.Mentions[i]
+	return u.String()
 }
 
-func (r RenderOutput) IsReference(uri string) text.Segment {
-	var i int
-
-	_, err := fmt.Sscanf(uri, f_Reference, &i)
-	if err != nil || i >= len(r.References) {
+func (r RenderOutput) URISegment(uri string) text.Segment {
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "cchat" {
 		return nil
 	}
 
-	return r.References[i]
+	i, err := strconv.Atoi(strings.TrimPrefix(u.Path, "/"))
+	if err != nil {
+		panic("Invalid path " + u.Path)
+	}
+
+	switch u.Host {
+	case MentionType:
+		return r.Mentions[i]
+	case ReferenceType:
+		return r.References[i]
+	default:
+		panic("Unknown internal URI ID: " + u.Host)
+	}
 }
 
 func Render(content text.Rich) string {
@@ -85,6 +91,10 @@ func RenderCmplx(content text.Rich) RenderOutput {
 type RenderConfig struct {
 	// NoMentionLinks, if true, will not render any mentions.
 	NoMentionLinks bool
+
+	// NoReferencing, if true, will not parse reference links and prefer
+	// mentions.
+	NoReferencing bool
 
 	// AnchorColor forces all anchors to be of a certain color. This is used if
 	// the boolean is true. Else, all mention links will not work and regular
@@ -176,7 +186,7 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		if mentioner := segment.AsMentioner(); mentioner != nil && !cfg.NoMentionLinks {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
-			appended.AnchorNU(start, end, fmt.Sprintf(f_Mention, len(mentions)))
+			appended.AnchorNU(start, end, fmtSegmentURI(MentionType, len(mentions)))
 			hasAnchor = true
 
 			// Add the mention segment into the list regardless of hyperlinks.
@@ -213,16 +223,18 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		// Don't use AnchorColor for the link, as we're technically just
 		// borrowing the anchor tag for its use. We should also prefer the
 		// username popover (Mention) over this.
-		if reference := segment.AsMessageReferencer(); !hasAnchor && reference != nil {
-			// Render the mention into "cchat://reference:0" or such. Other
-			// components will take care of showing the information.
-			appended.AnchorNU(start, end, fmt.Sprintf(f_Reference, len(references)))
+		if !cfg.NoReferencing && !hasAnchor {
+			if reference := segment.AsMessageReferencer(); reference != nil {
+				// Render the mention into "cchat://reference:0" or such. Other
+				// components will take care of showing the information.
+				appended.AnchorNU(start, end, fmtSegmentURI(ReferenceType, len(references)))
 
-			// Add the mention segment into the list regardless of hyperlinks.
-			references = append(references, ReferenceSegment{
-				Segment:           segment,
-				MessageReferencer: reference,
-			})
+				// Add the mention segment into the list regardless of hyperlinks.
+				references = append(references, ReferenceSegment{
+					Segment:           segment,
+					MessageReferencer: reference,
+				})
+			}
 		}
 
 		if attributor := segment.AsAttributor(); attributor != nil {

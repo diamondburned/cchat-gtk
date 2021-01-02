@@ -20,6 +20,7 @@ type Container interface {
 	Time() time.Time
 	AuthorID() string
 	AuthorName() string
+	AuthorMarkup() string
 	AvatarURL() string // avatar
 	Nonce() string
 
@@ -48,6 +49,10 @@ func RefreshContainer(c Container, gc *GenericContainer) {
 // GenericContainer provides a single generic message container for subpackages
 // to use.
 type GenericContainer struct {
+	*gtk.Box
+	row   *gtk.ListBoxRow // contains Box
+	class string
+
 	id         string
 	time       time.Time
 	authorID   string
@@ -67,12 +72,18 @@ type GenericContainer struct {
 
 var _ Container = (*GenericContainer)(nil)
 
-var timestampCSS = primitives.PrepareCSS(`
+var timestampCSS = primitives.PrepareClassCSS("message-time", `
 	.message-time {
 		opacity: 0.3;
 		font-size: 0.8em;
 		margin-top: 0.2em;
 		margin-bottom: 0.2em;
+	}
+`)
+
+var authorCSS = primitives.PrepareClassCSS("message-author", `
+	.message-author {
+		color: mix(@theme_bg_color, @theme_fg_color, 0.8);
 	}
 `)
 
@@ -91,14 +102,12 @@ func NewContainer(msg cchat.MessageCreate) *GenericContainer {
 func NewEmptyContainer() *GenericContainer {
 	ts, _ := gtk.LabelNew("")
 	ts.SetEllipsize(pango.ELLIPSIZE_MIDDLE)
-	ts.SetXAlign(1) // right align
+	ts.SetXAlign(0.5) // centre align
 	ts.SetVAlign(gtk.ALIGN_END)
 	ts.Show()
 
 	user := labeluri.NewLabel(text.Rich{})
-	user.SetLineWrap(true)
-	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
-	user.SetXAlign(1) // right align
+	user.SetXAlign(0) // left align
 	user.SetVAlign(gtk.ALIGN_START)
 	user.SetTrackVisitedLinks(false)
 	user.Show()
@@ -117,26 +126,25 @@ func NewEmptyContainer() *GenericContainer {
 	ctbox.PackStart(ctbody, false, false, 0)
 	ctbox.Show()
 
-	// Causes bugs with selections.
+	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	box.Show()
 
-	// ctbody.Connect("grab-notify", func(l *gtk.Label, grabbed bool) {
-	// 	if grabbed {
-	// 		// Hack to stop the label from selecting everything after being
-	// 		// refocused.
-	// 		ctbody.SetSelectable(false)
-	// 		gts.ExecAsync(func() { ctbody.SetSelectable(true) })
-	// 	}
-	// })
+	row, _ := gtk.ListBoxRowNew()
+	row.Add(box)
+	row.Show()
 
 	// Add CSS classes.
 	primitives.AddClass(ts, "message-time")
+	primitives.AddClass(row, "message-row")
 	primitives.AddClass(user, "message-author")
 	primitives.AddClass(ctbody, "message-content")
-
-	// Attach the timestamp CSS.
-	primitives.AttachCSS(ts, timestampCSS)
+	timestampCSS(ts)
+	authorCSS(ts)
 
 	gc := &GenericContainer{
+		Box: box,
+		row: row,
+
 		Timestamp:   ts,
 		Username:    user,
 		Content:     ctbox,
@@ -157,6 +165,25 @@ func NewEmptyContainer() *GenericContainer {
 	return gc
 }
 
+// Row returns the internal list box row. It is used to satisfy MessageRow.
+func (m *GenericContainer) Row() *gtk.ListBoxRow { return m.row }
+
+// SetClass sets the internal row's class.
+func (m *GenericContainer) SetClass(class string) {
+	if m.class != "" {
+		primitives.RemoveClass(m.row, m.class)
+	}
+
+	primitives.AddClass(m.row, class)
+	m.class = class
+}
+
+// SetReferenceHighlighter sets the reference highlighter into the message.
+func (m *GenericContainer) SetReferenceHighlighter(r labeluri.ReferenceHighlighter) {
+	m.Username.SetReferenceHighlighter(r)
+	m.ContentBody.SetReferenceHighlighter(r)
+}
+
 func (m *GenericContainer) ID() string {
 	return m.id
 }
@@ -171,6 +198,10 @@ func (m *GenericContainer) AuthorID() string {
 
 func (m *GenericContainer) AuthorName() string {
 	return m.authorName
+}
+
+func (m *GenericContainer) AuthorMarkup() string {
+	return m.Username.Label.Label.GetLabel()
 }
 
 func (m *GenericContainer) AvatarURL() string {
@@ -195,6 +226,7 @@ func (m *GenericContainer) UpdateAuthor(author cchat.Author) {
 
 func (m *GenericContainer) UpdateAuthorName(name text.Rich) {
 	cfg := markup.RenderConfig{}
+	cfg.NoReferencing = true
 	cfg.SetForegroundAnchor(m.ContentBody)
 
 	m.authorName = name.String()

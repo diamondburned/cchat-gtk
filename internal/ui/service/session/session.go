@@ -17,7 +17,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat/text"
-	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -176,10 +175,8 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Controller) *Row 
 	row.ActionsMenu.InsertActionGroup(row)
 
 	// Bind right clicks and show a popover menu on such event.
-	row.iconBox.Connect("button-press-event", func(_ interface{}, ev *gdk.Event) {
-		if gts.EventIsRightClick(ev) {
-			row.ActionsMenu.Popup(row)
-		}
+	primitives.OnRightClick(row.iconBox, func() {
+		row.ActionsMenu.Popup(row)
 	})
 
 	// Bind drag-and-drop events.

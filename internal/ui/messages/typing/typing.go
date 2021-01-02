@@ -10,13 +10,22 @@ import (
 	"github.com/gotk3/gotk3/pango"
 )
 
-var typingIndicatorCSS = primitives.PrepareCSS(`
+var typingIndicatorCSS = primitives.PrepareClassCSS("typing-indicator", `
 	.typing-indicator {
 		margin:   0 6px;
 		margin-top: 2px;
+		padding:  0 4px;
+
 		border-radius: 6px 6px 0 0;
+
 		color: alpha(@theme_fg_color, 0.8);
 		background-color: @theme_base_color;
+	}
+`)
+
+var typingLabelCSS = primitives.PrepareClassCSS("typing-label", `
+	.typing-label {
+		padding-left: 2px;
 	}
 `)
 
@@ -27,6 +36,14 @@ var smallfonts = primitives.PrepareCSS(`
 type Container struct {
 	*gtk.Revealer
 	state *State
+
+	dots  *gtk.Box
+	label *gtk.Label
+
+	// borrow, if true, will not update the label until it is set to false.
+	borrow bool
+	// markup stores the label if the label view is not borrowed.
+	markup string
 }
 
 func New() *Container {
@@ -37,10 +54,11 @@ func New() *Container {
 	l.SetXAlign(0)
 	l.SetEllipsize(pango.ELLIPSIZE_END)
 	l.Show()
+	typingLabelCSS(l)
 	primitives.AttachCSS(l, smallfonts)
 
 	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	b.PackStart(d, false, false, 4)
+	b.PackStart(d, false, false, 0)
 	b.PackStart(l, true, true, 0)
 	b.Show()
 
@@ -50,26 +68,58 @@ func New() *Container {
 	r.SetRevealChild(false)
 	r.Add(b)
 
-	primitives.AddClass(b, "typing-indicator")
-	primitives.AttachCSS(b, typingIndicatorCSS)
+	typingIndicatorCSS(b)
 
-	state := NewState(func(s *State, empty bool) {
-		r.SetRevealChild(!empty)
-		l.SetMarkup(render(s.typers))
+	container := &Container{
+		Revealer: r,
+		dots:     d,
+		label:    l,
+	}
+
+	container.state = NewState(func(s *State, empty bool) {
+		if !empty {
+			container.markup = render(s.typers)
+		} else {
+			container.markup = ""
+		}
+
+		if !container.borrow {
+			r.SetRevealChild(!empty)
+			l.SetMarkup(container.markup)
+		}
 	})
 
 	// On label destroy, stop the state loop as well.
-	l.Connect("destroy", func(interface{}) { state.stopper() })
+	l.Connect("destroy", func(interface{}) { container.state.stopper() })
 
-	return &Container{
-		Revealer: r,
-		state:    state,
-	}
+	return container
 }
 
 func (c *Container) Reset() {
 	c.state.reset()
 	c.SetRevealChild(false)
+}
+
+// BorrowLabel borrows the container label. The typing indicator will display
+// the given markup string instead of the markup it is intended to display until
+// Unborrow is called.
+func (c *Container) BorrowLabel(markup string) {
+	c.borrow = true
+	c.label.SetMarkup(markup)
+	c.dots.Hide() // bad, TODO use revealer
+	c.SetRevealChild(true)
+}
+
+// Unborrow stops borrowing the typing indicator, returning it to the state it
+// is supposed to show. Calling Unborrow multiple times will only take effect
+// for the first time.
+func (c *Container) Unborrow() {
+	if c.borrow {
+		c.label.SetMarkup(c.markup)
+		c.SetRevealChild(c.markup != "")
+		c.dots.Show() // bad, TODO use revealer
+		c.borrow = false
+	}
 }
 
 func (c *Container) RemoveAuthor(author cchat.Author) {

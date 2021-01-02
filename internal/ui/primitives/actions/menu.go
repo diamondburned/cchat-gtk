@@ -3,11 +3,15 @@ package actions
 import (
 	"fmt"
 
+	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 type ActionGroupInserter interface {
+	primitives.Connector
 	InsertActionGroup(prefix string, action glib.IActionGroup)
 }
 
@@ -37,6 +41,15 @@ func (m *Menu) MenuModel() (string, *glib.MenuModel) {
 
 func (m *Menu) InsertActionGroup(w ActionGroupInserter) {
 	w.InsertActionGroup(m.prefix, m)
+}
+
+func (m *Menu) BindRightClick(w ActionGroupInserter) {
+	m.InsertActionGroup(w)
+	w.Connect("button-press-event", func(w gtk.IWidget, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			m.Popup(w)
+		}
+	})
 }
 
 // Popup pops up the menu popover. It does not pop up anything if there are no

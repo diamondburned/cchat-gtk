@@ -185,6 +185,14 @@ func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context 
 	return ctx
 }
 
+func OnRightClick(connector Connector, fn func()) {
+	connector.Connect("button-press-event", func(c Connector, ev *gdk.Event) {
+		if gts.EventIsRightClick(ev) {
+			fn()
+		}
+	})
+}
+
 func BindMenu(connector Connector, menu *gtk.Menu) {
 	connector.Connect("button-press-event", func(c Connector, ev *gdk.Event) {
 		if gts.EventIsRightClick(ev) {

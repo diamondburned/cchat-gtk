@@ -30,11 +30,14 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	gc.Timestamp.SetVAlign(gtk.ALIGN_START)
 	gc.Timestamp.SetXAlign(0.5) // middle align
 	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)
+	gc.Timestamp.SetMarginTop(container.ColumnSpacing)
 
 	// Set Content's padding accordingly to FullMessage's main box.
 	gc.Content.ToWidget().SetMarginEnd(container.ColumnSpacing * 2)
 
-	gc.Username.SetMaxWidthChars(30)
+	gc.PackStart(gc.Timestamp, false, false, 0)
+	gc.PackStart(gc.Content, true, true, 0)
+	gc.SetClass("cozy-collapsed")
 
 	return &CollapsedMessage{
 		GenericContainer: gc,
@@ -48,21 +51,13 @@ func (c *CollapsedMessage) UpdateTimestamp(t time.Time) {
 	c.Timestamp.SetText(humanize.TimeAgoShort(t))
 }
 
-func (c *CollapsedMessage) Unwrap(grid *gtk.Grid) *message.GenericContainer {
+func (c *CollapsedMessage) Unwrap() *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
-	grid.Remove(c.Timestamp)
-	grid.Remove(c.Content)
+	c.Remove(c.Timestamp)
+	c.Remove(c.Content)
 
 	// Return after removing.
 	return c.GenericContainer
-}
-
-func (c *CollapsedMessage) Attach() []gtk.IWidget {
-	return []gtk.IWidget{c.Timestamp, c.Content}
-}
-
-func (c *CollapsedMessage) Focusable() gtk.IWidget {
-	return c.Timestamp
 }
 
 type CollapsedSendingMessage struct {

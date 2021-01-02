@@ -31,26 +31,18 @@ var dotsCSS = primitives.PrepareCSS(`
 const breathingChar = "●"
 
 func NewDots() *gtk.Box {
-	c1, _ := gtk.LabelNew(breathingChar)
-	c1.Show()
-	c2, _ := gtk.LabelNew(breathingChar)
-	c2.Show()
-	c3, _ := gtk.LabelNew(breathingChar)
-	c3.Show()
-
 	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	b.Add(c1)
-	b.Add(c2)
-	b.Add(c3)
-
 	primitives.AddClass(b, "breathing-dots")
 
-	primitives.AttachCSS(c1, dotsCSS)
-	primitives.AttachCSS(c1, smallfonts)
-	primitives.AttachCSS(c2, dotsCSS)
-	primitives.AttachCSS(c2, smallfonts)
-	primitives.AttachCSS(c3, dotsCSS)
-	primitives.AttachCSS(c3, smallfonts)
+	for i := 0; i < 3; i++ {
+		c, _ := gtk.LabelNew(breathingChar)
+		c.Show()
+
+		primitives.AttachCSS(c, dotsCSS)
+		primitives.AttachCSS(c, smallfonts)
+
+		b.Add(c)
+	}
 
 	return b
 }

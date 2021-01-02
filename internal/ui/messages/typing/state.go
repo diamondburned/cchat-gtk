@@ -18,7 +18,7 @@ type State struct {
 
 	// consts
 	changed func(s *State, empty bool)
-	stopper func() // stops the event loop, not used atm
+	stopper func()
 }
 
 var _ cchat.TypingContainer = (*State)(nil)
@@ -45,7 +45,7 @@ func (s *State) Subscribe(indicator cchat.TypingIndicator) {
 	gts.Async(func() (func(), error) {
 		c, err := indicator.TypingSubscribe(s)
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to subscribe to typing indicator")
+			return nil, errors.Wrap(err, "failed to subscribe to typing indicator")
 		}
 
 		return func() {
