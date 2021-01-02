@@ -108,7 +108,7 @@ func NewRequest(auther cchat.Authenticator, done func()) *Request {
 
 	continueBtn, _ := gtk.ButtonNewWithLabel("Continue")
 	continueBtn.SetHAlign(gtk.ALIGN_CENTER)
-	continueBtn.Connect("clicked", done)
+	continueBtn.Connect("clicked", func(*gtk.Button) { done() })
 	continueBtn.SetBorderWidth(12)
 	continueBtn.Show()
 

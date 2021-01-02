@@ -3,6 +3,7 @@ package container
 import (
 	"container/list"
 	"log"
+	"time"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -83,10 +84,10 @@ func (c *ListStore) findIndex(id cchat.ID) (*messageRow, int) {
 //
 // TODO: combine compact and full so they share the same attach method.
 func (c *ListStore) SwapMessage(msg MessageRow) bool {
-	// Wrap msg inside a *messageRow if it's not already.
+	// Unwrap msg from a *messageRow if it's not already.
 	m, ok := msg.(*messageRow)
-	if !ok {
-		m = &messageRow{MessageRow: msg}
+	if ok {
+		msg = m.MessageRow
 	}
 
 	// Get the current message's index.
@@ -95,16 +96,16 @@ func (c *ListStore) SwapMessage(msg MessageRow) bool {
 		return false
 	}
 
+	// Remove the to-be-replaced message box. We should probably reuse the row.
+	c.ListBox.Remove(oldMsg.Row())
+
 	// Add a row at index. The actual row we want to delete will be shifted
 	// downwards.
-	c.ListBox.Insert(m.Row(), ix)
-
-	// Delete the to-be-replaced message.
-	oldMsg.Row().Destroy()
+	c.ListBox.Insert(msg.Row(), ix)
 
 	// Set the message into the map.
-	row := c.messages[idKey(m.ID())]
-	*row = *m
+	row := c.messages[idKey(msg.ID())]
+	row.MessageRow = msg
 
 	return true
 }
@@ -403,9 +404,6 @@ func (c *ListStore) Highlight(msg MessageRow) {
 		row := msg.Row()
 		row.GrabFocus()
 		c.ListBox.DragHighlightRow(row)
+		gts.DoAfter(2*time.Second, c.ListBox.DragUnhighlightRow)
 	})
-}
-
-func (c *ListStore) Unhighlight() {
-	c.ListBox.DragUnhighlightRow()
 }

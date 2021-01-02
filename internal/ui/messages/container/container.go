@@ -52,10 +52,8 @@ type Container interface {
 	// Message finds and returns the message, if any.
 	Message(id cchat.ID, nonce string) MessageRow
 
-	// Highlight temporarily highlights the given message.
+	// Highlight temporarily highlights the given message for a short while.
 	Highlight(msg MessageRow)
-	// Unhighlight removes the message highlight.
-	Unhighlight()
 
 	// UI methods.
 

@@ -29,8 +29,8 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	gc.Timestamp.SetSizeRequest(AvatarSize, -1)
 	gc.Timestamp.SetVAlign(gtk.ALIGN_START)
 	gc.Timestamp.SetXAlign(0.5) // middle align
+	gc.Timestamp.SetMarginEnd(container.ColumnSpacing)
 	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)
-	gc.Timestamp.SetMarginTop(container.ColumnSpacing)
 
 	// Set Content's padding accordingly to FullMessage's main box.
 	gc.Content.ToWidget().SetMarginEnd(container.ColumnSpacing * 2)

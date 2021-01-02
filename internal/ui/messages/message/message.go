@@ -113,6 +113,8 @@ func NewEmptyContainer() *GenericContainer {
 	user.Show()
 
 	ctbody := labeluri.NewLabel(text.Rich{})
+	ctbody.SetVExpand(true)
+	ctbody.SetHExpand(true)
 	ctbody.SetEllipsize(pango.ELLIPSIZE_NONE)
 	ctbody.SetLineWrap(true)
 	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
