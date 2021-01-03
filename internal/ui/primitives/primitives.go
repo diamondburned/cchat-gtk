@@ -30,9 +30,56 @@ func RemoveChildren(w Container) {
 		Destroy()
 	}
 
-	w.GetChildren().Foreach(func(child interface{}) {
-		child.(destroyer).Destroy()
-	})
+	children := w.GetChildren()
+	children.Foreach(func(child interface{}) { child.(destroyer).Destroy() })
+	children.Free()
+}
+
+// ChildrenLen gets the total count of children for the given container.
+func ChildrenLen(w Container) int {
+	children := w.GetChildren()
+	defer children.Free()
+
+	return int(children.Length())
+}
+
+func NthChild(w Container, n int) interface{} {
+	children := w.GetChildren()
+	defer children.Free()
+
+	return children.NthData(uint(n))
+}
+
+// ForeachChildBackwards iterates the list. If the callback returns true, then
+// the loop is broken.
+func ForeachChild(w Container, fn func(interface{}) (stop bool)) {
+	children := w.GetChildren()
+	defer children.Free()
+
+	for v := children; v != nil; v = v.Next() {
+		if fn(v.Data()) {
+			break
+		}
+	}
+}
+
+// ForeachChildBackwards iterates the list backwards. If the callback returns
+// true, then the loop is broken.
+func ForeachChildBackwards(w Container, fn func(interface{}) (stop bool)) {
+	children := w.GetChildren()
+	defer children.Free()
+
+	// Seek to last.
+	var last = children
+	for last != nil {
+		last = last.Next()
+	}
+
+	for v := last; v != nil; v = v.Previous() {
+		if fn(v.Data()) {
+			break
+		}
+	}
 }
 
 type Namer interface {

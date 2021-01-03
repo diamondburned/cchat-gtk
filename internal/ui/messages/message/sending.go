@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -136,7 +137,8 @@ func (m *GenericPresendContainer) SetSentError(err error) {
 
 // clearBox clears everything inside the content container.
 func (m *GenericPresendContainer) clearBox() {
-	m.contentBox.GetChildren().Foreach(func(v interface{}) {
+	primitives.ForeachChild(m.contentBox, func(v interface{}) (stop bool) {
 		m.contentBox.Remove(v.(gtk.IWidget))
+		return false
 	})
 }

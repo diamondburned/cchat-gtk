@@ -110,14 +110,7 @@ func (c *Completer) Popdown() {
 }
 
 func (c *Completer) Clear() {
-	var children = c.List.GetChildren()
-	if children.Length() == 0 {
-		return
-	}
-
-	children.Foreach(func(i interface{}) {
-		i.(primitives.WidgetDestroyer).Destroy()
-	})
+	primitives.RemoveChildren(c.List)
 }
 
 // Words returns the buffer content split into words.

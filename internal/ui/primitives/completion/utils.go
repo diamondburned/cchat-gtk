@@ -32,7 +32,7 @@ type KeyDownHandlerFn = func(gtk.IWidget, *gdk.Event) bool
 func KeyDownHandler(l *gtk.ListBox, focus func()) KeyDownHandlerFn {
 	return func(w gtk.IWidget, ev *gdk.Event) bool {
 		// Do we have any entries? If not, don't bother.
-		var length = int(l.GetChildren().Length())
+		var length = primitives.ChildrenLen(l)
 		if length == 0 {
 			// passthrough.
 			return false

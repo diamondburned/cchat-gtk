@@ -1,8 +1,6 @@
 package container
 
 import (
-	"container/list"
-	"log"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -33,8 +31,7 @@ type ListStore struct {
 
 	resetMe bool
 
-	messages    map[messageKey]*messageRow
-	messageList *list.List
+	messages map[messageKey]*messageRow
 }
 
 func NewListStore(constr Constructor, ctrl Controller) *ListStore {
@@ -44,11 +41,10 @@ func NewListStore(constr Constructor, ctrl Controller) *ListStore {
 	messageListCSS(listBox)
 
 	listStore := ListStore{
-		ListBox:     listBox,
-		Construct:   constr,
-		Controller:  ctrl,
-		messages:    make(map[messageKey]*messageRow, BacklogLimit+1),
-		messageList: list.New(),
+		ListBox:    listBox,
+		Construct:  constr,
+		Controller: ctrl,
+		messages:   make(map[messageKey]*messageRow, BacklogLimit+1),
 	}
 
 	var selected bool
@@ -80,28 +76,10 @@ func NewListStore(constr Constructor, ctrl Controller) *ListStore {
 func (c *ListStore) Reset() {
 	primitives.RemoveChildren(c.ListBox)
 	c.messages = make(map[messageKey]*messageRow, BacklogLimit+1)
-	c.messageList = list.New()
 }
 
 func (c *ListStore) MessagesLen() int {
-	return c.messageList.Len()
-}
-
-func (c *ListStore) findElement(id cchat.ID) (*list.Element, *messageRow, int) {
-	var index = c.messageList.Len() - 1
-	for elem := c.messageList.Back(); elem != nil; elem = elem.Prev() {
-		if gridMsg := elem.Value.(*messageRow); gridMsg.ID() == id {
-			return elem, gridMsg, index
-		}
-		index--
-	}
-	return nil, nil, -1
-}
-
-// findIndex searches backwards for id.
-func (c *ListStore) findIndex(id cchat.ID) (*messageRow, int) {
-	_, gridMsg, ix := c.findElement(id)
-	return gridMsg, ix
+	return len(c.messages)
 }
 
 // Swap changes the message with the ID to the given message. This provides a
@@ -149,25 +127,26 @@ func (c *ListStore) Around(id cchat.ID) (before, after MessageRow) {
 	return
 }
 
-func (c *ListStore) around(id cchat.ID) (before, after *messageRow) {
+func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
 	var last *messageRow
 	var next bool
 
-	for elem := c.messageList.Front(); elem != nil; elem = elem.Next() {
-		message := elem.Value.(*messageRow)
+	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
+		id := primitives.GetName(v.(primitives.Namer))
 		if next {
-			after = message
-			break
+			after = c.message(id, "")
+			return true
 		}
-		if message.ID() == id {
-			// The last message is the before.
+		if id == aroundID {
 			before = last
 			next = true
-			continue
+			return false
 		}
 
-		last = message
-	}
+		last = c.message(id, "")
+		return false
+	})
+
 	return
 }
 
@@ -186,52 +165,92 @@ func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
 	return msg.ID(), true
 }
 
-// FindMessage iterates backwards and returns the message if isMessage() returns
-// true on that message.
-func (c *ListStore) FindMessage(isMessage func(msg MessageRow) bool) MessageRow {
-	for elem := c.messageList.Back(); elem != nil; elem = elem.Prev() {
-		gridMsg := elem.Value.(*messageRow)
-		// Ignore sending messages.
-		if gridMsg.presend != nil {
-			continue
+// findIndex searches backwards for id.
+func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
+	// Faster implementation of findMessage: no map lookup is done until an ID
+	// match, so the worst case is a single string hash.
+	index = c.MessagesLen() - 1
+
+	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
+		id := primitives.GetName(v.(primitives.Namer))
+		if id == findID {
+			found = c.message(findID, "")
+			return true
 		}
-		if gridMsg := gridMsg.MessageRow; isMessage(gridMsg) {
-			return gridMsg
-		}
+
+		index--
+		return index == 0
+	})
+
+	// Preserve old behavior.
+	if found == nil {
+		index = -1
 	}
 
+	return
+}
+
+func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messageRow, int) {
+	var r *messageRow
+	var i = c.MessagesLen() - 1
+
+	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
+		id := primitives.GetName(v.(primitives.Namer))
+		gridMsg := c.message(id, "")
+
+		// Ignore sending messages.
+		if (presend || gridMsg.presend == nil) && fn(gridMsg) {
+			r = gridMsg
+			return true
+		}
+
+		i--
+		return i == 0
+	})
+
+	// Preserve old behavior.
+	if r == nil {
+		i = -1
+	}
+
+	return r, i
+}
+
+// FindMessage iterates backwards and returns the message if isMessage() returns
+// true on that message. It does not search presend messages.
+func (c *ListStore) FindMessage(isMessage func(MessageRow) bool) MessageRow {
+	msg, _ := c.findMessage(false, func(row *messageRow) bool {
+		return isMessage(row.MessageRow)
+	})
+	if msg != nil {
+		return msg.MessageRow
+	}
 	return nil
+}
+
+func (c *ListStore) nthMessage(n int) *messageRow {
+	v := primitives.NthChild(c.ListBox, n)
+	id := primitives.GetName(v.(primitives.Namer))
+	return c.message(id, "")
 }
 
 // NthMessage returns the nth message.
 func (c *ListStore) NthMessage(n int) MessageRow {
-	var index = 0
-	for elem := c.messageList.Front(); elem != nil; elem = elem.Next() {
-		if index == n {
-			return elem.Value.(*messageRow).MessageRow
-		}
-		index++
+	msg := c.nthMessage(n)
+	if msg != nil {
+		return msg.MessageRow
 	}
-
 	return nil
 }
 
 // FirstMessage returns the first message.
 func (c *ListStore) FirstMessage() MessageRow {
-	if c.messageList.Len() == 0 {
-		return nil
-	}
-	// Long unwrap.
-	return c.messageList.Front().Value.(*messageRow).MessageRow
+	return c.NthMessage(0)
 }
 
 // LastMessage returns the latest message.
 func (c *ListStore) LastMessage() MessageRow {
-	if c.messageList.Len() == 0 {
-		return nil
-	}
-	// Long unwrap.
-	return c.messageList.Back().Value.(*messageRow).MessageRow
+	return c.NthMessage(c.MessagesLen() - 1)
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
@@ -283,8 +302,6 @@ func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRo
 
 	// Set the message into the list.
 	c.ListBox.Insert(msgc.Row(), c.MessagesLen())
-	// Append the message.
-	c.messageList.PushBack(msgc)
 	// Set the NONCE into the message map.
 	c.messages[nonceKey(msgc.Nonce())] = msgc
 
@@ -321,30 +338,20 @@ func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 	}
 	msgTime := msg.Time()
 
-	var index = c.messageList.Len() - 1
-	var after = c.messageList.Back()
-
 	// Iterate and compare timestamp to find where to insert a message.
-	for after != nil {
-		if msgTime.After(after.Value.(*messageRow).Time()) {
-			break
-		}
-		index--
-		after = after.Prev()
-	}
+	after, index := c.findMessage(true, func(after *messageRow) bool {
+		return msgTime.After(after.Time())
+	})
 
 	// Append the message. If after is nil, then that means the message is the
 	// oldest, so we add it to the front of the list.
 	if after != nil {
 		index++ // insert right after
-		c.messageList.InsertAfter(msgc, after)
+		c.ListBox.Insert(msgc.Row(), index)
 	} else {
 		index = 0
-		c.messageList.PushFront(msgc)
+		c.ListBox.Add(msgc.Row())
 	}
-
-	// Set the message into the grid.
-	c.ListBox.Insert(msgc.Row(), index)
 
 	// Set the ID into the message map.
 	c.messages[idKey(msgc.ID())] = msgc
@@ -375,16 +382,14 @@ func (c *ListStore) DeleteMessageUnsafe(msg cchat.MessageDelete) {
 // PopMessage deletes a message off of the list and return the deleted message.
 func (c *ListStore) PopMessage(id cchat.ID) (msg MessageRow) {
 	// Get the raw element to delete it off the list.
-	elem, gridMsg, _ := c.findElement(id)
-	if elem == nil {
+	gridMsg, _ := c.findIndex(id)
+	if gridMsg == nil {
 		return nil
 	}
 	msg = gridMsg.MessageRow
 
 	// Remove off of the Gtk grid.
 	gridMsg.Row().Destroy()
-	// Pop off the slice.
-	c.messageList.Remove(elem)
 	// Delete off the map.
 	delete(c.messages, idKey(id))
 
@@ -400,8 +405,9 @@ func (c *ListStore) DeleteEarliest(n int) {
 
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.
-	for elem := c.messageList.Front(); elem != nil && n != 0; n-- {
-		gridMsg := elem.Value.(*messageRow)
+	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
+		id := primitives.GetName(v.(primitives.Namer))
+		gridMsg := c.message(id, "")
 
 		if id := gridMsg.ID(); id != "" {
 			delete(c.messages, idKey(id))
@@ -412,15 +418,13 @@ func (c *ListStore) DeleteEarliest(n int) {
 
 		gridMsg.Row().Destroy()
 
-		next := elem.Next()
-		c.messageList.Remove(elem)
-		elem = next
-	}
+		n--
+		return n == 0
+	})
 }
 
 func (c *ListStore) HighlightReference(ref markup.ReferenceSegment) {
 	msg := c.message(ref.MessageID(), "")
-	log.Println("Highlighting", ref.MessageID())
 	if msg != nil {
 		c.Highlight(msg)
 	}
