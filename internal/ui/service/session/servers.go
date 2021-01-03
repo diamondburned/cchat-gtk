@@ -114,9 +114,13 @@ func (s *Servers) SetServers(servers []cchat.Server) {
 	gts.ExecAsync(func() {
 		s.Children.SetServersUnsafe(servers)
 
-		if servers == nil {
+		if len(servers) == 0 {
 			s.ctrl.ClearMessenger()
+			return
 		}
+
+		// Reload all top-level nodes.
+		s.Children.LoadAll()
 	})
 }
 

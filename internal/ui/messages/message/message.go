@@ -67,7 +67,7 @@ type GenericContainer struct {
 	contentBox  *gtk.Box // basically what is in Content
 	ContentBody *labeluri.Label
 
-	MenuItems []menu.Item
+	menuItems []menu.Item
 }
 
 var _ Container = (*GenericContainer)(nil)
@@ -114,7 +114,7 @@ func NewEmptyContainer() *GenericContainer {
 
 	ctbody := labeluri.NewLabel(text.Rich{})
 	ctbody.SetVExpand(true)
-	ctbody.SetHExpand(true)
+	ctbody.SetHAlign(gtk.ALIGN_START)
 	ctbody.SetEllipsize(pango.ELLIPSIZE_NONE)
 	ctbody.SetLineWrap(true)
 	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
@@ -125,6 +125,7 @@ func NewEmptyContainer() *GenericContainer {
 
 	// Wrap the content label inside a content box.
 	ctbox, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	ctbox.SetHExpand(true)
 	ctbox.PackStart(ctbody, false, false, 0)
 	ctbox.Show()
 
@@ -161,7 +162,7 @@ func NewEmptyContainer() *GenericContainer {
 	// Bind the custom popup menu to the content label.
 	gc.ContentBody.Connect("populate-popup", func(l *gtk.Label, m *gtk.Menu) {
 		menu.MenuSeparator(m)
-		menu.MenuItems(m, gc.MenuItems)
+		menu.MenuItems(m, gc.menuItems)
 	})
 
 	return gc
@@ -248,7 +249,12 @@ func (m *GenericContainer) UpdateContent(content text.Rich, edited bool) {
 // AttachMenu connects signal handlers to handle a list of menu items from
 // the container.
 func (m *GenericContainer) AttachMenu(newItems []menu.Item) {
-	m.MenuItems = newItems
+	m.menuItems = newItems
+}
+
+// MenuItems returns the list of menu items for this message.
+func (m *GenericContainer) MenuItems() []menu.Item {
+	return m.menuItems
 }
 
 func (m *GenericContainer) Focusable() gtk.IWidget {

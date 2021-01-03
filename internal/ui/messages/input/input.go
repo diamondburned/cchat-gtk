@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -54,7 +55,7 @@ var textCSS = primitives.PrepareCSS(`
 	}
 `)
 
-var inputBoxCSS = primitives.PrepareClassCSS("input-box", `
+var inputMainBoxCSS = primitives.PrepareClassCSS("input-box", `
 	.input-box {
 		background-color: @theme_bg_color;
 	}
@@ -111,14 +112,20 @@ const (
 	editButtonIcon  = "document-edit-symbolic"
 	replyButtonIcon = "mail-reply-sender-symbolic"
 	sendButtonSize  = gtk.ICON_SIZE_BUTTON
+
+	ClampMaxSize   = 1000
+	ClampThreshold = ClampMaxSize
 )
 
 type Field struct {
-	// Box contains the field box and the attachment container.
 	*gtk.Box
+	Clamp *handy.Clamp
+
+	// MainBox contains the field box and the attachment container.
+	MainBox     *gtk.Box
 	Attachments *attachment.Container
 
-	// FieldBox contains the username container and the input field. It spans
+	// FieldMainBox contains the username container and the input field. It spans
 	// horizontally.
 	FieldBox *gtk.Box
 	Username *username.Container
@@ -212,11 +219,22 @@ func NewField(text *gtk.TextView, ctrl Controller, labeler LabelBorrower) *Field
 	field.Attachments = attachment.New()
 	field.Attachments.Show()
 
-	field.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
-	field.Box.PackStart(field.Attachments, false, false, 0)
-	field.Box.PackStart(field.FieldBox, false, false, 0)
+	field.MainBox, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 2)
+	field.MainBox.PackStart(field.Attachments, false, false, 0)
+	field.MainBox.PackStart(field.FieldBox, false, false, 0)
+	field.MainBox.Show()
+
+	field.Clamp = handy.ClampNew()
+	field.Clamp.SetMaximumSize(ClampMaxSize)
+	field.Clamp.SetTighteningThreshold(ClampThreshold)
+	field.Clamp.SetHExpand(true)
+	field.Clamp.Add(field.MainBox)
+	field.Clamp.Show()
+
+	field.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	field.Box.Add(field.Clamp)
 	field.Box.Show()
-	inputBoxCSS(field.Box)
+	inputMainBoxCSS(field.Clamp)
 
 	text.SetFocusHAdjustment(field.TextScroll.GetHAdjustment())
 	text.SetFocusVAdjustment(field.TextScroll.GetVAdjustment())

@@ -26,7 +26,7 @@ var messageListCSS = primitives.PrepareClassCSS("message-list", `
 `)
 
 type ListStore struct {
-	*gtk.ListBox
+	ListBox *gtk.ListBox
 
 	Construct  Constructor
 	Controller Controller
@@ -39,17 +39,42 @@ type ListStore struct {
 
 func NewListStore(constr Constructor, ctrl Controller) *ListStore {
 	listBox, _ := gtk.ListBoxNew()
-	listBox.SetSelectionMode(gtk.SELECTION_NONE)
+	listBox.SetSelectionMode(gtk.SELECTION_SINGLE)
 	listBox.Show()
 	messageListCSS(listBox)
 
-	return &ListStore{
+	listStore := ListStore{
 		ListBox:     listBox,
 		Construct:   constr,
 		Controller:  ctrl,
 		messages:    make(map[messageKey]*messageRow, BacklogLimit+1),
 		messageList: list.New(),
 	}
+
+	var selected bool
+
+	listBox.Connect("row-selected", func(listBox *gtk.ListBox, r *gtk.ListBoxRow) {
+		if r == nil || selected {
+			if selected {
+				listBox.UnselectAll()
+				selected = false
+			}
+			ctrl.UnselectMessage()
+			return
+		}
+
+		id, _ := r.GetName()
+
+		msg := listStore.Message(id, "")
+		if msg == nil {
+			return
+		}
+
+		selected = true
+		ctrl.SelectMessage(&listStore, msg)
+	})
+
+	return &listStore
 }
 
 func (c *ListStore) Reset() {
@@ -267,6 +292,8 @@ func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRo
 }
 
 func (c *ListStore) bindMessage(msgc *messageRow) {
+	// Bind the message ID to the row so we can easily do a lookup.
+	msgc.Row().SetName(msgc.ID())
 	msgc.SetReferenceHighlighter(c)
 	c.Controller.BindMenu(msgc.MessageRow)
 }

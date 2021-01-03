@@ -160,7 +160,7 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 
 func (app *App) ClearMessenger(ses *session.Row) {
 	if app.MessageView.SessionID() == ses.Session.ID() {
-		return
+		app.MessageView.Reset()
 	}
 }
 

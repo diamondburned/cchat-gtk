@@ -117,7 +117,7 @@ func (a AppendMap) Get(ind int) (tags string) {
 
 	// Borrowing appended's backing array to add prepended is probably fine, as
 	// the length of the actual appended slice is going to stay the same.
-	return string(append(appended, prepended...))
+	return string(append(prepended, appended...))
 }
 
 func (a *AppendMap) Finalize(strlen int) []int {

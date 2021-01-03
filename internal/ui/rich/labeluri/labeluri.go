@@ -27,8 +27,8 @@ import (
 const (
 	AvatarSize   = 96
 	PopoverWidth = 250
-	MaxWidth     = 350
-	MaxHeight    = 350
+	MaxWidth     = 500
+	MaxHeight    = 500
 )
 
 type WidgetConnector interface {

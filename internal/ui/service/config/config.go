@@ -36,7 +36,7 @@ func Restore(conf Configurator) {
 
 		file := serviceFile(conf)
 
-		if err := config.UnmarshalFromFile(file, c); err != nil {
+		if err := config.UnmarshalFromFile(file, &c); err != nil {
 			return nil, errors.Wrapf(err, "failed to unmarshal %s config", conf.Name())
 		}
 
@@ -57,7 +57,7 @@ func Spawn(conf Configurator) error {
 
 		file := serviceFile(conf)
 
-		err = config.UnmarshalFromFile(file, c)
+		err = config.UnmarshalFromFile(file, &c)
 		err = errors.Wrapf(err, "failed to unmarshal %s config", conf.Name())
 
 		return func() {

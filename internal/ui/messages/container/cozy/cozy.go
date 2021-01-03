@@ -48,8 +48,6 @@ type Container struct {
 func NewContainer(ctrl container.Controller) *Container {
 	c := &Container{}
 	c.ListContainer = container.NewListContainer(c, ctrl)
-	// A not-so-generous row padding, as we will rely on margins per widget.
-	// c.ListContainer.Grid.SetRowSpacing(4)
 
 	primitives.AddClass(c, "cozy-container")
 	return c

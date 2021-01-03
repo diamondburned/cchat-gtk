@@ -14,12 +14,15 @@ import (
 // const BreadcrumbSlash = `<span rise="-1024" size="x-large">❭</span>`
 const BreadcrumbSlash = " 〉"
 
+const iconSize = gtk.ICON_SIZE_BUTTON
+
 type Header struct {
 	handy.HeaderBar
 
 	ShowBackBtn *gtk.Revealer
 	BackButton  *gtk.Button
 	Breadcrumb  *gtk.Label
+	MessageCtrl *MessageControl
 	ShowMembers *gtk.ToggleButton
 
 	breadcrumbs []string
@@ -39,7 +42,7 @@ var rightBreadcrumbCSS = primitives.PrepareClassCSS("right-breadcrumb", `
 `)
 
 func NewHeader() *Header {
-	bk, _ := gtk.ButtonNewFromIconName("go-previous-symbolic", gtk.ICON_SIZE_BUTTON)
+	bk, _ := gtk.ButtonNewFromIconName("go-previous-symbolic", iconSize)
 	bk.SetVAlign(gtk.ALIGN_CENTER)
 	bk.Show()
 	backButtonCSS(bk)
@@ -61,7 +64,11 @@ func NewHeader() *Header {
 	bc.Show()
 	rightBreadcrumbCSS(bc)
 
-	memberIcon, _ := gtk.ImageNewFromIconName("system-users-symbolic", gtk.ICON_SIZE_BUTTON)
+	msgctrl := NewMessageControl()
+	msgctrl.Disable()
+	msgctrl.Show()
+
+	memberIcon, _ := gtk.ImageNewFromIconName("system-users-symbolic", iconSize)
 	memberIcon.Show()
 
 	mb, _ := gtk.ToggleButtonNew()
@@ -75,6 +82,7 @@ func NewHeader() *Header {
 	header.PackStart(rbk)
 	header.PackStart(bc)
 	header.PackEnd(mb)
+	header.PackEnd(msgctrl)
 	header.Show()
 
 	// Hack to hide the title.
@@ -86,12 +94,14 @@ func NewHeader() *Header {
 		ShowBackBtn: rbk,
 		BackButton:  bk,
 		Breadcrumb:  bc,
+		MessageCtrl: msgctrl,
 		ShowMembers: mb,
 	}
 }
 
 func (h *Header) Reset() {
 	h.SetBreadcrumber(nil)
+	h.MessageCtrl.Disable()
 }
 
 func (h *Header) OnBackPressed(fn func()) {

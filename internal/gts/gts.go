@@ -222,6 +222,11 @@ func EventIsRightClick(ev *gdk.Event) bool {
 	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_SECONDARY
 }
 
+func EventIsLeftClick(ev *gdk.Event) bool {
+	keyev := gdk.EventButtonNewFromEvent(ev)
+	return keyev.Type() == gdk.EVENT_BUTTON_PRESS && keyev.Button() == gdk.BUTTON_PRIMARY
+}
+
 func SpawnUploader(dirpath string, callback func(absolutePaths []string)) {
 	dialog, _ := gtk.FileChooserNativeDialogNew(
 		"Upload File", App.Window,

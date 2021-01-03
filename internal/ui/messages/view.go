@@ -55,8 +55,8 @@ type Controller interface {
 
 type MessagesContainer interface {
 	gtk.IWidget
-	container.Container
 	cchat.MessagesContainer
+	container.Container
 }
 
 type View struct {
@@ -250,11 +250,8 @@ func (v *View) reset() {
 
 func (v *View) SetFolded(folded bool) {
 	v.parentFolded = folded
-
-	// Change to a mini breadcrumb if we're collapsed.
 	v.Header.SetMiniBreadcrumb(folded)
-
-	// Hide the username in the input bar if we're collapsed.
+	v.Header.MessageCtrl.SetHidden(folded)
 	v.InputView.Username.SetRevealChild(!folded)
 
 	// Hide the member list automatically on folded.
@@ -266,7 +263,7 @@ func (v *View) SetFolded(folded bool) {
 // MemberListUpdated is called everytime the member list is updated.
 func (v *View) MemberListUpdated(c *memberlist.Container) {
 	// We can show the members list if it's not empty.
-	var empty = c.IsEmpty()
+	empty := c.IsEmpty()
 	v.Header.SetCanShowMembers(!empty)
 
 	// If the member list is now empty, then hide the entire thing.
@@ -430,6 +427,12 @@ func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendM
 	}()
 }
 
+var messageItemNames = MessageItemNames{
+	Reply:  "Reply",
+	Edit:   "Edit",
+	Delete: "Delete",
+}
+
 // BindMenu attaches the menu constructor into the message with the needed
 // states and callbacks.
 func (v *View) BindMenu(msg container.MessageRow) {
@@ -475,81 +478,13 @@ func (v *View) makeActionItem(action, msgID string) menu.Item {
 	})
 }
 
-// ServerMessage combines Server and ServerMessage from cchat.
-type ServerMessage interface {
-	cchat.Server
-	cchat.Messenger
+// SelectMessage is called when a message is selected.
+func (v *View) SelectMessage(_ *container.ListStore, msg container.MessageRow) {
+	// Hijack the message's action list to search for what we have above.
+	v.Header.MessageCtrl.Enable(msg, messageItemNames)
 }
 
-type state struct {
-	session cchat.Session
-	server  cchat.Server
-
-	actioner   cchat.Actioner
-	backlogger cchat.Backlogger
-
-	current func() // stop callback
-	author  string
-
-	lastBacklogged time.Time
-}
-
-func (s *state) Reset() {
-	// If we still have the last server to leave, then leave it.
-	if s.current != nil {
-		s.current()
-	}
-
-	// Lazy way to reset the state.
-	*s = state{}
-}
-
-func (s *state) hasActions() bool {
-	return s.actioner != nil
-}
-
-// SessionID returns the session ID, or an empty string if there's no session.
-func (s *state) SessionID() string {
-	if s.session != nil {
-		return s.session.ID()
-	}
-	return ""
-}
-
-// ServerID returns the server ID, or an empty string if there's no server.
-func (s *state) ServerID() string {
-	if s.server != nil {
-		return s.server.ID()
-	}
-	return ""
-}
-
-const backloggingFreq = time.Second * 3
-
-// Backlogger returns the backlogger instance if it's allowed to fetch more
-// backlogs.
-func (s *state) Backlogger() cchat.Backlogger {
-	if s.backlogger == nil || s.current == nil {
-		return nil
-	}
-
-	var now = time.Now()
-
-	if s.lastBacklogged.Add(backloggingFreq).After(now) {
-		return nil
-	}
-
-	s.lastBacklogged = now
-	return s.backlogger
-}
-
-func (s *state) bind(session cchat.Session, server cchat.Server, msgr cchat.Messenger) {
-	s.session = session
-	s.server = server
-	s.actioner = msgr.AsActioner()
-	s.backlogger = msgr.AsBacklogger()
-}
-
-func (s *state) setcurrent(fn func()) {
-	s.current = fn
+// UnselectMessage is called when the message selection is cleared.
+func (v *View) UnselectMessage() {
+	v.Header.MessageCtrl.Disable()
 }

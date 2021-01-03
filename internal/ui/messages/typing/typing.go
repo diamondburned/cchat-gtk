@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -33,10 +34,17 @@ var smallfonts = primitives.PrepareCSS(`
 	* { font-size: 0.9em; }
 `)
 
+const (
+	// Keep the same as input.
+	ClampMaxSize   = 1000 - 6*2 // account for margin
+	ClampThreshold = ClampMaxSize
+)
+
 type Container struct {
 	*gtk.Revealer
 	state *State
 
+	clamp *handy.Clamp
 	dots  *gtk.Box
 	label *gtk.Label
 
@@ -62,11 +70,18 @@ func New() *Container {
 	b.PackStart(l, true, true, 0)
 	b.Show()
 
+	c := handy.ClampNew()
+	c.SetMaximumSize(ClampMaxSize)
+	c.SetTighteningThreshold(ClampThreshold)
+	c.SetHExpand(true)
+	c.Add(b)
+	c.Show()
+
 	r, _ := gtk.RevealerNew()
 	r.SetTransitionDuration(100)
 	r.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_CROSSFADE)
 	r.SetRevealChild(false)
-	r.Add(b)
+	r.Add(c)
 
 	typingIndicatorCSS(b)
 

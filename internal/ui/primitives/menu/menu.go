@@ -72,6 +72,17 @@ func MenuItems(menu MenuAppender, items []Item) {
 	}
 }
 
+// FindItemFunc iterates over the list of items and returns the first item with
+// the matching name.
+func FindItemFunc(items []Item, name string) func() {
+	for _, item := range items {
+		if item.Name == name {
+			return item.Func
+		}
+	}
+	return nil
+}
+
 type ToolbarInserter interface {
 	Insert(gtk.IToolItem, int)
 }

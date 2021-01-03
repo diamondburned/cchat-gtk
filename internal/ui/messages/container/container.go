@@ -4,8 +4,10 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -19,6 +21,8 @@ type MessageRow interface {
 	Row() *gtk.ListBoxRow
 	// AttachMenu should override the stored constructor.
 	AttachMenu(items []menu.Item) // save memory
+	// MenuItems returns the list of attached menu items.
+	MenuItems() []menu.Item
 	// SetReferenceHighlighter sets the reference highlighter into the message.
 	SetReferenceHighlighter(refer labeluri.ReferenceHighlighter)
 }
@@ -63,6 +67,8 @@ type Container interface {
 
 // Controller is for menu actions.
 type Controller interface {
+	// Connector is used for button press events to unselect messages.
+	primitives.Connector
 	// BindMenu expects the controller to add actioner into the message.
 	BindMenu(MessageRow)
 	// Bottomed returns whether or not the message scroller is at the bottom.
@@ -70,6 +76,10 @@ type Controller interface {
 	// AuthorEvent is called on message create/update. This is used to update
 	// the typer state.
 	AuthorEvent(a cchat.Author)
+	// SelectMessage is called when a message is selected.
+	SelectMessage(list *ListStore, msg MessageRow)
+	// UnselectMessage is called when the message selection is cleared.
+	UnselectMessage()
 }
 
 // Constructor is an interface for making custom message implementations which
@@ -84,7 +94,10 @@ const ColumnSpacing = 8
 // ListContainer is an implementation of Container, which allows flexible
 // message grids.
 type ListContainer struct {
+	*handy.Clamp
+
 	*ListStore
+
 	Controller
 }
 
@@ -97,8 +110,20 @@ type messageRow struct {
 var _ Container = (*ListContainer)(nil)
 
 func NewListContainer(constr Constructor, ctrl Controller) *ListContainer {
+	listStore := NewListStore(constr, ctrl)
+	listStore.ListBox.Show()
+
+	clamp := handy.ClampNew()
+	clamp.SetMaximumSize(800)
+	clamp.SetTighteningThreshold(600)
+	clamp.SetHExpand(true)
+	clamp.SetVExpand(true)
+	clamp.Add(listStore.ListBox)
+	clamp.Show()
+
 	return &ListContainer{
-		ListStore:  NewListStore(constr, ctrl),
+		Clamp:      clamp,
+		ListStore:  listStore,
 		Controller: ctrl,
 	}
 }
@@ -122,4 +147,11 @@ func (c *ListContainer) CleanMessages() bool {
 	}
 
 	return false
+}
+
+func (c *ListContainer) SetFocusHAdjustment(adj *gtk.Adjustment) {
+	c.ListBox.SetFocusHAdjustment(adj)
+}
+func (c *ListContainer) SetFocusVAdjustment(adj *gtk.Adjustment) {
+	c.ListBox.SetFocusVAdjustment(adj)
 }
