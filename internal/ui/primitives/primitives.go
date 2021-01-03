@@ -31,7 +31,7 @@ func RemoveChildren(w Container) {
 	}
 
 	children := w.GetChildren()
-	children.Foreach(func(child interface{}) { child.(destroyer).Destroy() })
+	children.Foreach(func(child interface{}) { w.Remove(child.(gtk.IWidget)) })
 	children.Free()
 }
 
@@ -47,6 +47,9 @@ func NthChild(w Container, n int) interface{} {
 	children := w.GetChildren()
 	defer children.Free()
 
+	if n == 0 {
+		return children.Data()
+	}
 	return children.NthData(uint(n))
 }
 
@@ -69,13 +72,7 @@ func ForeachChildBackwards(w Container, fn func(interface{}) (stop bool)) {
 	children := w.GetChildren()
 	defer children.Free()
 
-	// Seek to last.
-	var last = children
-	for last != nil {
-		last = last.Next()
-	}
-
-	for v := last; v != nil; v = v.Previous() {
+	for v := children.Last(); v != nil; v = v.Previous() {
 		if fn(v.Data()) {
 			break
 		}

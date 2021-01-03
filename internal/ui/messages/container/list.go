@@ -1,6 +1,7 @@
 package container
 
 import (
+	"log"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -153,8 +154,11 @@ func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
 // LatestMessageFrom returns the latest message with the given user ID. This is
 // used for the input prompt.
 func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
+	log.Println("LatestMessageFrom called")
+
 	// FindMessage already looks from the latest messages.
 	var msg = c.FindMessage(func(msg MessageRow) bool {
+		log.Println("Author:", msg.AuthorName())
 		return msg.AuthorID() == userID
 	})
 
@@ -198,14 +202,17 @@ func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messa
 		id := primitives.GetName(v.(primitives.Namer))
 		gridMsg := c.message(id, "")
 
-		// Ignore sending messages.
-		if (presend || gridMsg.presend == nil) && fn(gridMsg) {
-			r = gridMsg
-			return true
+		// If gridMsg is actually nil, then we have bigger issues.
+		if gridMsg != nil {
+			// Ignore sending messages.
+			if (presend || gridMsg.presend == nil) && fn(gridMsg) {
+				r = gridMsg
+				return true
+			}
 		}
 
 		i--
-		return i == 0
+		return false
 	})
 
 	// Preserve old behavior.
@@ -405,9 +412,11 @@ func (c *ListStore) DeleteEarliest(n int) {
 
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.
-	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
+	primitives.ForeachChild(c.ListBox, func(v interface{}) (stop bool) {
 		id := primitives.GetName(v.(primitives.Namer))
 		gridMsg := c.message(id, "")
+
+		log.Println("Deleting overflowed message ID from", gridMsg.AuthorName())
 
 		if id := gridMsg.ID(); id != "" {
 			delete(c.messages, idKey(id))

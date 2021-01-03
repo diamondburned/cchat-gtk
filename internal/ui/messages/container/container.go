@@ -13,7 +13,7 @@ import (
 
 // BacklogLimit is the maximum number of messages to store in the container at
 // once.
-const BacklogLimit = 35
+const BacklogLimit = 50
 
 type MessageRow interface {
 	message.Container
