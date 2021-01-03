@@ -262,6 +262,11 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 	var lastIndex = 0
 
 	for _, index := range appended.Finalize(len(content.Content)) {
+		// Prevent faulty backend with erroneous insertions.
+		if index > len(content.Content) {
+			index = len(content.Content)
+		}
+
 		// Write the content.
 		buf.WriteString(html.EscapeString(content.Content[lastIndex:index]))
 		// Write the tags.
