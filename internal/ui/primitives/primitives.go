@@ -25,13 +25,23 @@ type Container interface {
 
 var _ Container = (*gtk.Container)(nil)
 
+// RemoveChildren removes all children from the given container. Most of the
+// time, DestroyChildren should be preferred if no children will be reused.
 func RemoveChildren(w Container) {
-	// type destroyer interface {
-	// 	Destroy()
-	// }
-
 	w.GetChildren().FreeFull(func(child interface{}) {
 		w.Remove(child.(gtk.IWidget))
+	})
+}
+
+// DestroyChildren destroys all children of the given container, removing and
+// freeing them at the same time.
+func DestroyChildren(w Container) {
+	type destroyer interface {
+		Destroy()
+	}
+
+	w.GetChildren().FreeFull(func(child interface{}) {
+		child.(destroyer).Destroy()
 	})
 }
 
@@ -227,11 +237,14 @@ func MenuItem(label string, fn interface{}) *gtk.MenuItem {
 type Connector interface {
 	Connect(string, interface{}) glib.SignalHandle
 	ConnectAfter(string, interface{}) glib.SignalHandle
+	HandlerDisconnect(glib.SignalHandle)
 }
+
+var _ Connector = (*glib.Object)(nil)
 
 func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
-	connector.Connect("destroy", func(c Connector) { cancel() })
+	connector.Connect("destroy", func(interface{}) { cancel() })
 	return ctx
 }
 

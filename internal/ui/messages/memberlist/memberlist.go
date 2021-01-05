@@ -85,11 +85,6 @@ func (c *Container) Reset() {
 	}
 
 	c.Revealer.SetRevealChild(false)
-
-	for _, section := range c.Sections {
-		section.Destroy()
-	}
-
 	c.Sections = map[string]*Section{}
 }
 
@@ -129,6 +124,10 @@ type sectionInsert struct {
 }
 
 func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
+	// Lazily invalidate the container. We could delegate removing old sections
+	// to this function instead of Reset to not halt for too long.
+	primitives.RemoveChildren(c.Main)
+
 	var newSections = make([]*Section, len(sections))
 
 	for i, section := range sections {
@@ -143,8 +142,7 @@ func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
 	}
 
 	// Remove all old sections.
-	for id, section := range c.Sections {
-		c.Main.Remove(section)
+	for id := range c.Sections {
 		delete(c.Sections, id)
 	}
 

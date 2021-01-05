@@ -74,7 +74,7 @@ func NewListStore(ctrl Controller, constr Constructor) *ListStore {
 }
 
 func (c *ListStore) Reset() {
-	primitives.RemoveChildren(c.ListBox)
+	// Delegate removing children to the constructor.
 	c.messages = make(map[messageKey]*messageRow, BacklogLimit+1)
 }
 
@@ -128,6 +128,8 @@ func (c *ListStore) Around(id cchat.ID) (before, after MessageRow) {
 }
 
 func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
+	c.ensureEmpty()
+
 	var last *messageRow
 	var next bool
 
@@ -167,6 +169,8 @@ func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
 
 // findIndex searches backwards for id.
 func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
+	c.ensureEmpty()
+
 	// Faster implementation of findMessage: no map lookup is done until an ID
 	// match, so the worst case is a single string hash.
 	index = c.MessagesLen() - 1
@@ -179,7 +183,7 @@ func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
 		}
 
 		index--
-		return index == 0
+		return index <= 0
 	})
 
 	// Preserve old behavior.
@@ -191,6 +195,8 @@ func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
 }
 
 func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messageRow, int) {
+	c.ensureEmpty()
+
 	var r *messageRow
 	var i = c.MessagesLen() - 1
 
@@ -208,7 +214,7 @@ func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messa
 		}
 
 		i--
-		return false
+		return i <= 0
 	})
 
 	// Preserve old behavior.
@@ -287,9 +293,19 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 	return nil
 }
 
+// ensureEmpty ensures that if the message map is empty, then the container
+// should also be.
+func (c *ListStore) ensureEmpty() {
+	if len(c.messages) == 0 {
+		primitives.RemoveChildren(c.ListBox)
+	}
+}
+
 // AddPresendMessage inserts an input.PresendMessage into the container and
 // returning a wrapped widget interface.
 func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRow {
+	c.ensureEmpty()
+
 	before := c.LastMessage()
 	presend := c.Construct.NewPresendMessage(msg, before)
 
@@ -330,6 +346,8 @@ func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) MessageRow {
 		c.bindMessage(msgc)
 		return msgc.MessageRow
 	}
+
+	c.ensureEmpty()
 
 	msgTime := msg.Time()
 
@@ -412,6 +430,8 @@ func (c *ListStore) DeleteEarliest(n int) {
 	if n <= 0 {
 		return
 	}
+
+	c.ensureEmpty()
 
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.

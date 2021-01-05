@@ -63,10 +63,17 @@ func (f *Field) sendInput() {
 		return
 	}
 
+	// Derive the author. Prefer the author of the current user from the message
+	// buffer over the one in the username feed, unless we can't find any.
+	var author cchat.Author = f.ctrl.MessageAuthor(f.UserID)
+	if author == nil {
+		author = newAuthor(f)
+	}
+
 	f.SendMessage(SendMessageData{
 		time:    time.Now().UTC(),
 		content: text,
-		author:  newAuthor(f),
+		author:  author,
 		nonce:   f.generateNonce(),
 		replyID: f.replyingID,
 		files:   attachments,
