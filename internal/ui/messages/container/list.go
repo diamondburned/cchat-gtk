@@ -1,7 +1,6 @@
 package container
 
 import (
-	"log"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -35,7 +34,7 @@ type ListStore struct {
 	messages map[messageKey]*messageRow
 }
 
-func NewListStore(constr Constructor, ctrl Controller) *ListStore {
+func NewListStore(ctrl Controller, constr Constructor) *ListStore {
 	listBox, _ := gtk.ListBoxNew()
 	listBox.SetSelectionMode(gtk.SELECTION_SINGLE)
 	listBox.Show()
@@ -154,12 +153,9 @@ func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
 // LatestMessageFrom returns the latest message with the given user ID. This is
 // used for the input prompt.
 func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
-	log.Println("LatestMessageFrom called")
-
 	// FindMessage already looks from the latest messages.
 	var msg = c.FindMessage(func(msg MessageRow) bool {
-		log.Println("Author:", msg.AuthorName())
-		return msg.AuthorID() == userID
+		return msg.Author().ID() == userID
 	})
 
 	if msg == nil {
@@ -229,25 +225,22 @@ func (c *ListStore) FindMessage(isMessage func(MessageRow) bool) MessageRow {
 	msg, _ := c.findMessage(false, func(row *messageRow) bool {
 		return isMessage(row.MessageRow)
 	})
-	if msg != nil {
-		return msg.MessageRow
-	}
-	return nil
+	return unwrapRow(msg)
 }
 
 func (c *ListStore) nthMessage(n int) *messageRow {
 	v := primitives.NthChild(c.ListBox, n)
+	if v == nil {
+		return nil
+	}
+
 	id := primitives.GetName(v.(primitives.Namer))
 	return c.message(id, "")
 }
 
 // NthMessage returns the nth message.
 func (c *ListStore) NthMessage(n int) MessageRow {
-	msg := c.nthMessage(n)
-	if msg != nil {
-		return msg.MessageRow
-	}
-	return nil
+	return unwrapRow(c.nthMessage(n))
 }
 
 // FirstMessage returns the first message.
@@ -263,10 +256,7 @@ func (c *ListStore) LastMessage() MessageRow {
 // Message finds the message state in the container. It is not thread-safe. This
 // exists for backwards compatibility.
 func (c *ListStore) Message(msgID cchat.ID, nonce string) MessageRow {
-	if m := c.message(msgID, nonce); m != nil {
-		return m.MessageRow
-	}
-	return nil
+	return unwrapRow(c.message(msgID, nonce))
 }
 
 func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
@@ -300,7 +290,8 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 // AddPresendMessage inserts an input.PresendMessage into the container and
 // returning a wrapped widget interface.
 func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRow {
-	presend := c.Construct.NewPresendMessage(msg)
+	before := c.LastMessage()
+	presend := c.Construct.NewPresendMessage(msg, before)
 
 	msgc := &messageRow{
 		MessageRow: presend,
@@ -326,7 +317,7 @@ func (c *ListStore) bindMessage(msgc *messageRow) {
 // unreliable. The index might be off if the message buffer is cleaned up. Don't
 // rely on it.
 
-func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
+func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) MessageRow {
 	// Call the event handler last.
 	defer c.Controller.AuthorEvent(msg.Author())
 
@@ -337,33 +328,45 @@ func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) {
 		msgc.UpdateTimestamp(msg.Time())
 
 		c.bindMessage(msgc)
-		return
+		return msgc.MessageRow
 	}
 
-	msgc := &messageRow{
-		MessageRow: c.Construct.NewMessage(msg),
-	}
 	msgTime := msg.Time()
 
-	// Iterate and compare timestamp to find where to insert a message.
-	after, index := c.findMessage(true, func(after *messageRow) bool {
-		return msgTime.After(after.Time())
+	// Iterate and compare timestamp to find where to insert a message. Note
+	// that "before" is the message that will go before the to-be-inserted
+	// method.
+	before, index := c.findMessage(true, func(before *messageRow) bool {
+		return msgTime.After(before.Time())
 	})
 
-	// Append the message. If after is nil, then that means the message is the
-	// oldest, so we add it to the front of the list.
-	if after != nil {
-		index++ // insert right after
-		c.ListBox.Insert(msgc.Row(), index)
-	} else {
+	msgc := &messageRow{
+		MessageRow: c.Construct.NewMessage(msg, unwrapRow(before)),
+	}
+
+	// Add the message. If before is nil, then the to-be-inserted message is the
+	// earliest message, therefore we prepend it.
+	if before == nil {
 		index = 0
-		c.ListBox.Add(msgc.Row())
+		c.ListBox.Prepend(msgc.Row())
+	} else {
+		index++ // insert right after
+
+		// Fast path: Insert did appear a lot on profiles, so we can try and use
+		// Add over Insert when we know.
+		if c.MessagesLen() == index {
+			c.ListBox.Add(msgc.Row())
+		} else {
+			c.ListBox.Insert(msgc.Row(), index)
+		}
 	}
 
 	// Set the ID into the message map.
 	c.messages[idKey(msgc.ID())] = msgc
 
 	c.bindMessage(msgc)
+
+	return msgc.MessageRow
 }
 
 func (c *ListStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
@@ -415,8 +418,6 @@ func (c *ListStore) DeleteEarliest(n int) {
 	primitives.ForeachChild(c.ListBox, func(v interface{}) (stop bool) {
 		id := primitives.GetName(v.(primitives.Namer))
 		gridMsg := c.message(id, "")
-
-		log.Println("Deleting overflowed message ID from", gridMsg.AuthorName())
 
 		if id := gridMsg.ID(); id != "" {
 			delete(c.messages, idKey(id))

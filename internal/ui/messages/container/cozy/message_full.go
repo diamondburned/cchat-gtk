@@ -13,6 +13,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
+	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -27,12 +29,12 @@ type FullMessage struct {
 	Avatar  *Avatar
 	MainBox *gtk.Box // wraps header and content
 
-	// Header wraps author and timestamp.
-	HeaderBox *gtk.Box
+	Header    *labeluri.Label
+	timestamp string // markup
 }
 
 type AvatarPixbufCopier interface {
-	CopyAvatarPixbuf(img httputil.SurfaceContainer)
+	CopyAvatarPixbuf(img httputil.SurfaceContainer) bool
 }
 
 var (
@@ -40,10 +42,6 @@ var (
 	_ message.Container    = (*FullMessage)(nil)
 	_ container.MessageRow = (*FullMessage)(nil)
 )
-
-var boldCSS = primitives.PrepareCSS(`
-	* { font-weight: 600; }
-`)
 
 var avatarCSS = primitives.PrepareClassCSS("cozy-avatar", `
 	/* Slightly dip down on click */
@@ -63,33 +61,26 @@ func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
 }
 
 func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
+	header := labeluri.NewLabel(text.Rich{})
+	header.SetHAlign(gtk.ALIGN_START) // left-align
+	header.SetMaxWidthChars(100)
+	header.Show()
+
 	avatar := NewAvatar()
 	avatar.SetMarginTop(TopFullMargin / 2)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
 	avatar.Connect("clicked", func(w gtk.IWidget) {
-		if output := gc.Username.Output(); len(output.Mentions) > 0 {
+		if output := header.Output(); len(output.Mentions) > 0 {
 			labeluri.PopoverMentioner(w, output.Input, output.Mentions[0])
 		}
 	})
 	avatar.Show()
 
-	// Style the timestamp accordingly.
-	gc.Timestamp.SetXAlign(0.0)           // left-align
-	gc.Timestamp.SetVAlign(gtk.ALIGN_END) // bottom-align
-	gc.Timestamp.SetMarginStart(0)        // clear margins
-
-	gc.Username.SetMaxWidthChars(75)
-
 	// Attach the class and CSS for the left avatar.
 	avatarCSS(avatar)
 
 	// Attach the username style provider.
-	primitives.AttachCSS(gc.Username, boldCSS)
-
-	header, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	header.PackStart(gc.Username, false, false, 0)
-	header.PackStart(gc.Timestamp, false, false, 7) // padding
-	header.Show()
+	// primitives.AttachCSS(gc.Username, boldCSS)
 
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.PackStart(header, false, false, 0)
@@ -108,9 +99,10 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 
 	return &FullMessage{
 		GenericContainer: gc,
-		Avatar:           avatar,
-		MainBox:          main,
-		HeaderBox:        header,
+
+		Avatar:  avatar,
+		MainBox: main,
+		Header:  header,
 	}
 }
 
@@ -118,17 +110,12 @@ func (m *FullMessage) Collapsed() bool { return false }
 
 func (m *FullMessage) Unwrap() *message.GenericContainer {
 	// Remove GenericContainer's widgets from the containers.
-	m.HeaderBox.Remove(m.Username)
-	m.HeaderBox.Remove(m.Timestamp)
-	m.MainBox.Remove(m.HeaderBox)
-	m.MainBox.Remove(m.Content)
-
-	// Hide the avatar.
-	m.Avatar.Hide()
+	m.Header.Destroy()
+	m.MainBox.Remove(m.Content) // not ours, so don't destroy.
 
 	// Remove the message from the grid.
-	m.Remove(m.Avatar)
-	m.Remove(m.MainBox)
+	m.Avatar.Destroy()
+	m.MainBox.Destroy()
 
 	// Return after removing.
 	return m.GenericContainer
@@ -136,18 +123,36 @@ func (m *FullMessage) Unwrap() *message.GenericContainer {
 
 func (m *FullMessage) UpdateTimestamp(t time.Time) {
 	m.GenericContainer.UpdateTimestamp(t)
-	m.Timestamp.SetText(humanize.TimeAgoLong(t))
+
+	m.timestamp = "  " +
+		`<span alpha="70%" size="small">` + humanize.TimeAgoLong(t) + `</span>`
+
+	// Update the timestamp.
+	m.Header.SetMarkup(m.Header.Output().Markup + m.timestamp)
 }
 
 func (m *FullMessage) UpdateAuthor(author cchat.Author) {
-	// Call the parent's method to update the labels.
+	// Call the parent's method to update the state.
 	m.GenericContainer.UpdateAuthor(author)
+	m.UpdateAuthorName(author.Name())
 	m.Avatar.SetURL(author.Avatar())
+}
+
+func (m *FullMessage) UpdateAuthorName(name text.Rich) {
+	cfg := markup.RenderConfig{}
+	cfg.NoReferencing = true
+	cfg.SetForegroundAnchor(m.ContentBodyStyle)
+
+	output := markup.RenderCmplxWithConfig(name, cfg)
+	output.Markup = `<span font_weight="600">` + output.Markup + "</span>"
+
+	m.Header.SetMarkup(output.Markup + m.timestamp)
+	m.Header.SetUnderlyingOutput(output)
 }
 
 // CopyAvatarPixbuf sets the pixbuf into the given container. This shares the
 // same pixbuf, but gtk.Image should take its own reference from the pixbuf.
-func (m *FullMessage) CopyAvatarPixbuf(dst httputil.SurfaceContainer) {
+func (m *FullMessage) CopyAvatarPixbuf(dst httputil.SurfaceContainer) bool {
 	switch img := m.Avatar.Image.GetImage(); img.GetStorageType() {
 	case gtk.IMAGE_PIXBUF:
 		dst.SetFromPixbuf(img.GetPixbuf())
@@ -156,7 +161,10 @@ func (m *FullMessage) CopyAvatarPixbuf(dst httputil.SurfaceContainer) {
 	case gtk.IMAGE_SURFACE:
 		v, _ := img.GetProperty("surface")
 		dst.SetFromSurface(v.(*cairo.Surface))
+	default:
+		return false
 	}
+	return true
 }
 
 func (m *FullMessage) AttachMenu(items []menu.Item) {

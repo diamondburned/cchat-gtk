@@ -366,6 +366,7 @@ func NewMember(member cchat.ListMember) *Member {
 
 var noMentionLinks = markup.RenderConfig{
 	NoMentionLinks: true,
+	NoReferencing:  true,
 }
 
 func (m *Member) Update(member cchat.ListMember) {
@@ -376,9 +377,10 @@ func (m *Member) Update(member cchat.ListMember) {
 	}
 
 	m.output = markup.RenderCmplxWithConfig(member.Name(), noMentionLinks)
+
 	txt := strings.Builder{}
 	txt.WriteString(fmt.Sprintf(
-		`<span color="#%06X">●</span> %s`,
+		`<span color="#%06X" size="large">●</span> %s`,
 		statusColors(member.Status()), m.output.Markup,
 	))
 
@@ -395,20 +397,22 @@ func (m *Member) Update(member cchat.ListMember) {
 
 // Popup pops up the mention popover if any.
 func (m *Member) Popup(evq EventQueuer) {
-	if len(m.output.Mentions) > 0 {
-		p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
-		if p == nil {
-			return
-		}
-
-		// Unbounded concurrency is kind of bad. We should deal with
-		// this in the future.
-		evq.Activate()
-		p.Connect("closed", func(interface{}) { evq.Deactivate() })
-
-		p.SetPosition(gtk.POS_LEFT)
-		p.Popup()
+	if len(m.output.Mentions) == 0 {
+		return
 	}
+
+	p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
+	if p == nil {
+		return
+	}
+
+	// Unbounded concurrency is kind of bad. We should deal with
+	// this in the future.
+	evq.Activate()
+	p.Connect("closed", func(interface{}) { evq.Deactivate() })
+
+	p.SetPosition(gtk.POS_LEFT)
+	p.Popup()
 }
 
 func statusColors(status cchat.Status) uint32 {

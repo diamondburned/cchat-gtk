@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
@@ -20,7 +21,7 @@ import (
 type Controller interface {
 	AddPresendMessage(msg PresendMessage) (onErr func(error))
 	LatestMessageFrom(userID cchat.ID) (messageID cchat.ID, ok bool)
-	MessageAuthorMarkup(msgID cchat.ID) (markup string, ok bool)
+	MessageAuthor(msgID cchat.ID) cchat.Author
 }
 
 // LabelBorrower is an interface that allows the caller to borrow a label.
@@ -330,12 +331,22 @@ func (f *Field) StartReplyingTo(msgID cchat.ID) {
 	f.replyingID = msgID
 	f.sendIcon.SetFromIconName(replyButtonIcon, gtk.ICON_SIZE_BUTTON)
 
-	name, ok := f.ctrl.MessageAuthorMarkup(msgID)
-	if !ok {
-		name = "message"
+	if author := f.ctrl.MessageAuthor(msgID); author != nil {
+		// Extract the name from the author's rich text and only render the area
+		// with the MessageReference.
+		name := author.Name()
+
+		for _, seg := range name.Segments {
+			if seg.AsMessageReferencer() != nil || seg.AsMentioner() != nil {
+				mention := markup.Render(markup.SubstringSegment(name, seg))
+				f.indicator.BorrowLabel("Replying to " + mention)
+				return
+			}
+		}
 	}
 
-	f.indicator.BorrowLabel("Replying to " + name)
+	f.indicator.BorrowLabel("Replying to message.")
+	return
 }
 
 // Editable returns whether or not the input field can be edited.

@@ -1,14 +1,32 @@
 package compact
 
 import (
+	"time"
+
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
+
+var messageTimeCSS = primitives.PrepareClassCSS("", `
+	.message-time {
+		margin-left:  1em;
+		margin-right: 1em;
+	}
+`)
+
+var messageAuthorCSS = primitives.PrepareClassCSS("", `
+	.message-author {
+		margin-right: 0.5em;
+	}
+`)
 
 type PresendMessage struct {
 	message.PresendContainer
@@ -17,60 +35,76 @@ type PresendMessage struct {
 
 func NewPresendMessage(msg input.PresendMessage) PresendMessage {
 	msgc := message.NewPresendContainer(msg)
-	attachCompact(msgc.GenericContainer)
 
 	return PresendMessage{
 		PresendContainer: msgc,
-		Message:          Message{msgc.GenericContainer},
+		Message:          wrapMessage(msgc.GenericContainer),
 	}
 }
 
 type Message struct {
 	*message.GenericContainer
+	Timestamp *gtk.Label
+	Username  *labeluri.Label
 }
 
 var _ container.MessageRow = (*Message)(nil)
 
 func NewMessage(msg cchat.MessageCreate) Message {
-	msgc := message.NewContainer(msg)
-	attachCompact(msgc)
+	msgc := wrapMessage(message.NewContainer(msg))
 	message.FillContainer(msgc, msg)
-
-	return Message{msgc}
+	return msgc
 }
 
 func NewEmptyMessage() Message {
 	ct := message.NewEmptyContainer()
-	attachCompact(ct)
-
-	return Message{ct}
+	return wrapMessage(ct)
 }
 
-var messageTimeCSS = primitives.PrepareClassCSS("message-time", `
-	.message-time {
-		margin-left:  1em;
-		margin-right: 1em;
+func wrapMessage(ct *message.GenericContainer) Message {
+	ts := message.NewTimestamp()
+	ts.SetVAlign(gtk.ALIGN_START)
+	ts.Show()
+	messageTimeCSS(ts)
+
+	user := message.NewUsername()
+	user.SetMaxWidthChars(25)
+	user.SetEllipsize(pango.ELLIPSIZE_NONE)
+	user.SetLineWrap(true)
+	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+	user.Show()
+	messageAuthorCSS(user)
+
+	ct.PackStart(ts, false, false, 0)
+	ct.PackStart(user, false, false, 0)
+	ct.PackStart(ct.Content, true, true, 0)
+	ct.SetClass("compact")
+
+	return Message{
+		GenericContainer: ct,
+		Timestamp:        ts,
+		Username:         user,
 	}
-`)
+}
 
-var messageAuthorCSS = primitives.PrepareClassCSS("message-author", `
-	.message-author {
-		margin-right: 0.5em;
-	}
-`)
+// SetReferenceHighlighter sets the reference highlighter into the message.
+func (m Message) SetReferenceHighlighter(r labeluri.ReferenceHighlighter) {
+	m.GenericContainer.SetReferenceHighlighter(r)
+	m.Username.SetReferenceHighlighter(r)
+}
 
-func attachCompact(container *message.GenericContainer) {
-	container.Timestamp.SetVAlign(gtk.ALIGN_START)
-	container.Username.SetMaxWidthChars(25)
-	container.Username.SetEllipsize(pango.ELLIPSIZE_NONE)
-	container.Username.SetLineWrap(true)
-	container.Username.SetLineWrapMode(pango.WRAP_WORD_CHAR)
+func (m Message) UpdateTimestamp(t time.Time) {
+	m.GenericContainer.UpdateTimestamp(t)
+	m.Timestamp.SetText(humanize.TimeAgo(t))
+	m.Timestamp.SetTooltipText(t.Format(time.Stamp))
+}
 
-	messageTimeCSS(container.Timestamp)
-	messageAuthorCSS(container.Username)
+func (m Message) UpdateAuthor(author cchat.Author) {
+	m.GenericContainer.UpdateAuthor(author)
 
-	container.PackStart(container.Timestamp, false, false, 0)
-	container.PackStart(container.Username, false, false, 0)
-	container.PackStart(container.Content, true, true, 0)
-	container.SetClass("compact")
+	cfg := markup.RenderConfig{}
+	cfg.NoReferencing = true
+	cfg.SetForegroundAnchor(m.ContentBodyStyle)
+
+	m.Username.SetOutput(markup.RenderCmplxWithConfig(author.Name(), cfg))
 }

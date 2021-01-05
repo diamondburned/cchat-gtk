@@ -64,14 +64,12 @@ func (f *Field) sendInput() {
 	}
 
 	f.SendMessage(SendMessageData{
-		time:      time.Now().UTC(),
-		content:   text,
-		author:    f.Username.GetLabel(),
-		authorID:  f.UserID,
-		authorURL: f.Username.GetIconURL(),
-		nonce:     f.generateNonce(),
-		replyID:   f.replyingID,
-		files:     attachments,
+		time:    time.Now().UTC(),
+		content: text,
+		author:  newAuthor(f),
+		nonce:   f.generateNonce(),
+		replyID: f.replyingID,
+		files:   attachments,
 	})
 
 	// Clear the input field after sending.
@@ -110,14 +108,12 @@ func (files Files) Attachments() []cchat.MessageAttachment {
 // SendMessageData contains what is to be sent in a message. It behaves
 // similarly to a regular CreateMessage.
 type SendMessageData struct {
-	time      time.Time
-	content   string
-	author    text.Rich
-	authorID  cchat.ID
-	authorURL string // avatar
-	nonce     string
-	replyID   cchat.ID
-	files     Files
+	time    time.Time
+	content string
+	author  cchat.Author
+	nonce   string
+	replyID cchat.ID
+	files   Files
 }
 
 var _ cchat.SendableMessage = (*SendMessageData)(nil)
@@ -130,9 +126,7 @@ type PresendMessage interface {
 
 	// These methods are reserved for internal use.
 
-	Author() text.Rich
-	AuthorID() string
-	AuthorAvatarURL() string // may be empty
+	Author() cchat.Author
 	Files() []attachment.File
 }
 
@@ -142,12 +136,30 @@ var _ PresendMessage = (*SendMessageData)(nil)
 func (s SendMessageData) ID() string                 { return s.nonce }
 func (s SendMessageData) Time() time.Time            { return s.time }
 func (s SendMessageData) Content() string            { return s.content }
-func (s SendMessageData) Author() text.Rich          { return s.author }
-func (s SendMessageData) AuthorID() string           { return s.authorID }
-func (s SendMessageData) AuthorAvatarURL() string    { return s.authorURL }
+func (s SendMessageData) Author() cchat.Author       { return s.author }
 func (s SendMessageData) AsNoncer() cchat.Noncer     { return s }
 func (s SendMessageData) Nonce() string              { return s.nonce }
 func (s SendMessageData) Files() []attachment.File   { return s.files }
 func (s SendMessageData) AsAttacher() cchat.Attacher { return s.files }
 func (s SendMessageData) AsReplier() cchat.Replier   { return s }
 func (s SendMessageData) ReplyingTo() cchat.ID       { return s.replyID }
+
+type sendableAuthor struct {
+	id        cchat.ID
+	name      text.Rich
+	avatarURL string
+}
+
+func newAuthor(f *Field) sendableAuthor {
+	return sendableAuthor{
+		f.UserID,
+		f.Username.GetLabel(),
+		f.Username.GetIconURL(),
+	}
+}
+
+var _ cchat.Author = (*sendableAuthor)(nil)
+
+func (a sendableAuthor) ID() string      { return a.id }
+func (a sendableAuthor) Name() text.Rich { return a.name }
+func (a sendableAuthor) Avatar() string  { return a.avatarURL }

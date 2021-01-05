@@ -26,13 +26,13 @@ type Container interface {
 var _ Container = (*gtk.Container)(nil)
 
 func RemoveChildren(w Container) {
-	type destroyer interface {
-		Destroy()
-	}
+	// type destroyer interface {
+	// 	Destroy()
+	// }
 
-	children := w.GetChildren()
-	children.Foreach(func(child interface{}) { w.Remove(child.(gtk.IWidget)) })
-	children.Free()
+	w.GetChildren().FreeFull(func(child interface{}) {
+		w.Remove(child.(gtk.IWidget))
+	})
 }
 
 // ChildrenLen gets the total count of children for the given container.
@@ -47,9 +47,15 @@ func NthChild(w Container, n int) interface{} {
 	children := w.GetChildren()
 	defer children.Free()
 
+	// Bound check!
+	if n < 0 || int(children.Length()) >= n {
+		return nil
+	}
+
 	if n == 0 {
 		return children.Data()
 	}
+
 	return children.NthData(uint(n))
 }
 
@@ -324,7 +330,9 @@ func PrepareClassCSS(class, css string) (attach func(StyleContexter)) {
 	return func(ctx StyleContexter) {
 		s, _ := ctx.GetStyleContext()
 		s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-		s.AddClass(class)
+		if class != "" {
+			s.AddClass(class)
+		}
 	}
 }
 

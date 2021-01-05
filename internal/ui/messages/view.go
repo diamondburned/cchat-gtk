@@ -232,8 +232,8 @@ func (v *View) Reset() {
 
 // reset resets the message view, but does not change visible containers.
 func (v *View) reset() {
-	v.Header.Reset()     // Reset the header.
 	v.state.Reset()      // Reset the state variables.
+	v.Header.Reset()     // Reset the header.
 	v.Typing.Reset()     // Reset the typing state.
 	v.InputView.Reset()  // Reset the input.
 	v.MemberList.Reset() // Reset the member list.
@@ -397,13 +397,13 @@ func (v *View) AuthorEvent(author cchat.Author) {
 	}
 }
 
-func (v *View) MessageAuthorMarkup(msgID cchat.ID) (string, bool) {
+func (v *View) MessageAuthor(msgID cchat.ID) cchat.Author {
 	msg := v.Container.Message(msgID, "")
 	if msg == nil {
-		return "", false
+		return nil
 	}
 
-	return msg.AuthorMarkup(), true
+	return msg.Author()
 }
 
 // LatestMessageFrom returns the last message ID with that author.

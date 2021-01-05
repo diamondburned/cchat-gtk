@@ -159,7 +159,9 @@ func (app *App) SessionSelected(svc *service.Service, ses *session.Row) {
 }
 
 func (app *App) ClearMessenger(ses *session.Row) {
-	if app.MessageView.SessionID() == ses.Session.ID() {
+	// No need to try if the window is destroyed already, since its children
+	// will also be destroyed.
+	if !gts.IsClosing() && app.MessageView.SessionID() == ses.Session.ID() {
 		app.MessageView.Reset()
 	}
 }

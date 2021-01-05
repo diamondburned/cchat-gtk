@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/hl"
 	"github.com/diamondburned/cchat/text"
@@ -21,7 +20,30 @@ import (
 var Hyphenate = false
 
 func hyphenate(text string) string {
-	return fmt.Sprintf(`<span insert_hyphens="%t">%s</span>`, Hyphenate, text)
+	if !Hyphenate {
+		return text
+	}
+	return `<span insert_hyphens="true">` + text + `</span>`
+}
+
+// SubstringSegment slices the given rich text.
+func SubstringSegment(rich text.Rich, seg text.Segment) text.Rich {
+	start, end := seg.Bounds()
+	substring := text.Rich{
+		Content:  rich.Content[start:end],
+		Segments: make([]text.Segment, 0, len(rich.Segments)),
+	}
+
+	for _, seg := range rich.Segments {
+		i, j := seg.Bounds()
+
+		// Bound-check.
+		if start <= i && j <= end {
+			substring.Segments = append(substring.Segments, seg)
+		}
+	}
+
+	return substring
 }
 
 // RenderOutput is the output of a render.
@@ -79,8 +101,13 @@ func (r RenderOutput) URISegment(uri string) text.Segment {
 	}
 }
 
+var simpleConfig = RenderConfig{
+	NoMentionLinks: true,
+	NoReferencing:  true,
+}
+
 func Render(content text.Rich) string {
-	return RenderCmplx(content).Markup
+	return RenderCmplxWithConfig(content, simpleConfig).Markup
 }
 
 // RenderCmplx renders content into a complete output.
@@ -107,18 +134,19 @@ type RenderConfig struct {
 
 // SetForegroundAnchor sets the AnchorColor of the render config to be that of
 // the regular text foreground color.
-func (c *RenderConfig) SetForegroundAnchor(styler primitives.StyleContexter) {
-	styleCtx, _ := styler.GetStyleContext()
-
-	if rgba := styleCtx.GetColor(gtk.STATE_FLAG_NORMAL); rgba != nil {
-		var color uint32
-		for _, v := range rgba.Floats() { // [0.0, 1.0]
-			color = (color << 8) + uint32(v*0xFF)
-		}
-
-		c.AnchorColor.bool = true
-		c.AnchorColor.uint32 = color
+func (c *RenderConfig) SetForegroundAnchor(ctx *gtk.StyleContext) {
+	rgba := ctx.GetColor(gtk.STATE_FLAG_NORMAL)
+	if rgba == nil {
+		return
 	}
+
+	var color uint32
+	for _, v := range rgba.Floats() { // [0.0, 1.0]
+		color = (color << 8) + uint32(v*0xFF)
+	}
+
+	c.AnchorColor.bool = true
+	c.AnchorColor.uint32 = color
 }
 
 func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
@@ -183,35 +211,19 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		// Mentioner needs to be before colorer, as we'd want the below color
 		// segment to also highlight the full mention as well as make the
 		// padding part of the hyperlink.
-		if mentioner := segment.AsMentioner(); mentioner != nil && !cfg.NoMentionLinks {
+		if mentioner := segment.AsMentioner(); mentioner != nil {
 			// Render the mention into "cchat://mention:0" or such. Other
 			// components will take care of showing the information.
-			appended.AnchorNU(start, end, fmtSegmentURI(MentionType, len(mentions)))
-			hasAnchor = true
+			if !cfg.NoMentionLinks {
+				appended.AnchorNU(start, end, fmtSegmentURI(MentionType, len(mentions)))
+				hasAnchor = true
+			}
 
 			// Add the mention segment into the list regardless of hyperlinks.
 			mentions = append(mentions, MentionSegment{
 				Segment:   segment,
 				Mentioner: mentioner,
 			})
-
-			// TODO: figure out a way to readd Pad. Right now, backend
-			// implementations can arbitrarily add multiple mentions onto the
-			// author for overloading, which we don't want to break.
-
-			// // Determine if the mention segment covers the entire label.
-			// // Only pad the name and add a dimmed background if the bounds do
-			// // not cover the whole segment.
-			// var cover = (start == 0) && (end == len(content.Content))
-			// if !cover {
-			// 	appended.Pad(start, end)
-			// }
-
-			// // If we don't have a mention color for this segment, then try to
-			// // use our own AnchorColor.
-			// if !hasColor && cfg.AnchorColor.bool {
-			// 	appended.Span(start, end, colorAttrs(cfg.AnchorColor.uint32, false)...)
-			// }
 		}
 
 		if colorer := segment.AsColorer(); colorer != nil {
@@ -223,18 +235,18 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		// Don't use AnchorColor for the link, as we're technically just
 		// borrowing the anchor tag for its use. We should also prefer the
 		// username popover (Mention) over this.
-		if !cfg.NoReferencing && !hasAnchor {
-			if reference := segment.AsMessageReferencer(); reference != nil {
+		if reference := segment.AsMessageReferencer(); reference != nil {
+			if !cfg.NoReferencing && !hasAnchor {
 				// Render the mention into "cchat://reference:0" or such. Other
 				// components will take care of showing the information.
 				appended.AnchorNU(start, end, fmtSegmentURI(ReferenceType, len(references)))
-
-				// Add the mention segment into the list regardless of hyperlinks.
-				references = append(references, ReferenceSegment{
-					Segment:           segment,
-					MessageReferencer: reference,
-				})
 			}
+
+			// Add the mention segment into the list regardless of hyperlinks.
+			references = append(references, ReferenceSegment{
+				Segment:           segment,
+				MessageReferencer: reference,
+			})
 		}
 
 		if attributor := segment.AsAttributor(); attributor != nil {

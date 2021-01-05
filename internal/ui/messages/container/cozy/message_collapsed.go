@@ -16,6 +16,7 @@ import (
 type CollapsedMessage struct {
 	// Author is still updated normally.
 	*message.GenericContainer
+	Timestamp *gtk.Label
 }
 
 func NewCollapsedMessage(msg cchat.MessageCreate) *CollapsedMessage {
@@ -26,21 +27,23 @@ func NewCollapsedMessage(msg cchat.MessageCreate) *CollapsedMessage {
 
 func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	// Set Timestamp's padding accordingly to Avatar's.
-	gc.Timestamp.SetSizeRequest(AvatarSize, -1)
-	gc.Timestamp.SetVAlign(gtk.ALIGN_START)
-	gc.Timestamp.SetXAlign(0.5) // middle align
-	gc.Timestamp.SetMarginEnd(container.ColumnSpacing)
-	gc.Timestamp.SetMarginStart(container.ColumnSpacing * 2)
+	ts := message.NewTimestamp()
+	ts.SetSizeRequest(AvatarSize, -1)
+	ts.SetVAlign(gtk.ALIGN_START)
+	ts.SetXAlign(0.5) // middle align
+	ts.SetMarginEnd(container.ColumnSpacing)
+	ts.SetMarginStart(container.ColumnSpacing * 2)
 
 	// Set Content's padding accordingly to FullMessage's main box.
 	gc.Content.ToWidget().SetMarginEnd(container.ColumnSpacing * 2)
 
-	gc.PackStart(gc.Timestamp, false, false, 0)
+	gc.PackStart(ts, false, false, 0)
 	gc.PackStart(gc.Content, true, true, 0)
 	gc.SetClass("cozy-collapsed")
 
 	return &CollapsedMessage{
 		GenericContainer: gc,
+		Timestamp:        ts,
 	}
 }
 

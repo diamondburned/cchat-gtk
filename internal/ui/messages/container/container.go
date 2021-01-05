@@ -42,7 +42,7 @@ type Container interface {
 
 	// CreateMessageUnsafe creates a new message and returns the index that is
 	// the location the message is added to.
-	CreateMessageUnsafe(cchat.MessageCreate)
+	CreateMessageUnsafe(cchat.MessageCreate) MessageRow
 	UpdateMessageUnsafe(cchat.MessageUpdate)
 	DeleteMessageUnsafe(cchat.MessageDelete)
 
@@ -84,9 +84,9 @@ type Controller interface {
 
 // Constructor is an interface for making custom message implementations which
 // allows ListContainer to generically work with.
-type Constructor interface {
-	NewMessage(cchat.MessageCreate) MessageRow
-	NewPresendMessage(input.PresendMessage) PresendMessageRow
+type Constructor struct {
+	NewMessage        func(msg cchat.MessageCreate, before MessageRow) MessageRow
+	NewPresendMessage func(msg input.PresendMessage, before MessageRow) PresendMessageRow
 }
 
 const ColumnSpacing = 8
@@ -107,10 +107,19 @@ type messageRow struct {
 	presend message.PresendContainer // this shouldn't be here but i'm lazy
 }
 
+// unwrapRow is a helper that unwraps a messageRow if it's not nil. If it's nil,
+// then a nil interface is returned.
+func unwrapRow(msg *messageRow) MessageRow {
+	if msg == nil || msg.MessageRow == nil {
+		return nil
+	}
+	return msg.MessageRow
+}
+
 var _ Container = (*ListContainer)(nil)
 
-func NewListContainer(constr Constructor, ctrl Controller) *ListContainer {
-	listStore := NewListStore(constr, ctrl)
+func NewListContainer(ctrl Controller, constr Constructor) *ListContainer {
+	listStore := NewListStore(ctrl, constr)
 	listStore.ListBox.Show()
 
 	clamp := handy.ClampNew()
@@ -128,11 +137,12 @@ func NewListContainer(constr Constructor, ctrl Controller) *ListContainer {
 	}
 }
 
-// CreateMessageUnsafe inserts a message. It does not clean up old messages.
-func (c *ListContainer) CreateMessageUnsafe(msg cchat.MessageCreate) {
-	// Insert the message first.
-	c.ListStore.CreateMessageUnsafe(msg)
-}
+// TODO: remove useless abstraction (this file).
+
+// // CreateMessageUnsafe inserts a message. It does not clean up old messages.
+// func (c *ListContainer) CreateMessageUnsafe(msg cchat.MessageCreate) MessageRow {
+// 	return c.ListStore.CreateMessageUnsafe(msg)
+// }
 
 // CleanMessages cleans up the oldest messages if the user is scrolled to the
 // bottom. True is returned if there were changes.

@@ -82,10 +82,18 @@ func (l *Label) Output() markup.RenderOutput {
 	return l.output
 }
 
-// SetOutput sets the internal output and label.
+// SetOutput sets the internal output and label. It preserves the tail if
+// any.
 func (l *Label) SetOutput(o markup.RenderOutput) {
 	l.output = o
 	l.SetMarkup(o.Markup)
+}
+
+// SetUnderlyingOutput sets the output state without changing the label's
+// markup. This is useful for internal use cases where the label is updated
+// separately.
+func (l *Label) SetUnderlyingOutput(o markup.RenderOutput) {
+	l.output = o
 }
 
 type ReferenceHighlighter interface {

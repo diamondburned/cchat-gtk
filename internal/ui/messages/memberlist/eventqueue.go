@@ -29,7 +29,7 @@ func (evq *eventQueue) Add(fn func()) {
 	if evq.activated {
 		evq.idleQueue = append(evq.idleQueue, fn)
 	} else {
-		gts.ExecAsync(fn)
+		gts.ExecLater(fn)
 	}
 }
 
@@ -54,18 +54,25 @@ func (evq *eventQueue) pop() []func() {
 func (evq *eventQueue) Deactivate() {
 	var popped = evq.pop()
 
+	const chunkSz = 25
+
 	// We shouldn't try and run more than a certain amount of callbacks within a
 	// single loop, as it will freeze up the UI.
-	if len(popped) > 25 {
-		for _, fn := range popped {
-			gts.ExecAsync(fn)
-		}
-		return
-	}
+	for i := 0; i < len(popped); i += chunkSz {
+		// Calculate the bounds in chunks.
+		start, end := i, min(i+chunkSz, len(popped))
 
-	gts.ExecAsync(func() {
-		for _, fn := range popped {
-			fn()
-		}
-	})
+		gts.ExecLater(func() {
+			for _, fn := range popped[start:end] {
+				fn()
+			}
+		})
+	}
+}
+
+func min(i, j int) int {
+	if i < j {
+		return i
+	}
+	return j
 }

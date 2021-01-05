@@ -14,8 +14,10 @@ type FaceView struct {
 	gtk.Stack
 	placeholder gtk.IWidget
 
-	Face    *Container
-	Loading *Spinner
+	face    *Container
+	loading *Spinner
+	parent  gtk.IWidget
+	empty   gtk.IWidget
 }
 
 func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
@@ -31,42 +33,50 @@ func New(parent gtk.IWidget, placeholder gtk.IWidget) *FaceView {
 	stack, _ := gtk.StackNew()
 	stack.SetTransitionDuration(55)
 	stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
-	stack.AddNamed(parent, "main")
-	stack.AddNamed(placeholder, "placeholder")
-	stack.AddNamed(c, "face")
-	stack.AddNamed(s, "loading")
-	stack.AddNamed(b, "empty")
+	stack.Add(parent)
+	stack.Add(c)
+	stack.Add(s)
+	stack.Add(b)
 
 	// Show placeholder by default.
-	stack.SetVisibleChildName("placeholder")
+	stack.AddNamed(placeholder, "placeholder")
+	stack.SetVisibleChild(placeholder)
 
-	return &FaceView{*stack, placeholder, c, s}
+	return &FaceView{
+		Stack:       *stack,
+		placeholder: placeholder,
+
+		face:    c,
+		loading: s,
+		parent:  parent,
+		empty:   b,
+	}
 }
 
 // Reset brings the view to an empty box.
 func (v *FaceView) Reset() {
-	v.Loading.Spinner.Stop()
-	v.Stack.SetVisibleChildName("empty")
+	v.loading.Spinner.Stop()
+	v.Stack.SetVisibleChild(v.empty)
 	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetMain() {
-	v.Loading.Spinner.Stop()
-	v.Stack.SetVisibleChildName("main")
+	v.loading.Spinner.Stop()
+	v.Stack.SetVisibleChild(v.parent)
 	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetLoading() {
-	v.Loading.Spinner.Start()
-	v.Stack.SetVisibleChildName("loading")
+	v.loading.Spinner.Start()
+	v.Stack.SetVisibleChild(v.loading)
 	v.ensurePlaceholderDestroyed()
 }
 
 func (v *FaceView) SetError(err error) {
-	v.Face.SetError(err)
-	v.Stack.SetVisibleChildName("face")
+	v.face.SetError(err)
+	v.Stack.SetVisibleChild(v.face)
 	v.ensurePlaceholderDestroyed()
-	v.Loading.Spinner.Stop()
+	v.loading.Spinner.Stop()
 }
 
 func (v *FaceView) ensurePlaceholderDestroyed() {
@@ -74,7 +84,7 @@ func (v *FaceView) ensurePlaceholderDestroyed() {
 	if v.placeholder != nil {
 		// Safely remove the placeholder from the stack.
 		if v.Stack.GetVisibleChildName() == "placeholder" {
-			v.Stack.SetVisibleChildName("empty")
+			v.Stack.SetVisibleChild(v.empty)
 		}
 
 		// Remove the placeholder widget.

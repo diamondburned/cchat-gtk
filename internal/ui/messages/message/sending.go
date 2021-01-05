@@ -35,14 +35,10 @@ type GenericPresendContainer struct {
 var _ PresendContainer = (*GenericPresendContainer)(nil)
 
 func NewPresendContainer(msg input.PresendMessage) *GenericPresendContainer {
-	return WrapPresendContainer(NewEmptyContainer(), msg)
-}
-
-func WrapPresendContainer(c *GenericContainer, msg input.PresendMessage) *GenericPresendContainer {
+	c := NewEmptyContainer()
 	c.nonce = msg.Nonce()
-	c.authorID = msg.AuthorID()
+	c.UpdateAuthor(msg.Author())
 	c.UpdateTimestamp(msg.Time())
-	c.UpdateAuthorName(msg.Author())
 
 	p := &GenericPresendContainer{
 		GenericContainer: c,
@@ -56,7 +52,7 @@ func WrapPresendContainer(c *GenericContainer, msg input.PresendMessage) *Generi
 }
 
 func (m *GenericPresendContainer) SetSensitive(sensitive bool) {
-	m.contentBox.SetSensitive(sensitive)
+	m.Content.SetSensitive(sensitive)
 }
 
 func (m *GenericPresendContainer) SetDone(id string) {
@@ -68,13 +64,13 @@ func (m *GenericPresendContainer) SetDone(id string) {
 	// free it from memory.
 	m.presend = nil
 	m.uploads = nil
-	m.contentBox.SetTooltipText("")
+	m.Content.SetTooltipText("")
 
 	// Remove everything in the content box.
 	m.clearBox()
 
 	// Re-add the content label.
-	m.contentBox.Add(m.ContentBody)
+	m.Content.Add(m.ContentBody)
 
 	// Set the sensitivity from false in SetLoading back to true.
 	m.SetSensitive(true)
@@ -82,18 +78,18 @@ func (m *GenericPresendContainer) SetDone(id string) {
 
 func (m *GenericPresendContainer) SetLoading() {
 	m.SetSensitive(false)
-	m.contentBox.SetTooltipText("")
+	m.Content.SetTooltipText("")
 
 	// Clear everything inside the content container.
 	m.clearBox()
 
 	// Add the content label.
-	m.contentBox.Add(m.ContentBody)
+	m.Content.Add(m.ContentBody)
 
 	// Add the attachment progress box back in, if any.
 	if m.uploads != nil {
 		m.uploads.Show() // show the bars
-		m.contentBox.Add(m.uploads)
+		m.Content.Add(m.uploads)
 	}
 
 	if content := m.presend.Content(); content != "" {
@@ -106,13 +102,13 @@ func (m *GenericPresendContainer) SetLoading() {
 
 func (m *GenericPresendContainer) SetSentError(err error) {
 	m.SetSensitive(true) // allow events incl right clicks
-	m.contentBox.SetTooltipText(err.Error())
+	m.Content.SetTooltipText(err.Error())
 
 	// Remove everything again.
 	m.clearBox()
 
 	// Re-add the label.
-	m.contentBox.Add(m.ContentBody)
+	m.Content.Add(m.ContentBody)
 
 	// Style the label appropriately by making it red.
 	var content = EmptyContentPlaceholder
@@ -132,13 +128,10 @@ func (m *GenericPresendContainer) SetSentError(err error) {
 	))
 
 	errl.Show()
-	m.contentBox.Add(errl)
+	m.Content.Add(errl)
 }
 
 // clearBox clears everything inside the content container.
 func (m *GenericPresendContainer) clearBox() {
-	primitives.ForeachChild(m.contentBox, func(v interface{}) (stop bool) {
-		m.contentBox.Remove(v.(gtk.IWidget))
-		return false
-	})
+	primitives.RemoveChildren(m.Content)
 }

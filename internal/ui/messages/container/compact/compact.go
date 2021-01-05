@@ -13,8 +13,8 @@ type Container struct {
 }
 
 func NewContainer(ctrl container.Controller) *Container {
-	c := container.NewListContainer(constructor{}, ctrl)
-	primitives.AddClass(c, "compact-conatainer")
+	c := container.NewListContainer(ctrl, constructors)
+	primitives.AddClass(c, "compact-container")
 	return &Container{c}
 }
 
@@ -33,12 +33,19 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() { c.ListContainer.DeleteMessageUnsafe(msg) })
 }
 
-type constructor struct{}
+var constructors = container.Constructor{
+	NewMessage:        newMessage,
+	NewPresendMessage: newPresendMessage,
+}
 
-func (constructor) NewMessage(msg cchat.MessageCreate) container.MessageRow {
+func newMessage(
+	msg cchat.MessageCreate, _ container.MessageRow) container.MessageRow {
+
 	return NewMessage(msg)
 }
 
-func (constructor) NewPresendMessage(msg input.PresendMessage) container.PresendMessageRow {
+func newPresendMessage(
+	msg input.PresendMessage, _ container.MessageRow) container.PresendMessageRow {
+
 	return NewPresendMessage(msg)
 }

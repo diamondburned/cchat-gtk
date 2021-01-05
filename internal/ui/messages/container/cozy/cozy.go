@@ -41,61 +41,45 @@ const (
 	AvatarMargin = 10
 )
 
+var messageConstructors = container.Constructor{
+	NewMessage:        NewMessage,
+	NewPresendMessage: NewPresendMessage,
+}
+
+func NewMessage(
+	msg cchat.MessageCreate, before container.MessageRow) container.MessageRow {
+
+	if gridMessageIsAuthor(before, msg.Author()) {
+		return NewCollapsedMessage(msg)
+	}
+
+	return NewFullMessage(msg)
+}
+
+func NewPresendMessage(
+	msg input.PresendMessage, before container.MessageRow) container.PresendMessageRow {
+
+	if gridMessageIsAuthor(before, msg.Author()) {
+		return NewCollapsedSendingMessage(msg)
+	}
+
+	return NewFullSendingMessage(msg)
+}
+
 type Container struct {
 	*container.ListContainer
 }
 
 func NewContainer(ctrl container.Controller) *Container {
-	c := &Container{}
-	c.ListContainer = container.NewListContainer(c, ctrl)
-
+	c := container.NewListContainer(ctrl, messageConstructors)
 	primitives.AddClass(c, "cozy-container")
-	return c
-}
-
-func (c *Container) NewMessage(msg cchat.MessageCreate) container.MessageRow {
-	// We're not checking for a collapsed message here anymore, as the
-	// CreateMessage method will do that.
-
-	// // Is the latest message of the same author? If yes, display it as a
-	// // collapsed message.
-	// if c.lastMessageIsAuthor(msg.Author().ID()) {
-	// 	return NewCollapsedMessage(msg)
-	// }
-
-	full := NewFullMessage(msg)
-	author := msg.Author()
-
-	// Try and reuse an existing avatar if the author has one.
-	if avatarURL := author.Avatar(); avatarURL != "" {
-		// Try reusing the avatar, but fetch it from the interndet if we can't
-		// reuse. The reuse function does this for us.
-		c.reuseAvatar(author.ID(), author.Avatar(), full)
-	}
-
-	return full
-}
-
-func (c *Container) NewPresendMessage(msg input.PresendMessage) container.PresendMessageRow {
-	// We can do the check here since we're never using NewPresendMessage for
-	// backlog messages.
-	if c.lastMessageIsAuthor(msg.AuthorID(), msg.Author().String(), 0) {
-		return NewCollapsedSendingMessage(msg)
-	}
-
-	full := NewFullSendingMessage(msg)
-
-	// Try and see if we can reuse the avatar, and fallback if possible. The
-	// avatar URL passed in here will always yield an equal.
-	c.reuseAvatar(msg.AuthorID(), msg.AuthorAvatarURL(), &full.FullMessage)
-
-	return full
+	return &Container{ListContainer: c}
 }
 
 func (c *Container) findAuthorID(authorID string) container.MessageRow {
 	// Search the old author if we have any.
 	return c.ListStore.FindMessage(func(msgc container.MessageRow) bool {
-		return msgc.AuthorID() == authorID
+		return msgc.Author().ID() == authorID
 	})
 }
 
@@ -108,32 +92,48 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 
 	// Borrow the avatar pixbuf, but only if the avatar URL is the same.
 	p, ok := lastAuthorMsg.(AvatarPixbufCopier)
-	if ok && lastAuthorMsg.AvatarURL() == avatarURL {
-		p.CopyAvatarPixbuf(full.Avatar.Image)
-		full.Avatar.ManuallySetURL(avatarURL)
-	} else {
-		// We can't borrow, so we need to fetch it anew.
-		full.Avatar.SetURL(avatarURL)
+	if ok && lastAuthorMsg.Author().Avatar() == avatarURL {
+		if p.CopyAvatarPixbuf(full.Avatar.Image) {
+			full.Avatar.ManuallySetURL(avatarURL)
+			return
+		}
 	}
+
+	// We can't borrow, so we need to fetch it anew.
+	full.Avatar.SetURL(avatarURL)
 }
 
-func (c *Container) lastMessageIsAuthor(id cchat.ID, name string, offset int) bool {
-	// Get the offfsetth message from last.
-	var last = c.ListStore.NthMessage((c.ListStore.MessagesLen() - 1) + offset)
-	return gridMessageIsAuthor(last, id, name)
-}
+// lastMessageIsAuthor removed - assuming index before insertion is harmful.
 
-func gridMessageIsAuthor(gridMsg container.MessageRow, id cchat.ID, name string) bool {
-	return gridMsg != nil &&
-		gridMsg.AuthorID() == id &&
-		gridMsg.AuthorName() == name
+func gridMessageIsAuthor(gridMsg container.MessageRow, author cchat.Author) bool {
+	if gridMsg == nil {
+		return false
+	}
+	leftAuthor := gridMsg.Author()
+	return true &&
+		leftAuthor.ID() == author.ID() &&
+		leftAuthor.Name().String() == author.Name().String()
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
 		// Create the message in the parent's handler. This handler will also
 		// wipe old messages.
-		c.ListContainer.CreateMessageUnsafe(msg)
+		row := c.ListContainer.CreateMessageUnsafe(msg)
+
+		// Is this a full message? If so, then we should fetch the avatar when
+		// we can.
+		if full, ok := row.(*FullMessage); ok {
+			author := msg.Author()
+			avatarURL := author.Avatar()
+
+			// Try and reuse an existing avatar if the author has one.
+			if avatarURL != "" {
+				// Try reusing the avatar, but fetch it from the internet if we can't
+				// reuse. The reuse function does this for us.
+				c.reuseAvatar(author.ID(), avatarURL, full)
+			}
+		}
 
 		// Did the handler wipe old messages? It will only do so if the user is
 		// scrolled to the bottom.
@@ -143,24 +143,12 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 			c.uncompact(c.FirstMessage())
 		}
 
-		switch msg.ID() {
-		// Should we collapse this message? Yes, if the current message is
-		// inserted at the end and its author is the same as the last author.
-		case c.ListContainer.LastMessage().ID():
-			author := msg.Author()
-			if c.lastMessageIsAuthor(author.ID(), author.Name().String(), -1) {
-				c.compact(c.ListContainer.LastMessage())
-			}
-
 		// If we've prepended the message, then see if we need to collapse the
 		// second message.
-		case c.ListContainer.FirstMessage().ID():
-			if sec := c.NthMessage(1); sec != nil {
-				// The author is the same; collapse.
-				author := msg.Author()
-				if gridMessageIsAuthor(sec, author.ID(), author.Name().String()) {
-					c.compact(sec)
-				}
+		if first := c.ListContainer.FirstMessage(); first != nil && first.ID() == msg.ID() {
+			// If the author is the same, then collapse.
+			if sec := c.NthMessage(1); sec != nil && gridMessageIsAuthor(sec, msg.Author()) {
+				c.compact(sec)
 			}
 		}
 	})
@@ -174,15 +162,17 @@ func (c *Container) UpdateMessage(msg cchat.MessageUpdate) {
 
 func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 	gts.ExecAsync(func() {
+		msgID := msg.ID()
+
 		// Get the previous and next message before deleting. We'll need them to
 		// evaluate whether we need to change anything.
-		prev, next := c.ListStore.Around(msg.ID())
+		prev, next := c.ListStore.Around(msgID)
 
 		// The function doesn't actually try and re-collapse the bottom message
 		// when a sandwiched message is deleted. This is fine.
 
 		// Delete the message off of the parent's container.
-		msg := c.ListStore.PopMessage(msg.ID())
+		msg := c.ListStore.PopMessage(msgID)
 
 		// Don't calculate if we don't have any messages, or no messages before
 		// and after.
@@ -190,8 +180,10 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 			return
 		}
 
+		msgAuthorID := msg.Author().ID()
+
 		// Check if the last message is the author's (relative to i):
-		if prev.AuthorID() == msg.AuthorID() {
+		if prev.Author().ID() == msgAuthorID {
 			// If the author is the same, then we don't need to uncollapse the
 			// message.
 			return
@@ -199,7 +191,7 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 
 		// If the next message (relative to i) is not the deleted message's
 		// author, then we don't need to uncollapse it.
-		if next.AuthorID() != msg.AuthorID() {
+		if next.Author().ID() != msgAuthorID {
 			return
 		}
 
@@ -211,39 +203,30 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 func (c *Container) uncompact(msg container.MessageRow) {
 	// We should only uncompact the message if it's compacted in the first
 	// place.
-	if collapse, ok := msg.(Collapsible); !ok || !collapse.Collapsed() {
-		return
-	}
-
-	// We can't unwrap if the message doesn't implement Unwrapper.
-	uw, ok := msg.(Unwrapper)
+	compact, ok := msg.(*CollapsedMessage)
 	if !ok {
 		return
 	}
 
 	// Start the "lengthy" uncollapse process.
-	full := WrapFullMessage(uw.Unwrap())
+	full := WrapFullMessage(compact.Unwrap())
 	// Update the container to reformat everything including the timestamps.
 	message.RefreshContainer(full, full.GenericContainer)
 	// Update the avatar if needed be, since we're now showing it.
-	c.reuseAvatar(msg.AuthorID(), msg.AvatarURL(), full)
+	author := msg.Author()
+	c.reuseAvatar(author.ID(), author.Avatar(), full)
 
 	// Swap the old next message out for a new one.
 	c.ListStore.SwapMessage(full)
 }
 
 func (c *Container) compact(msg container.MessageRow) {
-	// Exit if the message is already collapsed.
-	if collapse, ok := msg.(Collapsible); !ok || collapse.Collapsed() {
-		return
-	}
-
-	uw, ok := msg.(Unwrapper)
+	full, ok := msg.(*FullMessage)
 	if !ok {
 		return
 	}
 
-	compact := WrapCollapsedMessage(uw.Unwrap())
+	compact := WrapCollapsedMessage(full.Unwrap())
 	message.RefreshContainer(compact, compact.GenericContainer)
 
 	c.ListStore.SwapMessage(compact)

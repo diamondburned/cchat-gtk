@@ -22,6 +22,13 @@ var App struct {
 	*gtk.Application
 	Window    *handy.ApplicationWindow
 	Throttler *throttler.State
+
+	closing bool
+}
+
+// IsClosing returns true if the window is destroyed.
+func IsClosing() bool {
+	return App.closing
 }
 
 // Windower is the interface for a window.
@@ -121,6 +128,7 @@ func Main(wfn func() MainApplication) {
 		App.Window.Window.Connect("destroy", func(window *handy.ApplicationWindow) {
 			// Hide the application window.
 			window.Hide()
+			App.closing = true
 
 			// Let the main loop run once by queueing the stop loop afterwards.
 			// This is to allow the main loop to properly hide the Gtk window
