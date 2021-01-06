@@ -6,6 +6,6 @@
 
 <br>
 
-<img alt="Screenshot" src="screenshot.png" />
+<img alt="Screenshot" src="screenshot2.png" />
 
 </p>
