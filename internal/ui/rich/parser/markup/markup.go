@@ -146,7 +146,7 @@ func (c *RenderConfig) SetForegroundAnchor(ctx *gtk.StyleContext) {
 	}
 
 	c.AnchorColor.bool = true
-	c.AnchorColor.uint32 = color
+	c.AnchorColor.uint32 = text.SolidColor(color) // force alpha 100%
 }
 
 func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
