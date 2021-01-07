@@ -25,15 +25,14 @@ in pkgs.stdenv.mkDerivation rec {
 	version = "0.0.2";
 
 	buildInputs = [
-		(nostrip libhandy)
-		(nostrip pkgs.gnome3.gspell)
-		(nostrip pkgs.gnome3.glib)
-		(nostrip pkgs.gnome3.gtk)
+		libhandy
+		pkgs.gnome3.gspell
+		pkgs.gnome3.glib
+		pkgs.gnome3.gtk
 	];
 
 	nativeBuildInputs = with pkgs; [
 		pkgconfig go
-		gperftools
 	];
 
 	# Debug flags.
