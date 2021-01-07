@@ -1,6 +1,8 @@
 package cozy
 
 import (
+	"time"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
@@ -49,7 +51,7 @@ var messageConstructors = container.Constructor{
 func NewMessage(
 	msg cchat.MessageCreate, before container.MessageRow) container.MessageRow {
 
-	if gridMessageIsAuthor(before, msg.Author()) {
+	if isCollapsible(before, msg) {
 		return NewCollapsedMessage(msg)
 	}
 
@@ -59,7 +61,7 @@ func NewMessage(
 func NewPresendMessage(
 	msg input.PresendMessage, before container.MessageRow) container.PresendMessageRow {
 
-	if gridMessageIsAuthor(before, msg.Author()) {
+	if isCollapsible(before, msg) {
 		return NewCollapsedSendingMessage(msg)
 	}
 
@@ -105,14 +107,34 @@ func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
 
 // lastMessageIsAuthor removed - assuming index before insertion is harmful.
 
-func gridMessageIsAuthor(gridMsg container.MessageRow, author cchat.Author) bool {
-	if gridMsg == nil {
+type authoredMessage interface {
+	cchat.MessageHeader
+	Author() cchat.Author
+}
+
+var (
+	_ authoredMessage = (cchat.MessageCreate)(nil)
+	_ authoredMessage = (input.PresendMessage)(nil)
+	_ authoredMessage = (container.MessageRow)(nil)
+	_ authoredMessage = (container.PresendMessageRow)(nil)
+)
+
+const splitDuration = 10 * time.Minute
+
+// isCollapsible returns true if the given lastMsg has matching conditions with
+// the given msg.
+func isCollapsible(lastMsg container.MessageRow, msg authoredMessage) bool {
+	if lastMsg == nil || msg == nil {
 		return false
 	}
-	leftAuthor := gridMsg.Author()
+
+	lastAuthor := lastMsg.Author()
+	thisAuthor := msg.Author()
+
 	return true &&
-		leftAuthor.ID() == author.ID() &&
-		leftAuthor.Name().String() == author.Name().String()
+		lastAuthor.ID() == thisAuthor.ID() &&
+		lastAuthor.Name().String() == thisAuthor.Name().String() &&
+		lastMsg.Time().Add(splitDuration).After(msg.Time())
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
@@ -147,7 +169,7 @@ func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 		// second message.
 		if first := c.ListContainer.FirstMessage(); first != nil && first.ID() == msg.ID() {
 			// If the author is the same, then collapse.
-			if sec := c.NthMessage(1); sec != nil && gridMessageIsAuthor(sec, msg.Author()) {
+			if sec := c.NthMessage(1); sec != nil && isCollapsible(sec, msg) {
 				c.compact(sec)
 			}
 		}

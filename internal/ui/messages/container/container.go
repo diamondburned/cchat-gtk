@@ -55,6 +55,8 @@ type Container interface {
 	LatestMessageFrom(authorID string) (msgID string, ok bool)
 	// Message finds and returns the message, if any.
 	Message(id cchat.ID, nonce string) MessageRow
+	// FindMessage finds a message that satisfies the given callback.
+	FindMessage(isMessage func(MessageRow) bool) MessageRow
 
 	// Highlight temporarily highlights the given message for a short while.
 	Highlight(msg MessageRow)

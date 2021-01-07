@@ -94,6 +94,8 @@ github.com/diamondburned/cchat-discord v0.0.0-20210106050254-2c7b56ab6e00 h1:4LO
 github.com/diamondburned/cchat-discord v0.0.0-20210106050254-2c7b56ab6e00/go.mod h1:YjAiN/4zl5Z84Atsjw1h7G3wjcFxnXwk/qIYyLCjII8=
 github.com/diamondburned/cchat-discord v0.0.0-20210106052627-13f87a764b33 h1:Pl7cAMfz20UamYIeIKNFsD/GdgttEdQWCViEGVFqIgw=
 github.com/diamondburned/cchat-discord v0.0.0-20210106052627-13f87a764b33/go.mod h1:g+RqSLt/ccZZVZbsukOiCwQCqKM/9HfHMJVboIUW+tU=
+github.com/diamondburned/cchat-discord v0.0.0-20210107010729-8edbbcc24992 h1:njLrtjrCpaU/AVVj5TS7mhuDrm60f8CBFqvDFdpH4uI=
+github.com/diamondburned/cchat-discord v0.0.0-20210107010729-8edbbcc24992/go.mod h1:g+RqSLt/ccZZVZbsukOiCwQCqKM/9HfHMJVboIUW+tU=
 github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db h1:VQI2PdbsdsRJ7d669kp35GbCUO44KZ0Xfqdu4o/oqVg=
 github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db/go.mod h1:M87kjNzWVPlkZycFNzpGPKQXzkHNnZphuwMf3E9ckgc=
 github.com/diamondburned/gotk3 v0.0.0-20201209182406-e7291341a091 h1:lQpSWzbi3rQf66aMSip/rIypasIFwqCqF0Wfn5og6gw=

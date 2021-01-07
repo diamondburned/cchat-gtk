@@ -397,8 +397,21 @@ func (v *View) AuthorEvent(author cchat.Author) {
 	}
 }
 
+// MessageAuthor returns the author from the message with the given ID.
 func (v *View) MessageAuthor(msgID cchat.ID) cchat.Author {
 	msg := v.Container.Message(msgID, "")
+	if msg == nil {
+		return nil
+	}
+
+	return msg.Author()
+}
+
+// Author returns the author from the message list with the given author ID.
+func (v *View) Author(authorID cchat.ID) cchat.Author {
+	msg := v.Container.FindMessage(func(msg container.MessageRow) bool {
+		return msg.Author().ID() == authorID
+	})
 	if msg == nil {
 		return nil
 	}

@@ -1,6 +1,8 @@
 package container
 
 import (
+	"log"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/cchat"
@@ -18,6 +20,44 @@ type messageKey struct {
 
 func nonceKey(nonce string) messageKey { return messageKey{nonce, true} }
 func idKey(id cchat.ID) messageKey     { return messageKey{id, false} }
+
+func parseKeyFromNamer(n primitives.Namer) messageKey {
+	name, err := n.GetName()
+	if err != nil {
+		panic("BUG: failed to get primitive name: " + err.Error())
+	}
+
+	parts := strings.SplitN(name, ":", 2)
+	if len(parts) != 2 {
+		return messageKey{id: name}
+	}
+
+	switch parts[0] {
+	case "id":
+		return messageKey{id: parts[1]}
+	case "nonce":
+		return messageKey{id: parts[1], nonce: true}
+	default:
+		panic("Unknown prefix in row name " + parts[0])
+	}
+}
+
+func (key messageKey) expand() (id, nonce string) {
+	if key.nonce {
+		return "", key.id
+	}
+	return key.id, ""
+}
+
+func (key messageKey) name() string {
+	if key.nonce {
+		return "nonce:" + key.id
+	}
+	return "id:" + key.id
+}
+
+// String satisfies the fmt.Stringer interface.
+func (key messageKey) String() string { return key.name() }
 
 var messageListCSS = primitives.PrepareClassCSS("message-list", `
 	.message-list { background: transparent; }
@@ -59,9 +99,9 @@ func NewListStore(ctrl Controller, constr Constructor) *ListStore {
 			return
 		}
 
-		id, _ := r.GetName()
+		id := parseKeyFromNamer(r)
 
-		msg := listStore.Message(id, "")
+		msg := listStore.Message(id.expand())
 		if msg == nil {
 			return
 		}
@@ -134,18 +174,18 @@ func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
 	var next bool
 
 	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
-		id := primitives.GetName(v.(primitives.Namer))
+		id := parseKeyFromNamer(v.(primitives.Namer))
 		if next {
-			after = c.message(id, "")
+			after = c.message(id.expand())
 			return true
 		}
-		if id == aroundID {
+		if !id.nonce && id.id == aroundID {
 			before = last
 			next = true
 			return false
 		}
 
-		last = c.message(id, "")
+		last = c.message(id.expand())
 		return false
 	})
 
@@ -176,9 +216,9 @@ func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
 	index = c.MessagesLen() - 1
 
 	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
-		id := primitives.GetName(v.(primitives.Namer))
-		if id == findID {
-			found = c.message(findID, "")
+		id := parseKeyFromNamer(v.(primitives.Namer))
+		if !id.nonce && id.id == findID {
+			found = c.message(id.expand())
 			return true
 		}
 
@@ -201,8 +241,8 @@ func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messa
 	var i = c.MessagesLen() - 1
 
 	primitives.ForeachChildBackwards(c.ListBox, func(v interface{}) (stop bool) {
-		id := primitives.GetName(v.(primitives.Namer))
-		gridMsg := c.message(id, "")
+		id := parseKeyFromNamer(v.(primitives.Namer))
+		gridMsg := c.message(id.expand())
 
 		// If gridMsg is actually nil, then we have bigger issues.
 		if gridMsg != nil {
@@ -240,8 +280,8 @@ func (c *ListStore) nthMessage(n int) *messageRow {
 		return nil
 	}
 
-	id := primitives.GetName(v.(primitives.Namer))
-	return c.message(id, "")
+	id := parseKeyFromNamer(v.(primitives.Namer))
+	return c.message(id.expand())
 }
 
 // NthMessage returns the nth message.
@@ -280,6 +320,7 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 			// Replace the nonce key with ID.
 			delete(c.messages, nonceKey(nonce))
 			c.messages[idKey(msgID)] = m
+			c.bindMessage(m)
 
 			// Set the right ID.
 			m.presend.SetDone(msgID)
@@ -301,12 +342,34 @@ func (c *ListStore) ensureEmpty() {
 	}
 }
 
+func (c *ListStore) bindMessage(msgc *messageRow) {
+	// Bind the message ID to the row so we can easily do a lookup.
+	var key messageKey
+	if id := msgc.ID(); id != "" {
+		key.id = id
+	} else {
+		key.id = msgc.Nonce()
+		key.nonce = true
+	}
+
+	msgc.Row().SetName(key.name())
+	msgc.SetReferenceHighlighter(c)
+	c.Controller.BindMenu(msgc.MessageRow)
+}
+
 // AddPresendMessage inserts an input.PresendMessage into the container and
 // returning a wrapped widget interface.
 func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRow {
 	c.ensureEmpty()
 
 	before := c.LastMessage()
+
+	if before != nil {
+		log.Println("Found before:", before.Author().Name())
+	} else {
+		log.Println("Before is nil")
+	}
+
 	presend := c.Construct.NewPresendMessage(msg, before)
 
 	msgc := &messageRow{
@@ -319,14 +382,9 @@ func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRo
 	// Set the NONCE into the message map.
 	c.messages[nonceKey(msgc.Nonce())] = msgc
 
-	return presend
-}
+	c.bindMessage(msgc)
 
-func (c *ListStore) bindMessage(msgc *messageRow) {
-	// Bind the message ID to the row so we can easily do a lookup.
-	msgc.Row().SetName(msgc.ID())
-	msgc.SetReferenceHighlighter(c)
-	c.Controller.BindMenu(msgc.MessageRow)
+	return presend
 }
 
 // Many attempts were made to have CreateMessageUnsafe return an index. That is
@@ -436,8 +494,8 @@ func (c *ListStore) DeleteEarliest(n int) {
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.
 	primitives.ForeachChild(c.ListBox, func(v interface{}) (stop bool) {
-		id := primitives.GetName(v.(primitives.Namer))
-		gridMsg := c.message(id, "")
+		id := parseKeyFromNamer(v.(primitives.Namer))
+		gridMsg := c.message(id.expand())
 
 		if id := gridMsg.ID(); id != "" {
 			delete(c.messages, idKey(id))

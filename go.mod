@@ -13,7 +13,7 @@ require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.3.17
-	github.com/diamondburned/cchat-discord v0.0.0-20210106052627-13f87a764b33
+	github.com/diamondburned/cchat-discord v0.0.0-20210107010729-8edbbcc24992
 	github.com/diamondburned/cchat-mock v0.0.0-20201115033644-df8d1b10f9db
 	github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828
 	github.com/diamondburned/handy v0.0.0-20201229063418-ec23c1370374

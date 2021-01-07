@@ -22,6 +22,7 @@ type Controller interface {
 	AddPresendMessage(msg PresendMessage) (onErr func(error))
 	LatestMessageFrom(userID cchat.ID) (messageID cchat.ID, ok bool)
 	MessageAuthor(msgID cchat.ID) cchat.Author
+	Author(authorID cchat.ID) cchat.Author
 }
 
 // LabelBorrower is an interface that allows the caller to borrow a label.

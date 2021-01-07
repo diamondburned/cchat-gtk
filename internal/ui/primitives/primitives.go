@@ -57,13 +57,11 @@ func NthChild(w Container, n int) interface{} {
 	children := w.GetChildren()
 	defer children.Free()
 
-	// Bound check!
-	if n < 0 || int(children.Length()) >= n {
-		return nil
-	}
+	length := int(children.Length())
 
-	if n == 0 {
-		return children.Data()
+	// Bound check!
+	if !(0 <= n && n < length) {
+		return nil
 	}
 
 	return children.NthData(uint(n))
