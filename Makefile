@@ -5,7 +5,7 @@ PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 DATADIR ?= $(PREFIX)/share
 
-cchat-gkt: 
+cchat-gtk: 
 	$(GO) build -v -o bin/$(BIN)
 	@strip bin/$(BIN)
 
