@@ -4,4 +4,4 @@ Exec=cchat-gtk
 Icon=cchat-gtk
 Terminal=false
 Type=Application
-Categories=Network;Gtk;Discord;Mock;
+Categories=Network;
