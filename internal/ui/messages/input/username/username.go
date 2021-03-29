@@ -2,12 +2,14 @@ package username
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
+	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
+	"github.com/gotk3/gotk3/pango"
 )
 
 const AvatarSize = 24
@@ -24,20 +26,19 @@ func init() {
 }
 
 type Container struct {
-	*gtk.Revealer
+	gtk.Revealer
+	State *message.Author
+
 	main   *gtk.Box
-	avatar *rich.Icon
+	avatar *roundimage.Image
 	label  *rich.Label
 }
-
-var (
-	_ cchat.LabelContainer = (*Container)(nil)
-	_ cchat.IconContainer  = (*Container)(nil)
-)
 
 var usernameCSS = primitives.PrepareCSS(`
 	.username-view { margin: 0 5px }
 `)
+
+var fallbackAuthor = message.NewCustomAuthor("", text.Plain("self"))
 
 func NewContainer() *Container {
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
@@ -56,13 +57,32 @@ func NewContainer() *Container {
 	// thread.
 	currentRevealer = rev.SetRevealChild
 
-	container := Container{
-		Revealer: rev,
+	author := message.NewCustomAuthor("", text.Plain("self"))
+
+	u := Container{
+		Revealer: *rev,
+		State:    &author,
 		main:     box,
 	}
-	container.Reset()
+	u.Reset()
 
-	return &container
+	u.avatar = roundimage.NewImage(0)
+	u.avatar.SetSize(AvatarSize)
+	u.avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
+	u.avatar.Show()
+
+	rich.BindRoundImage(u.avatar, &u.State.Name, false)
+
+	u.label = rich.NewLabel(&u.State.Name)
+	u.label.SetEllipsize(pango.ELLIPSIZE_END)
+	u.label.SetMaxWidthChars(35)
+	u.label.Show()
+
+	primitives.RemoveChildren(u.main)
+	u.main.PackStart(u.avatar, false, false, 0)
+	u.main.PackStart(u.label, false, false, 0)
+
+	return &u
 }
 
 func (u *Container) SetRevealChild(reveal bool) {
@@ -72,75 +92,39 @@ func (u *Container) SetRevealChild(reveal bool) {
 
 // shouldReveal returns whether or not the container should reveal.
 func (u *Container) shouldReveal() bool {
-	return (!u.label.GetLabel().IsEmpty() || u.avatar.URL() != "") && showUser
+	show := false
+
+	show = !u.State.Name.Label().IsEmpty()
+	show = show || u.avatar.GetImageURL() != ""
+	show = show || showUser
+
+	return true
 }
 
 func (u *Container) Reset() {
 	u.SetRevealChild(false)
-
-	u.avatar = rich.NewIcon(AvatarSize)
-	u.avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
-	u.avatar.Show()
-
-	u.label = rich.NewLabel(text.Rich{})
-	u.label.SetMaxWidthChars(35)
-	u.label.Show()
-
-	primitives.RemoveChildren(u.main)
-	u.main.PackStart(u.avatar, false, false, 0)
-	u.main.PackStart(u.label, false, false, 0)
+	u.State.Name.Stop()
 }
 
 // Update is not thread-safe.
 func (u *Container) Update(session cchat.Session, messenger cchat.Messenger) {
 	// Set the fallback username.
-	u.label.SetLabelUnsafe(session.Name())
+	u.State.Name.BindNamer(u.main, "destroy", session)
 	// Reveal the name if it's not empty.
 	u.SetRevealChild(true)
 
 	// Does messenger implement Nicknamer? If yes, use it.
 	if nicknamer := messenger.AsNicknamer(); nicknamer != nil {
-		u.label.AsyncSetLabel(nicknamer.Nickname, "Error fetching server nickname")
-	}
-
-	// Does session implement an icon? Update if yes.
-	if iconer := session.AsIconer(); iconer != nil {
-		u.avatar.AsyncSetIconer(iconer, "Error fetching session icon URL")
+		u.State.Name.BindNamer(u.main, "destroy", nicknamer)
 	}
 }
 
-// GetLabel is not thread-safe.
-func (u *Container) GetLabel() text.Rich {
-	return u.label.GetLabel()
+// Label returns the underlying label.
+func (u *Container) Label() text.Rich {
+	return u.State.Name.Label()
 }
 
-// GetLabelMarkup is not thread-safe.
+// LabelMarkup returns the underlying label's markup.
 func (u *Container) GetLabelMarkup() string {
-	return u.label.Label.GetLabel()
-}
-
-// SetLabel is thread-safe.
-func (u *Container) SetLabel(content text.Rich) {
-	gts.ExecAsync(func() {
-		u.label.SetLabelUnsafe(content)
-
-		// Reveal if the name is not empty.
-		u.SetRevealChild(true)
-	})
-}
-
-// SetIcon is thread-safe.
-func (u *Container) SetIcon(url string) {
-	gts.ExecAsync(func() {
-		u.avatar.SetIconUnsafe(url)
-
-		// Reveal if the icon URL is not empty. We don't touch anything if the
-		// URL is empty, as the name might not be.
-		u.SetRevealChild(true)
-	})
-}
-
-// GetIconURL is not thread-safe.
-func (u *Container) GetIconURL() string {
-	return u.avatar.URL()
+	return u.label.Output().Markup
 }

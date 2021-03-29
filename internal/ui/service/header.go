@@ -131,7 +131,10 @@ type sizeBinder interface {
 var _ sizeBinder = (*List)(nil)
 
 func (h *Header) AppMenuBindSize(c sizeBinder) {
-	c.Connect("size-allocate", func(c sizeBinder) {
+	update := func(c sizeBinder) {
 		h.AppMenu.SetSizeRequest(c.GetAllocatedWidth(), -1)
-	})
+	}
+
+	c.Connect("size-allocate", update)
+	update(c)
 }

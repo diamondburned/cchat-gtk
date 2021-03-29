@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/serverpane"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
 )
@@ -20,59 +21,102 @@ const ListWidth = 200
 // SessionController extends server.Controller to add needed methods that the
 // specific top-level servers container needs.
 type SessionController interface {
-	server.Controller
 	ClearMessenger()
+	MessengerSelected(*server.ServerRow)
 }
 
-// Servers wraps around a list of servers inherited from Children. It's the
-// container that's displayed on the right of the service sidebar.
+// Servers wraps around a list of servers inherited from Children to display a
+// Lister in its own box instead of as a nested list. It's the container that's
+// displayed on the right of the service sidebar.
 type Servers struct {
-	*gtk.Box
+	gtk.Stack
+	SessionController
+
+	spinner *spinner.Boxed
+	// Main is the horizontal box containing the current struct's list of
+	// servers columnated with the same level. The second item in the box should
+	// be the selected server.
+	Main *serverpane.Paned
+
+	// Lister is the current lister belonging to this server.
+	Lister cchat.Lister
+	stopLs func()
+
+	// Children is main's lhs.
 	Children *server.Children
-	spinner  *spinner.Boxed // non-nil if loading.
 
-	ctrl SessionController
-
-	// state
-	ServerList cchat.Lister
+	// NextColumn is main's rhs.
+	NextColumn *Servers // nil
+	detachNext func()
 }
 
 var toplevelCSS = primitives.PrepareClassCSS("top-level", `
 	.top-level {
-		margin:   0 3px;
-		margin-top: 3px;
 	}
 `)
 
+// NewServers creates a new Servers instance that holds only the given column
+// number and its children. Any servers with a different columnate ID will be in
+// the children pane.
 func NewServers(p traverse.Breadcrumber, ctrl SessionController) *Servers {
-	c := server.NewChildren(p, ctrl)
-	c.SetMarginStart(0) // children is top level; there is no main row
-	c.SetVExpand(true)
-	c.Show()
-	toplevelCSS(c)
-
-	b, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-
-	return &Servers{
-		Box:      b,
-		Children: c,
-		ctrl:     ctrl,
+	servers := Servers{
+		SessionController: ctrl,
 	}
+
+	servers.Children = server.NewChildren(p, &servers)
+	servers.Children.SetVExpand(true)
+	servers.Children.Show()
+	toplevelCSS(servers.Children)
+
+	servers.Main = serverpane.NewPaned(servers.Children, gtk.ORIENTATION_VERTICAL)
+	servers.Main.Show()
+
+	stack, _ := gtk.StackNew()
+	servers.Stack = *stack
+	servers.Stack.SetVAlign(gtk.ALIGN_START)
+	servers.Stack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
+	servers.Stack.SetTransitionDuration(75)
+	servers.Stack.AddNamed(servers.Main, "main")
+	servers.Stack.Show()
+
+	return &servers
+}
+
+// Destroy destroys and invalidates this instance permanently.
+func (s *Servers) Destroy() {
+	s.Reset()
+	s.Stack.Destroy()
 }
 
 func (s *Servers) Reset() {
 	// Reset isn't necessarily called while loading, so we do a check.
 	if s.spinner != nil {
-		s.spinner.Stop()
+		s.spinner.Destroy()
 		s.spinner = nil
 	}
 
+	// Close the right server column if any.
+	if s.NextColumn != nil {
+		if s.detachNext != nil {
+			s.detachNext()
+		}
+
+		s.Main.Remove(s.NextColumn)
+		s.NextColumn.Destroy()
+		s.NextColumn = nil
+	}
+
+	// Call the destructor if any.
+	if s.stopLs != nil {
+		s.stopLs()
+		s.stopLs = nil
+	}
+
 	// Reset the state.
-	s.ServerList = nil
-	// Remove all children.
-	primitives.RemoveChildren(s)
+	s.Lister = nil
 	// Reset the children container.
 	s.Children.Reset()
+	s.Stack.SetVisibleChild(s.Main)
 }
 
 // IsLoading returns true if the servers container is loading.
@@ -83,8 +127,12 @@ func (s *Servers) IsLoading() bool {
 // SetList indicates that the server list has been loaded. Unlike
 // server.Children, this method will load immediately.
 func (s *Servers) SetList(slist cchat.Lister) {
-	primitives.RemoveChildren(s)
-	s.ServerList = slist
+	if s.stopLs != nil {
+		s.stopLs()
+		s.stopLs = nil
+	}
+
+	s.Lister = slist
 	s.load()
 }
 
@@ -98,11 +146,12 @@ func (s *Servers) load() {
 	s.setLoading()
 
 	go func() {
-		err := s.ServerList.Servers(s)
+		stop, err := s.Lister.Servers(s)
 		gts.ExecAsync(func() {
 			if err != nil {
 				s.setFailed(err)
 			} else {
+				s.stopLs = stop
 				s.setDone()
 			}
 		})
@@ -114,8 +163,8 @@ func (s *Servers) SetServers(servers []cchat.Server) {
 	gts.ExecAsync(func() {
 		s.Children.SetServersUnsafe(servers)
 
-		if len(servers) == 0 {
-			s.ctrl.ClearMessenger()
+		if servers == nil {
+			s.ClearMessenger()
 			return
 		}
 
@@ -131,36 +180,37 @@ func (s *Servers) UpdateServer(update cchat.ServerUpdate) {
 
 // setDone changes the view to show the servers.
 func (s *Servers) setDone() {
-	primitives.RemoveChildren(s)
+	s.SetVisibleChild(s.Main)
 
 	// stop the spinner.
-	s.spinner.Stop()
+	s.spinner.Destroy()
 	s.spinner = nil
-
-	s.Add(s.Children)
 }
 
 // setLoading shows a loading spinner. Use this after the session row is
 // connected.
 func (s *Servers) setLoading() {
-	primitives.RemoveChildren(s)
-
 	s.spinner = spinner.New()
 	s.spinner.SetSizeRequest(FaceSize, FaceSize)
 	s.spinner.Show()
 	s.spinner.Start()
 
-	s.Add(s.spinner)
+	s.AddNamed(s.spinner, "spinner")
+	s.SetVisibleChildName("spinner")
 }
 
 // setFailed shows a sad face with the error. Use this when the session row has
 // failed to load.
 func (s *Servers) setFailed(err error) {
-	primitives.RemoveChildren(s)
-
-	// stop the spinner. Let this SEGFAULT if nil, as that's undefined behavior.
-	s.spinner.Stop()
+	// stop the spinner. Let this SEGFAULT if nil.
+	s.spinner.Destroy()
 	s.spinner = nil
+
+	// Remove existing error widgets.
+	w, err := s.Stack.GetChildByName("error")
+	if err == nil {
+		s.Stack.Remove(w)
+	}
 
 	// Create a BLANK label for padding.
 	ltop, _ := gtk.LabelNew("")
@@ -182,7 +232,49 @@ func (s *Servers) setFailed(err error) {
 	lerr.Show()
 
 	// Add these items into the box.
-	s.PackStart(ltop, false, false, 0)
-	s.PackStart(btn, false, false, 10) // pad
-	s.PackStart(lerr, false, false, 0)
+	b, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	b.PackStart(ltop, false, false, 0)
+	b.PackStart(btn, false, false, 10) // pad
+	b.PackStart(lerr, false, false, 0)
+	b.Show()
+
+	s.Stack.AddNamed(b, "error")
+	s.Stack.SetVisibleChildName("error")
+}
+
+// SelectColumnatedLister is called by children servers to open up a server list
+// on the right.
+func (s *Servers) SelectColumnatedLister(srv *server.ServerRow, lst cchat.Lister) {
+	if s.detachNext != nil {
+		s.Main.Remove(s.NextColumn) // run the deconstructor
+		s.detachNext()
+		s.NextColumn.Destroy()
+	}
+
+	if lst == nil {
+		return
+	}
+
+	s.NextColumn = NewServers(srv, s)
+	s.NextColumn.SetList(lst)
+	s.Main.AddSide(s.NextColumn)
+
+	update := func(box *gtk.Box) {
+		a := box.GetAllocation()
+		// Align the next column to the selected item.
+		s.NextColumn.SetMarginTop(a.GetY())
+	}
+
+	s.Children.SetExpand(false)
+	primitives.AddClass(srv, "active-column")
+
+	update(srv.Box)
+	sizeHandle := srv.Box.Connect("size-allocate", update)
+
+	s.detachNext = func() {
+		srv.Box.HandlerDisconnect(sizeHandle)
+
+		s.Children.SetExpand(true)
+		primitives.RemoveClass(srv, "active-column")
+	}
 }

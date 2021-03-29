@@ -22,6 +22,8 @@ type Breadcrumber interface {
 type BreadcrumbNamer interface {
 	// Breadcrumb returns the breadcrumb name.
 	Breadcrumb() string
+
+	// TODO: make BreadcrumbNamer return LabelState.
 }
 
 // Traverse traverses the given breadcrumber recursively. If traverser returns

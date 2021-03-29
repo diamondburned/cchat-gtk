@@ -123,6 +123,10 @@ type RenderConfig struct {
 	// mentions.
 	NoReferencing bool
 
+	// SkipImages skips rendering any image markup. This is useful for widgets
+	// that already render an outside image.
+	SkipImages bool
+
 	// AnchorColor forces all anchors to be of a certain color. This is used if
 	// the boolean is true. Else, all mention links will not work and regular
 	// links will be of the default color.
@@ -197,7 +201,7 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 		}
 
 		// Only inline images if start == end per specification.
-		if start == end {
+		if !cfg.SkipImages && start == end {
 			if imager := segment.AsImager(); imager != nil {
 				appended.Open(start, composeImageMarkup(imager))
 			}

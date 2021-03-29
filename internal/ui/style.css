@@ -1,0 +1,51 @@
+/*
+ * Global CSS
+ */
+
+/* Make CSS more consistent across themes */
+headerbar { padding-left: 0 }
+
+/* .appmenu { margin: 0 20px } */
+
+popover > *:not(stack):not(button) { margin: 6px }
+
+/* Hack to fix the input bar being high in Adwaita */
+.input-field * { min-height: 0 }
+
+/* Hide all scroll undershoots */
+undershoot { background-size: 0 }
+
+/*
+ * Server CSS
+ */
+
+.top-level .server-list.expanded {
+	background-color: @borders;
+}
+
+.top-level .server-button {
+	border-radius: 0;
+	background-color: transparent;
+}
+
+/* .top-level .server-button:checked + revealer { */
+/* 	border-left: 2px solid alpha(@borders, 0.75); */
+/* } */
+
+.top-level .server-children {
+	transition: margin-left 100ms;
+}
+
+.top-level.expand .server-button:checked + revealer > .server-children {
+	margin-left: 18px;
+}
+
+/* Keep this consistent with server.go's background-color. */
+.top-level + stack .top-level {
+	background-color: alpha(@theme_selected_bg_color, 0.25);
+}
+
+/* Prevent inconsistent color when hovering over an active button. */
+.server.active-column .server-button:focus {
+	box-shadow: none;
+}

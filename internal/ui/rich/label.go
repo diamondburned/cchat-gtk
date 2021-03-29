@@ -1,134 +1,94 @@
 package rich
 
 import (
-	"context"
-
-	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/gotk3/gotk3/pango"
-	"github.com/pkg/errors"
 )
 
-type Labeler interface {
-	// thread-safe
-	cchat.LabelContainer // thread-safe
+// LabelRenderer is the input/output function to render a rich text segment to
+// Pango markup.
+type LabelRenderer = func(text.Rich) markup.RenderOutput
 
-	// not thread-safe
-	SetLabelUnsafe(text.Rich)
-	GetLabel() text.Rich
-	GetText() string
-}
-
-// SuperLabeler represents a label that inherits the current labeler.
-type SuperLabeler interface {
-	SetLabelUnsafe(text.Rich)
-}
-
-type LabelerFn = func(context.Context, cchat.LabelContainer) (func(), error)
-
-type Label struct {
-	gtk.Label
-	Current text.Rich
-
-	// super unexported field for inheritance
-	super SuperLabeler
-}
-
-var (
-	_ gtk.IWidget = (*Label)(nil)
-	_ Labeler     = (*Label)(nil)
-)
-
-func NewLabel(content text.Rich) *Label {
-	label, _ := gtk.LabelNew("")
-	label.SetMarkup(markup.Render(content))
-	label.SetXAlign(0) // left align
-	label.SetEllipsize(pango.ELLIPSIZE_END)
-
-	l := &Label{
-		Label:   *label,
-		Current: content,
-	}
-
-	return l
-}
-
-// NewInheritLabel creates a new label wrapper for structs that inherit this
-// label.
-func NewInheritLabel(super SuperLabeler) *Label {
-	l := NewLabel(text.Rich{})
-	l.super = super
-	return l
-}
-
-func (l *Label) validsuper() bool {
-	_, ok := l.super.(*Label)
-	// supers must not be the current struct and must not be nil.
-	return !ok && l.super != nil
-}
-
-func (l *Label) AsyncSetLabel(fn LabelerFn, info string) {
-	ctx := primitives.HandleDestroyCtx(context.Background(), l)
-	gts.Async(func() (func(), error) {
-		f, err := fn(ctx, l)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to load iconer")
-		}
-
-		return func() { l.Connect("destroy", func(interface{}) { f() }) }, nil
+// RenderSkipImages is a label renderer that skips images.
+func RenderSkipImages(rich text.Rich) markup.RenderOutput {
+	return markup.RenderCmplxWithConfig(rich, markup.RenderConfig{
+		SkipImages:     true,
+		NoMentionLinks: true,
 	})
 }
 
-// SetLabel is thread-safe.
-func (l *Label) SetLabel(content text.Rich) {
-	gts.ExecAsync(func() { l.SetLabelUnsafe(content) })
+// Label provides an abstraction around a regular GTK label that can be
+// self-updated. Widgets that extend off of this (such as ToggleButton) does not
+// need to manually
+type Label struct {
+	gtk.Label
+	label  text.Rich
+	output markup.RenderOutput
+	render LabelRenderer
 }
 
-// SetLabelUnsafe sets the label in the current thread, meaning it's not
-// thread-safe. If this label has a super, then it will call that struct's
-// SetLabelUnsafe instead of its own.
-func (l *Label) SetLabelUnsafe(content text.Rich) {
-	l.Current = content
+var _ gtk.IWidget = (*Label)(nil)
 
-	if l.validsuper() {
-		l.super.SetLabelUnsafe(content)
-	} else {
-		l.SetMarkup(markup.Render(content))
+// NewStaticLabel creates a static, non-updating label.
+func NewStaticLabel(rich text.Rich) *Label {
+	label, _ := gtk.LabelNew("")
+	label.SetXAlign(0) // left align
+	label.SetEllipsize(pango.ELLIPSIZE_END)
+
+	if !rich.IsEmpty() {
+		label.SetMarkup(markup.Render(rich))
 	}
+
+	return &Label{Label: *label}
 }
 
-// GetLabel is NOT thread-safe.
-func (l *Label) GetLabel() text.Rich {
-	return l.Current
+// NewLabel creates a self-updating label.
+func NewLabel(state LabelStateStorer) *Label {
+	return NewLabelWithRenderer(state, nil)
 }
 
-// GetText is NOT thread-safe.
-func (l *Label) GetText() string {
-	return l.Current.Content
+// NewLabelWithRenderer creates a self-updating label using the given renderer.
+func NewLabelWithRenderer(state LabelStateStorer, r LabelRenderer) *Label {
+	l := NewStaticLabel(text.Plain(""))
+	l.render = r
+	state.OnUpdate(func() { l.SetLabel(state.Label()) })
+	return l
 }
 
-type ToggleButton struct {
-	gtk.ToggleButton
-	Label
+// Output returns the rendered output.
+func (l *Label) Output() markup.RenderOutput {
+	return l.output
 }
 
-var (
-	_ gtk.IWidget          = (*ToggleButton)(nil)
-	_ cchat.LabelContainer = (*ToggleButton)(nil)
-)
+// SetLabel sets the label in the current thread, meaning it's not thread-safe.
+func (l *Label) SetLabel(content text.Rich) {
+	// Save a call if the content is empty.
+	if content.IsEmpty() {
+		l.label = content
+		l.output = markup.RenderOutput{}
 
-func NewToggleButton(content text.Rich) *ToggleButton {
-	l := NewLabel(content)
-	l.Show()
+		return
+	}
 
-	b, _ := gtk.ToggleButtonNew()
-	primitives.BinLeftAlignLabel(b)
+	l.label = content
 
-	b.Add(l)
+	var out markup.RenderOutput
+	if l.render != nil {
+		out = l.render(content)
+	} else {
+		out = markup.RenderCmplx(content)
+	}
 
-	return &ToggleButton{*b, *l}
+	l.output = out
+	l.SetMarkup(out.Markup)
+	l.SetTooltipMarkup(out.Markup)
+}
+
+// SetRenderer sets a custom renderer. If the given renderer is nil, then the
+// default markup renderer is used instead. The label is automatically updated.
+func (l *Label) SetRenderer(renderer LabelRenderer) {
+	l.render = renderer
+	l.SetLabel(l.label)
 }

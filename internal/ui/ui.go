@@ -17,28 +17,20 @@ import (
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
+
+	_ "embed"
 )
+
+//go:embed style.css
+var styleCSS string
 
 func init() {
 	// Load the local CSS.
-	gts.LoadCSS("main", `
-		/* Make CSS more consistent across themes */
-		headerbar { padding-left: 0 }
-
-		/* .appmenu { margin: 0 20px } */
-		
-		popover > *:not(stack):not(button) { margin: 6px }
-		
-		/* Hack to fix the input bar being high in Adwaita */
-		.input-field * { min-height: 0 }
-
-		/* Hide all scroll undershoots */
-		undershoot { background-size: 0 }
-	`)
+	gts.LoadCSS("main", styleCSS)
 }
 
 // constraints for the left panel
-const leftCurrentWidth = 300
+const leftCurrentWidth = 350
 
 func clamp(n, min, max int) int {
 	switch {
@@ -186,7 +178,7 @@ func (app *App) MessengerSelected(ses *session.Row, srv *server.ServerRow) {
 	app.lastSelector = srv.SetSelected
 	app.lastSelector(true)
 
-	app.MessageView.JoinServer(ses.Session, srv.Server, srv)
+	app.MessageView.JoinServer(ses, srv, srv)
 }
 
 // MessageView methods.
@@ -207,8 +199,8 @@ func (app *App) OnMessageDone() {
 }
 
 func (app *App) AuthenticateSession(list *service.List, ssvc *service.Service) {
-	var svc = ssvc.Service()
-	auth.NewDialog(svc.Name(), svc.Authenticate(), func(ses cchat.Session) {
+	svc := ssvc.Service()
+	auth.NewDialog(ssvc.Name.Label(), svc.Authenticate(), func(ses cchat.Session) {
 		ssvc.AddSession(ses)
 	})
 }
@@ -219,14 +211,12 @@ func (app *App) Close() {
 	// done, the application would exit immediately. There's no need to update
 	// the GUI.
 	for _, s := range app.Services.Services.Services {
-		var service = s.Service().Name()
-
 		for _, session := range s.BodyList.Sessions() {
 			if session.Session == nil {
 				continue
 			}
 
-			log.Printlnf("Disconnecting %s session %s", service, session.ID())
+			log.Printlnf("Disconnecting %s session %s", s.ID(), session.ID())
 
 			if err := session.Session.Disconnect(); err != nil {
 				log.Error(errors.Wrap(err, "Failed to disconnect "+session.ID()))

@@ -31,69 +31,35 @@ const (
 	MaxHeight    = 500
 )
 
-type WidgetConnector interface {
-	gtk.IWidget
-	primitives.Connector
-}
-
-var _ WidgetConnector = (*gtk.Label)(nil)
-
-// Labeler implements a rich label that stores an output state.
-type Labeler interface {
-	WidgetConnector
-	rich.Labeler
-	Output() markup.RenderOutput
-}
+// // Labeler implements a rich label that stores an output state.
+// type Labeler interface {
+// 	WidgetConnector
+// 	rich.Labeler
+// 	Output() markup.RenderOutput
+// }
 
 // Label implements a label that's already bounded to the markup URI handlers.
 type Label struct {
 	*rich.Label
 	*BoundBox
-	output markup.RenderOutput
 }
 
-var (
-	_ Labeler           = (*Label)(nil)
-	_ rich.SuperLabeler = (*Label)(nil)
-)
+// var (
+// 	_ Labeler           = (*Label)(nil)
+// 	_ rich.SuperLabeler = (*Label)(nil)
+// )
 
 func NewLabel(txt text.Rich) *Label {
 	l := &Label{}
-	l.Label = rich.NewInheritLabel(l)
-	l.Label.SetLabelUnsafe(txt) // test
+	l.Label = rich.NewStaticLabel(txt)
 
 	// Bind and return.
-	l.BoundBox = BindRichLabel(l)
+	l.BoundBox = BindRichLabel(l.Label)
 	return l
 }
 
 func (l *Label) Reset() {
-	l.output = markup.RenderOutput{}
-}
-
-func (l *Label) SetLabelUnsafe(content text.Rich) {
-	l.output = markup.RenderCmplx(content)
-	l.SetMarkup(l.output.Markup)
-}
-
-// Output returns the label's markup output. This function is NOT
-// thread-safe.
-func (l *Label) Output() markup.RenderOutput {
-	return l.output
-}
-
-// SetOutput sets the internal output and label. It preserves the tail if
-// any.
-func (l *Label) SetOutput(o markup.RenderOutput) {
-	l.output = o
-	l.SetMarkup(o.Markup)
-}
-
-// SetUnderlyingOutput sets the output state without changing the label's
-// markup. This is useful for internal use cases where the label is updated
-// separately.
-func (l *Label) SetUnderlyingOutput(o markup.RenderOutput) {
-	l.output = o
+	l.Label.SetLabel(text.Plain(""))
 }
 
 type ReferenceHighlighter interface {
@@ -103,11 +69,11 @@ type ReferenceHighlighter interface {
 // BoundBox is a box wrapping elements that can be interacted with from the
 // parsed labels.
 type BoundBox struct {
-	label Labeler
+	label *rich.Label
 	refer ReferenceHighlighter
 }
 
-func BindRichLabel(label Labeler) *BoundBox {
+func BindRichLabel(label *rich.Label) *BoundBox {
 	bound := BoundBox{label: label}
 	bind(label, bound.activate)
 	return &bound
@@ -206,7 +172,7 @@ func NewPopoverMentioner(rel gtk.IWidget, input string, segment text.Segment) *g
 	l.Show()
 
 	// Enable images???
-	BindActivator(l)
+	BindImagePreview(l)
 
 	// Make a scrolling text.
 	scr := scrollinput.NewVScroll(PopoverWidth)
@@ -259,13 +225,23 @@ func popoverImg(url string, round bool) gtk.IWidget {
 	return btn
 }
 
-func BindActivator(connector WidgetConnector) {
+// WidgetConnector describes a connector that is also a widget.
+type WidgetConnector interface {
+	gtk.IWidget
+	primitives.Connector
+}
+
+var _ WidgetConnector = (*gtk.Label)(nil)
+
+// BindImagePreview binds activate-link to the label callback so that images
+// have a popover preview.
+func BindImagePreview(connector WidgetConnector) {
 	bind(connector, nil)
 }
 
 // bind connects activate-link. If activator returns true, then nothing is done.
 // Activator can be nil.
-func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle) bool) {
+func bind(c WidgetConnector, activator func(uri string, r gdk.Rectangle) bool) {
 	// This implementation doesn't seem like a good idea. First off, is the
 	// closure really garbage collected? If it's not, then we have some huge
 	// issues. Second, if the closure is garbage collected, then when? If it's
@@ -273,11 +249,11 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 	// message, but we're also keeping alive the widget.
 
 	var x, y float64
-	connector.Connect("motion-notify-event", func(_ interface{}, ev *gdk.Event) {
+	c.Connect("motion-notify-event", func(_ interface{}, ev *gdk.Event) {
 		x, y = gdk.EventMotionNewFromEvent(ev).MotionVal()
 	})
 
-	connector.Connect("activate-link", func(c WidgetConnector, uri string) bool {
+	c.Connect("activate-link", func(c WidgetConnector, uri string) bool {
 		// Make a new rectangle to use in the popover.
 		r := gdk.Rectangle{}
 		r.SetX(int(x))
@@ -297,8 +273,8 @@ func bind(connector WidgetConnector, activator func(uri string, r gdk.Rectangle)
 			if !round {
 				img, _ = gtk.ImageNew()
 			} else {
-				r, _ := roundimage.NewImage(0)
-				img = r.Image
+				r := roundimage.NewImage(0)
+				img = &r.Image
 			}
 
 			img.SetSizeRequest(w, h)

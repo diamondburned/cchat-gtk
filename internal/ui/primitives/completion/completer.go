@@ -189,7 +189,7 @@ func (c *Completer) update() []gtk.IWidget {
 		lbox.Show()
 
 		// Label for the primary text.
-		l := rich.NewLabel(entry.Text)
+		l := rich.NewStaticLabel(entry.Text)
 		l.Show()
 		lbox.PackStart(l, false, false, 0)
 
@@ -198,7 +198,7 @@ func (c *Completer) update() []gtk.IWidget {
 		if !entry.Secondary.IsEmpty() {
 			size = ImageLarge
 
-			s := rich.NewLabel(text.Rich{})
+			s := rich.NewStaticLabel(text.Plain(""))
 			s.SetMarkup(fmt.Sprintf(
 				`<span alpha="50%%" size="small">%s</span>`,
 				markup.Render(entry.Secondary),

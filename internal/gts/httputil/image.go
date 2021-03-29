@@ -1,7 +1,6 @@
 package httputil
 
 import (
-	"bufio"
 	"context"
 	"io"
 	"mime"
@@ -9,7 +8,6 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"sync"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
@@ -20,32 +18,6 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
-
-// bufferPool provides a sync.Pool of *bufio.Writers. This is used to reduce the
-// amount of cgo calls, by writing bytes in larger chunks.
-//
-// Technically, httpcache already wraps its cached reader around a bufio.Reader,
-// but we have no control over the buffer size.
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		// Allocate a 512KB buffer by default.
-		const defaultBufSz = 512 * 1024
-
-		return bufio.NewWriterSize(nil, defaultBufSz)
-	},
-}
-
-func bufferedWriter(w io.Writer) *bufio.Writer {
-	buf := bufferPool.Get().(*bufio.Writer)
-	buf.Reset(w)
-	return buf
-}
-
-func returnBufferedWriter(buf *bufio.Writer) {
-	// Unreference the internal reader.
-	buf.Reset(nil)
-	bufferPool.Put(buf)
-}
 
 type ImageContainer interface {
 	primitives.Connector
@@ -93,9 +65,19 @@ func AsyncImage(ctx context.Context,
 		scale = surfaceContainer.GetScaleFactor()
 	}
 
-	ctx = primitives.HandleDestroyCtx(ctx, img)
+	ctx, cancel := context.WithCancel(ctx)
+	cancelHandle := img.Connect("destroy", func() {
+		log.Println("image destroyed, canceling")
+		cancel()
+	})
 
 	go func() {
+		// Ensure the contexts are cleaned up in the main thread.
+		defer gts.ExecAsync(func() {
+			img.HandlerDisconnect(cancelHandle)
+			cancel()
+		})
+
 		// Try and guess the MIME type from the URL.
 		mimeType := mime.TypeByExtension(urlExt(imageURL))
 
@@ -143,17 +125,8 @@ func AsyncImage(ctx context.Context,
 		l.Connect("area-prepared", load)
 		l.Connect("area-updated", load)
 
-		// Borrow a buffered writer and return it at the end.
-		bufWriter := bufferedWriter(l)
-		defer returnBufferedWriter(bufWriter)
-
-		if err := downloadImage(r.Body, bufWriter, procs, isGIF); err != nil {
+		if err := downloadImage(r.Body, l, procs, isGIF); err != nil {
 			log.Error(errors.Wrapf(err, "failed to download %q", imageURL))
-			// Force close after downloading.
-		}
-
-		if err := bufWriter.Flush(); err != nil {
-			log.Error(errors.Wrapf(err, "failed to flush writer for %q", imageURL))
 			// Force close after downloading.
 		}
 
@@ -206,11 +179,13 @@ func loadFn(ctx context.Context, img ImageContainer, isGIF bool) func(l *gdk.Pix
 }
 
 func execIfCtx(ctx context.Context, fn func()) {
-	gts.ExecLater(func() {
-		if ctx.Err() == nil {
-			fn()
-		}
-	})
+	if ctx.Err() == nil {
+		gts.ExecAsync(func() {
+			if ctx.Err() == nil {
+				fn()
+			}
+		})
+	}
 }
 
 func downloadImage(src io.Reader, dst io.Writer, p []imgutil.Processor, isGIF bool) error {

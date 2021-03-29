@@ -1,12 +1,7 @@
 package cozy
 
 import (
-	"time"
-
-	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -15,17 +10,12 @@ import (
 // the header, and the avatar is invisible.
 type CollapsedMessage struct {
 	// Author is still updated normally.
-	*message.GenericContainer
+	*message.State
 	Timestamp *gtk.Label
 }
 
-func NewCollapsedMessage(msg cchat.MessageCreate) *CollapsedMessage {
-	msgc := WrapCollapsedMessage(message.NewContainer(msg))
-	message.FillContainer(msgc, msg)
-	return msgc
-}
-
-func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
+// WrapCollapsedMessage wraps the given message state to be a collapsed message.
+func WrapCollapsedMessage(gc *message.State) *CollapsedMessage {
 	// Set Timestamp's padding accordingly to Avatar's.
 	ts := message.NewTimestamp()
 	ts.SetSizeRequest(AvatarSize, -1)
@@ -42,37 +32,31 @@ func WrapCollapsedMessage(gc *message.GenericContainer) *CollapsedMessage {
 	gc.SetClass("cozy-collapsed")
 
 	return &CollapsedMessage{
-		GenericContainer: gc,
-		Timestamp:        ts,
+		State:     gc,
+		Timestamp: ts,
 	}
 }
 
 func (c *CollapsedMessage) Collapsed() bool { return true }
 
-func (c *CollapsedMessage) UpdateTimestamp(t time.Time) {
-	c.GenericContainer.UpdateTimestamp(t)
-	c.Timestamp.SetText(humanize.TimeAgoShort(t))
-}
+func (c *CollapsedMessage) Unwrap(revert bool) *message.State {
+	if revert {
+		// Remove State's widgets from the containers.
+		c.Remove(c.Timestamp)
+		c.Remove(c.Content)
+	}
 
-func (c *CollapsedMessage) Unwrap() *message.GenericContainer {
-	// Remove GenericContainer's widgets from the containers.
-	c.Remove(c.Timestamp)
-	c.Remove(c.Content)
-
-	// Return after removing.
-	return c.GenericContainer
+	return c.State
 }
 
 type CollapsedSendingMessage struct {
 	*CollapsedMessage
-	message.PresendContainer
+	message.Presender
 }
 
-func NewCollapsedSendingMessage(msg input.PresendMessage) *CollapsedSendingMessage {
-	var msgc = message.NewPresendContainer(msg)
-
+func WrapCollapsedSendingMessage(pstate *message.PresendState) *CollapsedSendingMessage {
 	return &CollapsedSendingMessage{
-		CollapsedMessage: WrapCollapsedMessage(msgc.GenericContainer),
-		PresendContainer: msgc,
+		CollapsedMessage: WrapCollapsedMessage(pstate.State),
+		Presender:        pstate,
 	}
 }

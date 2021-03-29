@@ -15,12 +15,16 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container/cozy"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/memberlist"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/sadface"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/typing"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/autoscroll"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
+	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
@@ -280,7 +284,7 @@ func (v *View) MemberListUpdated(c *memberlist.Container) {
 }
 
 // JoinServer is not thread-safe, but it calls backend functions asynchronously.
-func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc traverse.Breadcrumber) {
+func (v *View) JoinServer(ses *session.Row, srv *server.ServerRow, bc traverse.Breadcrumber) {
 	// Set the screen to loading.
 	v.FaceView.SetLoading()
 	v.ctrl.OnMessageBusy()
@@ -289,19 +293,22 @@ func (v *View) JoinServer(session cchat.Session, server cchat.Server, bc travers
 	v.reset()
 
 	// Get the messenger once.
-	var messenger = server.AsMessenger()
+	var messenger = srv.Server.AsMessenger()
 	// Exit if this server is not a messenger.
 	if messenger == nil {
 		return
 	}
 
 	// Bind the state.
-	v.state.bind(session, server, messenger)
+	v.state.bind(ses.Session, srv.Server, messenger)
 
 	// We're setting this variable before actually calling JoinServer. This is
 	// because new messages created by JoinServer will use this state for things
 	// such as determinining if it's deletable or not.
-	v.InputView.SetMessenger(session, messenger)
+	v.InputView.SetMessenger(ses.Session, messenger)
+
+	// Bind the container's self user to what we just set.
+	v.Container.SetSelf(v.InputView.Username.State)
 
 	go func() {
 		// We can use a background context here, as the user can't go anywhere
@@ -363,79 +370,84 @@ func (v *View) FetchBacklog() {
 		v.Container.Highlight(firstMsg)
 	}
 
+	firstID := firstMsg.Unwrap(false).ID
+
 	gts.Async(func() (func(), error) {
 		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
 		defer cancel()
 
-		err := backlogger.Backlog(ctx, firstMsg.ID(), v.Container)
+		err := backlogger.Backlog(ctx, firstID, v.Container)
 		return done, errors.Wrap(err, "Failed to get messages before ID")
 	})
 }
 
-func (v *View) AddPresendMessage(msg input.PresendMessage) func(error) {
-	var presend = v.Container.AddPresendMessage(msg)
-
-	return func(err error) {
-		// Set the retry message.
-		presend.SetSentError(err)
-		// Only attach the menu once. Further retries do not need to be
-		// reattached.
-		presend.AttachMenu([]menu.Item{
-			menu.SimpleItem("Retry", func() {
-				presend.SetLoading()
-				v.retryMessage(msg, presend)
-			}),
-		})
-	}
-}
-
 // AuthorEvent should be called on message create/update/delete.
-func (v *View) AuthorEvent(author cchat.Author) {
+func (v *View) AuthorEvent(authorID cchat.ID) {
 	// Remove the author from the typing list if it's not nil.
-	if author != nil {
-		v.Typing.RemoveAuthor(author)
+	if authorID != "" {
+		v.Typing.RemoveAuthor(authorID)
 	}
 }
 
 // MessageAuthor returns the author from the message with the given ID.
-func (v *View) MessageAuthor(msgID cchat.ID) cchat.Author {
+func (v *View) MessageAuthor(msgID cchat.ID) *message.Author {
 	msg := v.Container.Message(msgID, "")
 	if msg == nil {
 		return nil
 	}
 
-	return msg.Author()
+	return msg.Unwrap(false).Author
 }
 
 // Author returns the author from the message list with the given author ID.
-func (v *View) Author(authorID cchat.ID) cchat.Author {
+func (v *View) Author(authorID cchat.ID) rich.LabelStateStorer {
 	msg := v.Container.FindMessage(func(msg container.MessageRow) bool {
-		return msg.Author().ID() == authorID
+		return msg.Unwrap(false).Author.ID == authorID
 	})
 	if msg == nil {
 		return nil
 	}
 
-	return msg.Author()
+	state := msg.Unwrap(false)
+	return &state.Author.Name
 }
 
 // LatestMessageFrom returns the last message ID with that author.
-func (v *View) LatestMessageFrom(userID string) (msgID string, ok bool) {
-	return v.Container.LatestMessageFrom(userID)
+func (v *View) LatestMessageFrom(userID cchat.ID) container.MessageRow {
+	return container.LatestMessageFrom(v.Container, userID)
+}
+
+func (v *View) SendMessage(msg message.PresendMessage) {
+	state := message.NewPresendState(v.InputView.Username.State, msg)
+	msgr := v.Container.NewPresendMessage(state)
+
+	v.retryMessage(msgr)
 }
 
 // retryMessage sends the message.
-func (v *View) retryMessage(msg input.PresendMessage, presend container.PresendMessageRow) {
+func (v *View) retryMessage(presend container.PresendMessageRow) {
 	var sender = v.InputView.Sender
 	if sender == nil {
 		return
 	}
 
 	go func() {
-		if err := sender.Send(msg); err != nil {
+		if err := sender.Send(presend.SendingMessage()); err != nil {
 			// Set the message's state to errored again, but we don't need to
 			// rebind the menu.
-			gts.ExecAsync(func() { presend.SetSentError(err) })
+			gts.ExecAsync(func() {
+				// Set the retry message.
+				presend.SetSentError(err)
+				// Only attach the menu once. Further retries do not need to be
+				// reattached.
+				state := presend.Unwrap(false)
+				state.MenuItems = []menu.Item{
+					menu.SimpleItem("Retry", func() {
+						presend.SetLoading()
+						v.retryMessage(presend)
+					}),
+				}
+			})
 		}
 	}()
 }
@@ -449,33 +461,35 @@ var messageItemNames = MessageItemNames{
 // BindMenu attaches the menu constructor into the message with the needed
 // states and callbacks.
 func (v *View) BindMenu(msg container.MessageRow) {
+	state := msg.Unwrap(false)
+
 	// Add 1 for the edit menu item.
 	var mitems = []menu.Item{
 		menu.SimpleItem(
-			"Reply", func() { v.InputView.StartReplyingTo(msg.ID()) },
+			"Reply", func() { v.InputView.StartReplyingTo(state.ID) },
 		),
 	}
 
 	// Do we have editing capabilities? If yes, append a button to allow it.
-	if v.InputView.Editable(msg.ID()) {
+	if v.InputView.Editable(state.ID) {
 		mitems = append(mitems, menu.SimpleItem(
-			"Edit", func() { v.InputView.StartEditing(msg.ID()) },
+			"Edit", func() { v.InputView.StartEditing(state.ID) },
 		))
 	}
 
 	// Do we have any custom actions? If yes, append it.
 	if v.hasActions() {
-		var actions = v.actioner.Actions(msg.ID())
+		var actions = v.actioner.Actions(state.ID)
 		var items = make([]menu.Item, len(actions))
 
 		for i, action := range actions {
-			items[i] = v.makeActionItem(action, msg.ID())
+			items[i] = v.makeActionItem(action, state.ID)
 		}
 
 		mitems = append(mitems, items...)
 	}
 
-	msg.AttachMenu(mitems)
+	state.MenuItems = mitems
 }
 
 // makeActionItem creates a new menu callback that's called on menu item

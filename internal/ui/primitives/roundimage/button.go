@@ -5,6 +5,8 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
+// TODO: move roundimage.Button to rich.ImageButton.
+
 // Button implements a rounded button with a rounded image. This widget only
 // supports a full circle for rounding.
 type Button struct {
@@ -20,7 +22,7 @@ var roundButtonCSS = primitives.PrepareClassCSS("round-button", `
 `)
 
 func NewButton() (*Button, error) {
-	image, _ := NewImage(0)
+	image := NewImage(0)
 	image.Show()
 
 	b := NewEmptyButton()
@@ -38,7 +40,7 @@ func NewEmptyButton() *Button {
 }
 
 // NewCustomButton creates a new rounded button with the given Imager. If the
-// given Imager implements the Connector interface (aka *StaticImage), then the
+// given Imager implements the Connector interface (aka *StillImage), then the
 // function will implicitly connect its handlers to the button.
 func NewCustomButton(img Imager) (*Button, error) {
 	b := NewEmptyButton()

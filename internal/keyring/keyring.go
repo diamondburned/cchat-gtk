@@ -17,16 +17,16 @@ var store = driver.NewStore(
 )
 
 type Session struct {
-	ID   string
+	ID cchat.ID
+
+	// Metadata.
 	Name string
 	Data map[string]string
 }
 
 // ConvertSession attempts to get the session data from the given cchat session.
 // It returns nil if it can't do it.
-func ConvertSession(ses cchat.Session) *Session {
-	var name = ses.Name().Content
-
+func ConvertSession(ses cchat.Session, name string) *Session {
 	saver := ses.AsSessionSaver()
 	if saver == nil {
 		return nil
@@ -45,28 +45,60 @@ func ConvertSession(ses cchat.Session) *Session {
 	}
 }
 
-func SaveSessions(service cchat.Service, sessions []Session) {
-	if err := store.Set(service.Name().Content, sessions); err != nil {
-		log.Warn(errors.Wrap(err, "Error saving session"))
-	}
-}
-
-// RestoreSessions restores all sessions of the service asynchronously, then
-// calls the auth callback inside the Gtk main thread.
-func RestoreSessions(service cchat.Service) (sessions []Session) {
-	// Ignore the error, it's not important.
-	if err := store.Get(service.Name().Content, &sessions); err != nil {
-		log.Warn(err)
-	}
-	return
-}
-
-func RestoreSession(service cchat.Service, id string) *Session {
-	var sessions = RestoreSessions(service)
-	for _, session := range sessions {
-		if session.ID == id {
+// RestoreSession restores a single session.
+func RestoreSession(svc cchat.Service, sessionID cchat.ID) *Session {
+	service := Restore(svc)
+	for _, session := range service.Sessions {
+		if session.ID == sessionID {
 			return &session
 		}
 	}
 	return nil
+}
+
+// Sessions is a list of sessions within a keyring. It provides an abstract way
+// to save sessions with order.
+type Service struct {
+	ID       cchat.ID
+	Sessions []Session
+}
+
+// NewService creates a new service.
+func NewService(svc cchat.Service, cap int) Service {
+	return Service{
+		ID:       svc.ID(),
+		Sessions: make([]Session, 0, cap),
+	}
+}
+
+// Restore restores all sessions of the service asynchronously, then calls the
+// auth callback inside the GTK main thread.
+func Restore(svc cchat.Service) Service {
+	var sessions []Session
+	// Ignore the error, it's not important.
+	if err := store.Get(svc.ID(), &sessions); err != nil {
+		log.Warn(err)
+	}
+
+	return Service{
+		ID:       svc.ID(),
+		Sessions: sessions,
+	}
+}
+
+// Add adds a session into the sessions list.
+func (svc *Service) Add(ses cchat.Session, name string) {
+	s := ConvertSession(ses, name)
+	if s == nil {
+		return
+	}
+
+	svc.Sessions = append(svc.Sessions, *s)
+}
+
+// Save saves the sessions into the keyring.
+func (svc Service) Save() {
+	if err := store.Set(svc.ID, svc.Sessions); err != nil {
+		log.Warn(errors.Wrap(err, "Error saving session"))
+	}
 }

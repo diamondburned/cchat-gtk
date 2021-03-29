@@ -3,8 +3,6 @@ package service
 import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/singlestack"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/gotk3/gotk3/gtk"
@@ -36,10 +34,6 @@ type View struct {
 
 	Services   *List
 	ServerView *gtk.ScrolledWindow
-
-	ServerStack *singlestack.Stack
-
-	// Servers *session.Servers // nil by default; use .Servers
 }
 
 func NewView(ctrller Controller) *View {
@@ -52,18 +46,10 @@ func NewView(ctrller Controller) *View {
 	view.Header.AppMenuBindSize(view.Services)
 	view.Header.Show()
 
-	// Make a stack for the middle panel.
-	view.ServerStack = singlestack.NewStack()
-	view.ServerStack.SetSizeRequest(150, -1) // min width
-	view.ServerStack.SetTransitionDuration(50)
-	view.ServerStack.SetTransitionType(gtk.STACK_TRANSITION_TYPE_CROSSFADE)
-	view.ServerStack.SetHomogeneous(true)
-	view.ServerStack.Show()
-	primitives.AddClass(view.ServerStack, "server-stack")
-
 	view.ServerView, _ = gtk.ScrolledWindowNew(nil, nil)
 	view.ServerView.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
-	view.ServerView.Add(view.ServerStack)
+	view.ServerView.SetHExpand(true)
+	view.ServerView.SetVExpand(true)
 	view.ServerView.Show()
 
 	view.BottomPane, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
@@ -95,14 +81,8 @@ func (v *View) SessionSelected(svc *Service, srow *session.Row) {
 		}
 	}
 
-	// !!!: SHITTY HACK!!!
-	// We can do this, as we're keeping all the server lists in memory by Go's
-	// reference anyway. In fact, cchat REQUIRES us to do so.
-	if srow.Session != nil {
-		v.ServerStack.SetVisibleChild(srow.Servers)
-	} else {
-		v.ServerStack.SetVisibleChild(spinner.NewVisible())
-	}
+	primitives.RemoveChildren(v.ServerView)
+	v.ServerView.Add(srow.Servers)
 
 	v.Header.SetSessionMenu(srow)
 	v.Header.SetBreadcrumber(srow)

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"html"
 
+	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/gotk3/gotk3/gtk"
@@ -16,33 +16,51 @@ var EmptyContentPlaceholder = fmt.Sprintf(
 	`<span alpha="25%%">%s</span>`, html.EscapeString("<empty>"),
 )
 
-type PresendContainer interface {
-	SetDone(id string)
+// Presender describes actions doable on a presend message container.
+type Presender interface {
+	SendingMessage() PresendMessage
+	SetDone(id cchat.ID)
 	SetLoading()
 	SetSentError(err error)
 }
 
-// PresendGenericContainer is the generic container with extra methods
-// implemented for stateful mutability of the generic message container.
-type GenericPresendContainer struct {
-	*GenericContainer
+// PresendMessage is an interface for any message about to be sent.
+type PresendMessage interface {
+	cchat.MessageHeader
+	cchat.SendableMessage
+	cchat.Noncer
+
+	// These methods are reserved for internal use.
+
+	Files() []attachment.File
+}
+
+// PresendState is the generic state with extra methods implemented for stateful
+// mutability of the generic message state.
+type PresendState struct {
+	*State
 
 	// states; to be cleared on SetDone()
-	presend input.PresendMessage
+	presend PresendMessage
 	uploads *attachment.MessageUploader
 }
 
-var _ PresendContainer = (*GenericPresendContainer)(nil)
+var (
+	_ Presender = (*PresendState)(nil)
+)
 
-func NewPresendContainer(msg input.PresendMessage) *GenericPresendContainer {
-	c := NewEmptyContainer()
-	c.nonce = msg.Nonce()
-	c.UpdateAuthor(msg.Author())
-	c.UpdateTimestamp(msg.Time())
+type SendMessageData struct {
+}
 
-	p := &GenericPresendContainer{
-		GenericContainer: c,
+// NewPresendState creates a new presend state.
+func NewPresendState(self *Author, msg PresendMessage) *PresendState {
+	c := NewEmptyState()
+	c.Author = self
+	c.Nonce = msg.Nonce()
+	c.Time = msg.Time()
 
+	p := &PresendState{
+		State:   c,
 		presend: msg,
 		uploads: attachment.NewMessageUploader(msg.Files()),
 	}
@@ -51,14 +69,18 @@ func NewPresendContainer(msg input.PresendMessage) *GenericPresendContainer {
 	return p
 }
 
-func (m *GenericPresendContainer) SetSensitive(sensitive bool) {
+func (m *PresendState) SendingMessage() PresendMessage { return m.presend }
+
+// SetSensitive sets the sensitivity of the content.
+func (m *PresendState) SetSensitive(sensitive bool) {
 	m.Content.SetSensitive(sensitive)
 }
 
-func (m *GenericPresendContainer) SetDone(id string) {
+// SetDone sets the status of the state.
+func (m *PresendState) SetDone(id cchat.ID) {
 	// Apply the received ID.
-	m.id = id
-	m.nonce = ""
+	m.ID = id
+	m.Nonce = ""
 
 	// Reset the state to be normal. Especially setting presend to nil should
 	// free it from memory.
@@ -76,7 +98,8 @@ func (m *GenericPresendContainer) SetDone(id string) {
 	m.SetSensitive(true)
 }
 
-func (m *GenericPresendContainer) SetLoading() {
+// SetLoading greys the message to indicate that it's loading.
+func (m *PresendState) SetLoading() {
 	m.SetSensitive(false)
 	m.Content.SetTooltipText("")
 
@@ -100,7 +123,8 @@ func (m *GenericPresendContainer) SetLoading() {
 	}
 }
 
-func (m *GenericPresendContainer) SetSentError(err error) {
+// SetSentError sets the error into the message to notify the user.
+func (m *PresendState) SetSentError(err error) {
 	m.SetSensitive(true) // allow events incl right clicks
 	m.Content.SetTooltipText(err.Error())
 
@@ -132,6 +156,6 @@ func (m *GenericPresendContainer) SetSentError(err error) {
 }
 
 // clearBox clears everything inside the content container.
-func (m *GenericPresendContainer) clearBox() {
+func (m *PresendState) clearBox() {
 	primitives.RemoveChildren(m.Content)
 }

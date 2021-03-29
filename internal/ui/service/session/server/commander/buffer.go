@@ -5,19 +5,20 @@ import (
 	"fmt"
 
 	"github.com/diamondburned/cchat"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/gotk3/gotk3/gtk"
 )
 
 // Buffer represents an unbuffered API around the text buffer.
 type Buffer struct {
 	*gtk.TextBuffer
-	name  string
+	name  rich.LabelStateStorer
 	cmder cchat.Commander
 }
 
 // NewBuffer creates a new buffer with the given SessionCommander, or returns
 // nil if cmder is nil.
-func NewBuffer(name string, cmder cchat.Commander) *Buffer {
+func NewBuffer(name rich.LabelStateStorer, cmder cchat.Commander) *Buffer {
 	if cmder == nil {
 		return nil
 	}

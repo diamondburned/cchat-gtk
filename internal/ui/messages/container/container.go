@@ -2,11 +2,8 @@ package container
 
 import (
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -17,45 +14,43 @@ const BacklogLimit = 50
 
 type MessageRow interface {
 	message.Container
-	// Attach should only be called once.
-	Row() *gtk.ListBoxRow
-	// AttachMenu should override the stored constructor.
-	AttachMenu(items []menu.Item) // save memory
-	// MenuItems returns the list of attached menu items.
-	MenuItems() []menu.Item
-	// SetReferenceHighlighter sets the reference highlighter into the message.
-	SetReferenceHighlighter(refer labeluri.ReferenceHighlighter)
+	GrabFocus()
 }
 
 type PresendMessageRow interface {
 	MessageRow
-	message.PresendContainer
+	message.Presender
 }
 
 // Container is a generic messages container for children messages for children
 // packages.
 type Container interface {
 	gtk.IWidget
+	cchat.MessagesContainer
 
 	// Reset resets the message container to its original state.
 	Reset()
 
-	// CreateMessageUnsafe creates a new message and returns the index that is
-	// the location the message is added to.
-	CreateMessageUnsafe(cchat.MessageCreate) MessageRow
-	UpdateMessageUnsafe(cchat.MessageUpdate)
-	DeleteMessageUnsafe(cchat.MessageDelete)
+	// SetSelf sets the author for the current user.
+	SetSelf(self *message.Author)
+
+	// NewPresendMessage creates and adds a presend message state into the list.
+	NewPresendMessage(state *message.PresendState) PresendMessageRow
+
+	// AddMessage adds a new message into the list.
+	AddMessage(row MessageRow)
 
 	// FirstMessage returns the first message in the buffer. Nil is returned if
 	// there's nothing.
 	FirstMessage() MessageRow
-	// AddPresendMessage adds and displays an unsent message.
-	AddPresendMessage(msg input.PresendMessage) PresendMessageRow
-	// LatestMessageFrom returns the last message ID with that author.
-	LatestMessageFrom(authorID string) (msgID string, ok bool)
-	// Message finds and returns the message, if any.
+	// LastMessage returns the last message in the buffer or nil if there's
+	// nothing.
+	LastMessage() MessageRow
+	// Message finds and returns the message, if any. It performs maximum 2
+	// constant-time lookups.
 	Message(id cchat.ID, nonce string) MessageRow
-	// FindMessage finds a message that satisfies the given callback.
+	// FindMessage finds a message that satisfies the given callback. It
+	// iterates the message buffer from latest to earliest.
 	FindMessage(isMessage func(MessageRow) bool) MessageRow
 
 	// Highlight temporarily highlights the given message for a short while.
@@ -65,6 +60,21 @@ type Container interface {
 
 	SetFocusHAdjustment(*gtk.Adjustment)
 	SetFocusVAdjustment(*gtk.Adjustment)
+}
+
+// UpdateMessage is a convenient function to update a message in the container.
+// It does nothing if the message is not found.
+func UpdateMessage(ct Container, update cchat.MessageUpdate) {
+	if msg := ct.Message(update.ID(), ""); msg != nil {
+		msg.UpdateContent(update.Content(), true)
+	}
+}
+
+// LatestMessageFrom returns the latest message from the given author ID.
+func LatestMessageFrom(ct Container, authorID cchat.ID) MessageRow {
+	return ct.FindMessage(func(msg MessageRow) bool {
+		return msg.Unwrap(false).Author.ID == authorID
+	})
 }
 
 // Controller is for menu actions.
@@ -77,18 +87,11 @@ type Controller interface {
 	Bottomed() bool
 	// AuthorEvent is called on message create/update. This is used to update
 	// the typer state.
-	AuthorEvent(a cchat.Author)
+	AuthorEvent(authorID cchat.ID)
 	// SelectMessage is called when a message is selected.
 	SelectMessage(list *ListStore, msg MessageRow)
 	// UnselectMessage is called when the message selection is cleared.
 	UnselectMessage()
-}
-
-// Constructor is an interface for making custom message implementations which
-// allows ListContainer to generically work with.
-type Constructor struct {
-	NewMessage        func(msg cchat.MessageCreate, before MessageRow) MessageRow
-	NewPresendMessage func(msg input.PresendMessage, before MessageRow) PresendMessageRow
 }
 
 const ColumnSpacing = 8
@@ -106,7 +109,7 @@ type ListContainer struct {
 // messageRow w/ required internals
 type messageRow struct {
 	MessageRow
-	presend message.PresendContainer // this shouldn't be here but i'm lazy
+	presend message.Presender // this shouldn't be here but i'm lazy
 }
 
 // unwrapRow is a helper that unwraps a messageRow if it's not nil. If it's nil,
@@ -118,10 +121,8 @@ func unwrapRow(msg *messageRow) MessageRow {
 	return msg.MessageRow
 }
 
-var _ Container = (*ListContainer)(nil)
-
-func NewListContainer(ctrl Controller, constr Constructor) *ListContainer {
-	listStore := NewListStore(ctrl, constr)
+func NewListContainer(ctrl Controller) *ListContainer {
+	listStore := NewListStore(ctrl)
 	listStore.ListBox.Show()
 
 	clamp := handy.ClampNew()
@@ -139,12 +140,10 @@ func NewListContainer(ctrl Controller, constr Constructor) *ListContainer {
 	}
 }
 
-// TODO: remove useless abstraction (this file).
-
-// // CreateMessageUnsafe inserts a message. It does not clean up old messages.
-// func (c *ListContainer) CreateMessageUnsafe(msg cchat.MessageCreate) MessageRow {
-// 	return c.ListStore.CreateMessageUnsafe(msg)
-// }
+func (c *ListContainer) AddMessage(row MessageRow) {
+	c.ListStore.AddMessage(row)
+	c.CleanMessages()
+}
 
 // CleanMessages cleans up the oldest messages if the user is scrolled to the
 // bottom. True is returned if there were changes.

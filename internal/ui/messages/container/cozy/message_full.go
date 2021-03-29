@@ -4,18 +4,13 @@ import (
 	"time"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts/httputil"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/labeluri"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat/text"
-	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -23,22 +18,20 @@ import (
 const TopFullMargin = 4
 
 type FullMessage struct {
-	*message.GenericContainer
+	*message.State
 
 	// Grid widgets.
 	Avatar  *Avatar
 	MainBox *gtk.Box // wraps header and content
 
-	Header    *labeluri.Label
-	timestamp string // markup
-}
+	HeaderLabel *labeluri.Label
+	timestamp   string // markup
 
-type AvatarPixbufCopier interface {
-	CopyAvatarPixbuf(img httputil.SurfaceContainer) bool
+	// unwrap is used to removing label handlers.
+	unwrap func()
 }
 
 var (
-	_ AvatarPixbufCopier   = (*FullMessage)(nil)
 	_ message.Container    = (*FullMessage)(nil)
 	_ container.MessageRow = (*FullMessage)(nil)
 )
@@ -51,22 +44,16 @@ var avatarCSS = primitives.PrepareClassCSS("cozy-avatar", `
 `)
 
 func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
-	msgc := WrapFullMessage(message.NewContainer(msg))
-	// Don't update the avatar. NewMessage in controller will try and reuse the
-	// pixbuf if possible.
-	msgc.UpdateAuthorName(msg.Author().Name())
-	msgc.UpdateTimestamp(msg.Time())
-	msgc.UpdateContent(msg.Content(), false)
-	return msgc
+	return WrapFullMessage(message.NewState(msg))
 }
 
-func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
+func WrapFullMessage(gc *message.State) *FullMessage {
 	header := labeluri.NewLabel(text.Rich{})
 	header.SetHAlign(gtk.ALIGN_START) // left-align
 	header.SetMaxWidthChars(100)
 	header.Show()
 
-	avatar := NewAvatar()
+	avatar := NewAvatar(gc.Row)
 	avatar.SetMarginTop(TopFullMargin / 2)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
 	avatar.Connect("clicked", func(w gtk.IWidget) {
@@ -97,87 +84,61 @@ func WrapFullMessage(gc *message.GenericContainer) *FullMessage {
 	gc.PackStart(main, true, true, 0)
 	gc.SetClass("cozy-full")
 
-	return &FullMessage{
-		GenericContainer: gc,
+	msg := &FullMessage{
+		State:     gc,
+		timestamp: formatLongTime(gc.Time),
 
-		Avatar:  avatar,
-		MainBox: main,
-		Header:  header,
+		Avatar:      avatar,
+		MainBox:     main,
+		HeaderLabel: header,
+
+		unwrap: gc.Author.Name.OnUpdate(func() {
+			avatar.SetImage(gc.Author.Name.Image())
+			header.SetLabel(gc.Author.Name.Label())
+		}),
 	}
+
+	header.SetRenderer(func(rich text.Rich) markup.RenderOutput {
+		cfg := markup.RenderConfig{}
+		cfg.NoReferencing = true
+		cfg.SetForegroundAnchor(gc.ContentBodyStyle)
+
+		output := markup.RenderCmplxWithConfig(rich, cfg)
+		output.Markup = `<span font_weight="600">` + output.Markup + "</span>"
+		output.Markup += msg.timestamp
+
+		return output
+	})
+
+	return msg
 }
 
 func (m *FullMessage) Collapsed() bool { return false }
 
-func (m *FullMessage) Unwrap() *message.GenericContainer {
-	// Remove GenericContainer's widgets from the containers.
-	m.Header.Destroy()
-	m.MainBox.Remove(m.Content) // not ours, so don't destroy.
+func (m *FullMessage) Unwrap(revert bool) *message.State {
+	if revert {
+		// Remove the handlers.
+		m.unwrap()
 
-	// Remove the message from the grid.
-	m.Avatar.Destroy()
-	m.MainBox.Destroy()
+		// Remove State's widgets from the containers.
+		m.HeaderLabel.Destroy()
+		m.MainBox.Remove(m.Content) // not ours, so don't destroy.
 
-	// Return after removing.
-	return m.GenericContainer
-}
-
-func (m *FullMessage) UpdateTimestamp(t time.Time) {
-	m.GenericContainer.UpdateTimestamp(t)
-
-	m.timestamp = "  " +
-		`<span alpha="70%" size="small">` + humanize.TimeAgoLong(t) + `</span>`
-
-	// Update the timestamp.
-	m.Header.SetMarkup(m.Header.Output().Markup + m.timestamp)
-}
-
-func (m *FullMessage) UpdateAuthor(author cchat.Author) {
-	// Call the parent's method to update the state.
-	m.GenericContainer.UpdateAuthor(author)
-	m.UpdateAuthorName(author.Name())
-	m.Avatar.SetURL(author.Avatar())
-}
-
-func (m *FullMessage) UpdateAuthorName(name text.Rich) {
-	cfg := markup.RenderConfig{}
-	cfg.NoReferencing = true
-	cfg.SetForegroundAnchor(m.ContentBodyStyle)
-
-	output := markup.RenderCmplxWithConfig(name, cfg)
-	output.Markup = `<span font_weight="600">` + output.Markup + "</span>"
-
-	m.Header.SetMarkup(output.Markup + m.timestamp)
-	m.Header.SetUnderlyingOutput(output)
-}
-
-// CopyAvatarPixbuf sets the pixbuf into the given container. This shares the
-// same pixbuf, but gtk.Image should take its own reference from the pixbuf.
-func (m *FullMessage) CopyAvatarPixbuf(dst httputil.SurfaceContainer) bool {
-	switch img := m.Avatar.Image.GetImage(); img.GetStorageType() {
-	case gtk.IMAGE_PIXBUF:
-		dst.SetFromPixbuf(img.GetPixbuf())
-	case gtk.IMAGE_ANIMATION:
-		dst.SetFromAnimation(img.GetAnimation())
-	case gtk.IMAGE_SURFACE:
-		v, _ := img.GetProperty("surface")
-		dst.SetFromSurface(v.(*cairo.Surface))
-	default:
-		return false
+		// Remove the message from the grid.
+		m.Avatar.Destroy()
+		m.MainBox.Destroy()
 	}
-	return true
+
+	return m.State
 }
 
-func (m *FullMessage) AttachMenu(items []menu.Item) {
-	// Bind to parent's container as well.
-	m.GenericContainer.AttachMenu(items)
-
-	// Bind to the box.
-	// TODO lol
+func formatLongTime(t time.Time) string {
+	return `<span alpha="70%" size="small">` + humanize.TimeAgoLong(t) + `</span>`
 }
 
 type FullSendingMessage struct {
-	message.PresendContainer
-	FullMessage
+	*FullMessage
+	message.Presender
 }
 
 var (
@@ -185,51 +146,9 @@ var (
 	_ container.MessageRow = (*FullSendingMessage)(nil)
 )
 
-func NewFullSendingMessage(msg input.PresendMessage) *FullSendingMessage {
-	var msgc = message.NewPresendContainer(msg)
-
+func WrapFullSendingMessage(pstate *message.PresendState) *FullSendingMessage {
 	return &FullSendingMessage{
-		PresendContainer: msgc,
-		FullMessage:      *WrapFullMessage(msgc.GenericContainer),
+		FullMessage: WrapFullMessage(pstate.State),
+		Presender:   pstate,
 	}
-}
-
-type Avatar struct {
-	roundimage.Button
-	Image *roundimage.StaticImage
-	url   string
-}
-
-func NewAvatar() *Avatar {
-	img, _ := roundimage.NewStaticImage(nil, 0)
-	img.SetSizeRequest(AvatarSize, AvatarSize)
-	img.Show()
-
-	avatar, _ := roundimage.NewCustomButton(img)
-	avatar.SetVAlign(gtk.ALIGN_START)
-
-	// Default icon.
-	primitives.SetImageIcon(img, "user-available-symbolic", AvatarSize)
-
-	return &Avatar{*avatar, img, ""}
-}
-
-// SetURL updates the Avatar to be that URL. It does nothing if URL is empty or
-// matches the existing one.
-func (a *Avatar) SetURL(url string) {
-	// Check if the URL is the same. This will save us quite a few requests, as
-	// some methods rely on the side-effects of other methods, and they may call
-	// UpdateAuthor multiple times.
-	if a.url == url || url == "" {
-		return
-	}
-
-	a.url = url
-	a.Image.SetImageURL(url)
-}
-
-// ManuallySetURL sets the URL without downloading the image. It assumes the
-// pixbuf is borrowed elsewhere.
-func (a *Avatar) ManuallySetURL(url string) {
-	a.url = url
 }

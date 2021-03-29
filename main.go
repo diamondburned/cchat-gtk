@@ -10,11 +10,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat/services"
 
-	// _ "github.com/diamondburned/gotk3-tcmalloc"
-	// "github.com/diamondburned/gotk3-tcmalloc/heapprofiler"
-
 	_ "github.com/diamondburned/cchat-discord"
-	_ "github.com/diamondburned/cchat-mock"
 )
 
 func init() {

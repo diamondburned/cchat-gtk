@@ -1,7 +1,6 @@
 package primitives
 
 import (
-	"context"
 	"runtime/debug"
 
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -179,27 +178,13 @@ func NewImageIconPx(icon string, sizepx int) *gtk.Image {
 }
 
 type ImageIconSetter interface {
-	SetProperty(name string, value interface{}) error
-	GetSizeRequest() (w, h int)
-	SetSizeRequest(w, h int)
+	SetFromIconName(string, gtk.IconSize)
+	SetPixelSize(int)
 }
 
 func SetImageIcon(img ImageIconSetter, icon string, sizepx int) {
-	// Prioritize SetSize()
-	if setter, ok := img.(interface{ SetSize(int) }); ok {
-		setter.SetSize(sizepx)
-	} else {
-		img.SetProperty("pixel-size", sizepx)
-	}
-
-	// Prioritize SetIconName().
-	if setter, ok := img.(interface{ SetIconName(string) }); ok {
-		setter.SetIconName(icon)
-	} else {
-		img.SetProperty("icon-name", icon)
-	}
-
-	img.SetSizeRequest(sizepx, sizepx)
+	img.SetFromIconName(icon, gtk.ICON_SIZE_BUTTON)
+	img.SetPixelSize(sizepx)
 }
 
 func PrependMenuItems(menu interface{ Prepend(gtk.IMenuItem) }, items []gtk.IMenuItem) {
@@ -239,12 +224,6 @@ type Connector interface {
 }
 
 var _ Connector = (*glib.Object)(nil)
-
-func HandleDestroyCtx(ctx context.Context, connector Connector) context.Context {
-	ctx, cancel := context.WithCancel(ctx)
-	connector.Connect("destroy", func(interface{}) { cancel() })
-	return ctx
-}
 
 func OnRightClick(connector Connector, fn func()) {
 	connector.Connect("button-press-event", func(c Connector, ev *gdk.Event) {

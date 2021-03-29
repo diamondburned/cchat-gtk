@@ -6,11 +6,14 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/username"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/completion"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/scrollinput"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
@@ -19,10 +22,12 @@ import (
 
 // Controller is an interface to control message containers.
 type Controller interface {
-	AddPresendMessage(msg PresendMessage) (onErr func(error))
-	LatestMessageFrom(userID cchat.ID) (messageID cchat.ID, ok bool)
-	MessageAuthor(msgID cchat.ID) cchat.Author
-	Author(authorID cchat.ID) cchat.Author
+	LatestMessageFrom(userID cchat.ID) container.MessageRow
+	MessageAuthor(msgID cchat.ID) *message.Author
+	Author(authorID cchat.ID) (name rich.LabelStateStorer)
+
+	// SendMessage asynchronously sends the given message.
+	SendMessage(msg message.PresendMessage)
 }
 
 // LabelBorrower is an interface that allows the caller to borrow a label.
@@ -333,13 +338,13 @@ func (f *Field) StartReplyingTo(msgID cchat.ID) {
 	f.sendIcon.SetFromIconName(replyButtonIcon, gtk.ICON_SIZE_BUTTON)
 
 	if author := f.ctrl.MessageAuthor(msgID); author != nil {
+		label := author.Name.Label()
+
 		// Extract the name from the author's rich text and only render the area
 		// with the MessageReference.
-		name := author.Name()
-
-		for _, seg := range name.Segments {
+		for _, seg := range label.Segments {
 			if seg.AsMessageReferencer() != nil || seg.AsMentioner() != nil {
-				mention := markup.Render(markup.SubstringSegment(name, seg))
+				mention := markup.Render(markup.SubstringSegment(label, seg))
 				f.indicator.BorrowLabel("Replying to " + mention)
 				return
 			}

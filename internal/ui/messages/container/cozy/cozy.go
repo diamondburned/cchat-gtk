@@ -6,22 +6,8 @@ import (
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/container"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
-)
-
-// Unwrapper provides an interface for messages to be unwrapped. This is used to
-// convert between collapsed and full messages.
-type Unwrapper interface {
-	Unwrap() *message.GenericContainer
-}
-
-var (
-	_ Unwrapper = (*CollapsedMessage)(nil)
-	_ Unwrapper = (*CollapsedSendingMessage)(nil)
-	_ Unwrapper = (*FullMessage)(nil)
-	_ Unwrapper = (*FullSendingMessage)(nil)
 )
 
 // Collapsible is an interface for cozy messages to return whether or not
@@ -43,29 +29,26 @@ const (
 	AvatarMargin = 10
 )
 
-var messageConstructors = container.Constructor{
-	NewMessage:        NewMessage,
-	NewPresendMessage: NewPresendMessage,
-}
-
+// NewMessage creates a new message.
 func NewMessage(
-	msg cchat.MessageCreate, before container.MessageRow) container.MessageRow {
+	s *message.State, before container.MessageRow) container.MessageRow {
 
-	if isCollapsible(before, msg) {
-		return NewCollapsedMessage(msg)
+	if isCollapsible(before, s) {
+		return WrapCollapsedMessage(s)
 	}
 
-	return NewFullMessage(msg)
+	return WrapFullMessage(s)
 }
 
+// NewPresendMessage creates a new presend message.
 func NewPresendMessage(
-	msg input.PresendMessage, before container.MessageRow) container.PresendMessageRow {
+	s *message.PresendState, before container.MessageRow) container.PresendMessageRow {
 
-	if isCollapsible(before, msg) {
-		return NewCollapsedSendingMessage(msg)
+	if isCollapsible(before, s.State) {
+		return WrapCollapsedSendingMessage(s)
 	}
 
-	return NewFullSendingMessage(msg)
+	return WrapFullSendingMessage(s)
 }
 
 type Container struct {
@@ -73,7 +56,7 @@ type Container struct {
 }
 
 func NewContainer(ctrl container.Controller) *Container {
-	c := container.NewListContainer(ctrl, messageConstructors)
+	c := container.NewListContainer(ctrl)
 	primitives.AddClass(c, "cozy-container")
 	return &Container{ListContainer: c}
 }
@@ -81,105 +64,72 @@ func NewContainer(ctrl container.Controller) *Container {
 func (c *Container) findAuthorID(authorID string) container.MessageRow {
 	// Search the old author if we have any.
 	return c.ListStore.FindMessage(func(msgc container.MessageRow) bool {
-		return msgc.Author().ID() == authorID
+		return msgc.Unwrap(false).Author.ID == authorID
 	})
 }
-
-// reuseAvatar tries to search past messages with the same author ID and URL for
-// the image. It will fetch anew if there's none.
-func (c *Container) reuseAvatar(authorID, avatarURL string, full *FullMessage) {
-	// Is this a message that we can work with? We have to assert to
-	// FullSendingMessage because that's where our messages are.
-	var lastAuthorMsg = c.findAuthorID(authorID)
-
-	// Borrow the avatar pixbuf, but only if the avatar URL is the same.
-	p, ok := lastAuthorMsg.(AvatarPixbufCopier)
-	if ok && lastAuthorMsg.Author().Avatar() == avatarURL {
-		if p.CopyAvatarPixbuf(full.Avatar.Image) {
-			full.Avatar.ManuallySetURL(avatarURL)
-			return
-		}
-	}
-
-	// We can't borrow, so we need to fetch it anew.
-	full.Avatar.SetURL(avatarURL)
-}
-
-// lastMessageIsAuthor removed - assuming index before insertion is harmful.
-
-type authoredMessage interface {
-	cchat.MessageHeader
-	Author() cchat.Author
-}
-
-var (
-	_ authoredMessage = (cchat.MessageCreate)(nil)
-	_ authoredMessage = (input.PresendMessage)(nil)
-	_ authoredMessage = (container.MessageRow)(nil)
-	_ authoredMessage = (container.PresendMessageRow)(nil)
-)
 
 const splitDuration = 10 * time.Minute
 
 // isCollapsible returns true if the given lastMsg has matching conditions with
 // the given msg.
-func isCollapsible(lastMsg container.MessageRow, msg authoredMessage) bool {
-	if lastMsg == nil || msg == nil {
+func isCollapsible(last container.MessageRow, msg *message.State) bool {
+	if last == nil || msg.ID == "" {
 		return false
 	}
 
-	lastAuthor := lastMsg.Author()
-	thisAuthor := msg.Author()
+	lastMsg := last.Unwrap(false)
 
 	return true &&
-		lastAuthor.ID() == thisAuthor.ID() &&
-		lastAuthor.Name().String() == thisAuthor.Name().String() &&
-		lastMsg.Time().Add(splitDuration).After(msg.Time())
+		lastMsg.Author.ID == msg.ID &&
+		lastMsg.Time.Add(splitDuration).After(msg.Time)
+}
+
+func (c *Container) NewPresendMessage(state *message.PresendState) container.PresendMessageRow {
+	msgr := NewPresendMessage(state, c.LastMessage())
+	c.AddMessage(msgr)
+	return msgr
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
-		// Create the message in the parent's handler. This handler will also
-		// wipe old messages.
-		row := c.ListContainer.CreateMessageUnsafe(msg)
+		state := message.NewState(msg)
+		msgr := NewMessage(state, c.LastMessage())
 
-		// Is this a full message? If so, then we should fetch the avatar when
-		// we can.
-		if full, ok := row.(*FullMessage); ok {
-			author := msg.Author()
-			avatarURL := author.Avatar()
-
-			// Try and reuse an existing avatar if the author has one.
-			if avatarURL != "" {
-				// Try reusing the avatar, but fetch it from the internet if we can't
-				// reuse. The reuse function does this for us.
-				c.reuseAvatar(author.ID(), avatarURL, full)
-			}
-		}
-
-		// Did the handler wipe old messages? It will only do so if the user is
-		// scrolled to the bottom.
-		if c.ListContainer.CleanMessages() {
-			// We need to uncollapse the first (top) message. No length check is
-			// needed here, as we just inserted a message.
-			c.uncompact(c.FirstMessage())
-		}
-
-		// If we've prepended the message, then see if we need to collapse the
-		// second message.
-		if first := c.ListContainer.FirstMessage(); first != nil && first.ID() == msg.ID() {
-			// If the author is the same, then collapse.
-			if sec := c.NthMessage(1); sec != nil && isCollapsible(sec, msg) {
-				c.compact(sec)
-			}
-		}
+		c.AddMessage(msgr)
 	})
 }
 
+// AddMessage adds the given message.
+func (c *Container) AddMessage(msgr container.MessageRow) {
+	// Create the message in the parent's handler. This handler will also
+	// wipe old messages.
+	c.ListContainer.AddMessage(msgr)
+
+	// Did the handler wipe old messages? It will only do so if the user is
+	// scrolled to the bottom.
+	if c.ListContainer.CleanMessages() {
+		// We need to uncollapse the first (top) message. No length check is
+		// needed here, as we just inserted a message.
+		c.uncompact(c.FirstMessage())
+	}
+
+	// If we've prepended the message, then see if we need to collapse the
+	// second message.
+	if first := c.ListContainer.FirstMessage(); first != nil {
+		firstState := first.Unwrap(false)
+		msgState := msgr.Unwrap(false)
+
+		if firstState.ID == msgState.ID {
+			// If the author is the same, then collapse.
+			if sec := c.NthMessage(1); isCollapsible(sec, firstState) {
+				c.compact(sec)
+			}
+		}
+	}
+}
+
 func (c *Container) UpdateMessage(msg cchat.MessageUpdate) {
-	gts.ExecAsync(func() {
-		c.UpdateMessageUnsafe(msg)
-	})
+	gts.ExecAsync(func() { container.UpdateMessage(c, msg) })
 }
 
 func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
@@ -202,10 +152,13 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 			return
 		}
 
-		msgAuthorID := msg.Author().ID()
+		msgHeader := msg.Unwrap(false)
+
+		prevHeader := prev.Unwrap(false)
+		nextHeader := next.Unwrap(false)
 
 		// Check if the last message is the author's (relative to i):
-		if prev.Author().ID() == msgAuthorID {
+		if prevHeader.Author.ID == msgHeader.Author.ID {
 			// If the author is the same, then we don't need to uncollapse the
 			// message.
 			return
@@ -213,7 +166,7 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 
 		// If the next message (relative to i) is not the deleted message's
 		// author, then we don't need to uncollapse it.
-		if next.Author().ID() != msgAuthorID {
+		if nextHeader.Author.ID != msgHeader.Author.ID {
 			return
 		}
 
@@ -223,33 +176,11 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 }
 
 func (c *Container) uncompact(msg container.MessageRow) {
-	// We should only uncompact the message if it's compacted in the first
-	// place.
-	compact, ok := msg.(*CollapsedMessage)
-	if !ok {
-		return
-	}
-
-	// Start the "lengthy" uncollapse process.
-	full := WrapFullMessage(compact.Unwrap())
-	// Update the container to reformat everything including the timestamps.
-	message.RefreshContainer(full, full.GenericContainer)
-	// Update the avatar if needed be, since we're now showing it.
-	author := msg.Author()
-	c.reuseAvatar(author.ID(), author.Avatar(), full)
-
-	// Swap the old next message out for a new one.
+	full := WrapFullMessage(msg.Unwrap(true))
 	c.ListStore.SwapMessage(full)
 }
 
 func (c *Container) compact(msg container.MessageRow) {
-	full, ok := msg.(*FullMessage)
-	if !ok {
-		return
-	}
-
-	compact := WrapCollapsedMessage(full.Unwrap())
-	message.RefreshContainer(compact, compact.GenericContainer)
-
+	compact := WrapCollapsedMessage(msg.Unwrap(true))
 	c.ListStore.SwapMessage(compact)
 }

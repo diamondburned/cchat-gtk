@@ -272,8 +272,8 @@ var deleteAttBtnCSS = primitives.PrepareCSS(`
 
 func (c *Container) addPreview(name string, thumbnail *cairo.Surface) {
 	// Make a fallback image first.
-	gimg, _ := roundimage.NewImage(4) // border-radius: 4px
-	primitives.SetImageIcon(gimg.Image, iconFromName(name), IconSize)
+	gimg := roundimage.NewImage(4) // border-radius: 4px
+	primitives.SetImageIcon(&gimg.Image, iconFromName(name), IconSize)
 	gimg.SetSizeRequest(ThumbSize, ThumbSize)
 	gimg.SetVAlign(gtk.ALIGN_CENTER)
 	gimg.SetHAlign(gtk.ALIGN_CENTER)

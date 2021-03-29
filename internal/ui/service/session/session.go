@@ -1,6 +1,8 @@
 package session
 
 import (
+	"context"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/keyring"
@@ -9,9 +11,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/spinner"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/commander"
@@ -55,9 +55,9 @@ type Controller interface {
 // Row represents a session row entry in the session List.
 type Row struct {
 	*gtk.ListBoxRow
-	avatar  *roundimage.Avatar
+	name    rich.NameContainer
 	iconBox *gtk.EventBox
-	icon    *rich.Icon // nillable
+	icon    *roundimage.StillImage // nillable
 
 	ctrl        Controller
 	parentcrumb traverse.Breadcrumber
@@ -79,6 +79,10 @@ type Row struct {
 
 var rowCSS = primitives.PrepareClassCSS("session-row",
 	button.UnreadColorDefs+`
+
+	.session-row {
+		padding: 6px;
+	}
 
 	.session-row:last-child {
 		border-radius: 0 0 14px 14px;
@@ -117,32 +121,21 @@ var rowCSS = primitives.PrepareClassCSS("session-row",
 	}
 `)
 
-var rowIconCSS = primitives.PrepareClassCSS("session-icon", `
-	.session-icon {
-		padding: 4px;
-		margin:  0;
-	}
-`)
+var rowIconCSS = primitives.PrepareClassCSS("session-icon", ``)
 
-const IconSize = 48
-const IconName = "face-plain-symbolic"
-
-func newIcon(img rich.RoundIconContainer) *rich.Icon {
-	icon := rich.NewCustomIcon(img, IconSize)
-	icon.SetPlaceholderIcon(IconName, IconSize)
-	icon.ShowAll()
-	rowIconCSS(icon)
-	return icon
-}
+const (
+	IconSize = 42
+	IconName = "face-plain-symbolic"
+)
 
 func New(parent traverse.Breadcrumber, ses cchat.Session, ctrl Controller) *Row {
-	row := newRow(parent, text.Rich{}, ctrl)
+	row := newRow(parent, text.Plain(""), ctrl)
 	row.SetSession(ses)
 	return row
 }
 
 func NewLoading(parent traverse.Breadcrumber, id, name string, ctrl Controller) *Row {
-	row := newRow(parent, text.Rich{Content: name}, ctrl)
+	row := newRow(parent, text.Plain(name), ctrl)
 	row.sessionID = id
 	row.SetLoading()
 	return row
@@ -154,16 +147,31 @@ func newRow(parent traverse.Breadcrumber, name text.Rich, ctrl Controller) *Row 
 		parentcrumb: parent,
 	}
 
-	row.avatar = roundimage.NewAvatar(IconSize)
-	row.avatar.SetText(name.Content)
-	row.avatar.Show()
+	if !name.IsEmpty() {
+		row.name.LabelState = *rich.NewLabelState(name)
+	}
 
 	row.iconBox, _ = gtk.EventBoxNew()
 	row.iconBox.Show()
 
+	row.icon = roundimage.NewStillImage(row.iconBox, 0)
+	row.icon.SetSizeRequest(IconSize, IconSize)
+	row.icon.SetPlaceholderIcon(IconName, IconSize/2)
+	row.icon.Show()
+	rowIconCSS(row.icon)
+
+	row.iconBox.Add(row.icon)
+	rich.BindRoundImage(row.icon, &row.name, true)
+
 	row.ListBoxRow, _ = gtk.ListBoxRowNew()
+	row.ListBoxRow.Add(row.iconBox)
 	row.ListBoxRow.Show()
 	rowCSS(row.ListBoxRow)
+
+	row.name.OnUpdate(func() {
+		// TODO: proper popovers instead of tooltips.
+		row.ListBoxRow.SetTooltipText(row.name.String())
+	})
 
 	// TODO: commander button
 
@@ -216,6 +224,11 @@ func NewAddButton() *gtk.ListBoxRow {
 	return row
 }
 
+// Name returns the session row's name container.
+func (r *Row) Name() rich.LabelStateStorer {
+	return &r.name
+}
+
 // Reset extends the server row's Reset function and resets additional states.
 // It resets all states back to nil, but the session ID stays.
 func (r *Row) Reset() {
@@ -223,14 +236,10 @@ func (r *Row) Reset() {
 	r.ActionsMenu.Reset() // wipe menu items
 	r.ActionsMenu.AddAction("Remove", r.RemoveSession)
 
-	if r.icon == nil {
-		r.icon = newIcon(r.avatar)
-		r.iconBox.Add(r.icon)
-	}
-
 	// Set a lame placeholder icon.
 	r.icon.SetPlaceholderIcon("folder-remote-symbolic", IconSize)
 
+	r.name.Stop()
 	r.Session = nil
 	r.cmder = nil
 }
@@ -243,7 +252,8 @@ func (r *Row) Breadcrumb() string {
 	if r.Session == nil {
 		return ""
 	}
-	return r.Session.Name().Content
+
+	return r.name.String()
 }
 
 func (r *Row) ClearMessenger() {
@@ -273,25 +283,11 @@ func (r *Row) Activate() {
 func (r *Row) SetLoading() {
 	// Reset the state.
 	r.Session = nil
-
-	// Reset the icon.
-	primitives.RemoveChildren(r.iconBox)
-	r.icon = nil
-
-	// Remove everything from the row, including the icon.
-	primitives.RemoveChildren(r)
+	r.name.Stop()
 
 	// Remove the failed class.
 	primitives.RemoveClass(r, "failed")
 
-	// Add a loading circle.
-	spin := spinner.New()
-	spin.SetSizeRequest(IconSize, IconSize)
-	spin.Start()
-	spin.Show()
-	rowIconCSS(spin)
-
-	r.Add(spin)
 	r.SetSensitive(false) // no activate
 }
 
@@ -303,18 +299,8 @@ func (r *Row) SetFailed(err error) {
 	r.Session = nil
 	// Re-enable the row.
 	r.SetSensitive(true)
-	// Remove everything off the row.
-	primitives.RemoveChildren(r)
 	// Mark the row as failed.
 	primitives.AddClass(r, "failed")
-
-	if r.icon == nil {
-		r.icon = newIcon(r.avatar)
-		r.iconBox.Add(r.icon)
-	}
-
-	// Add the icon.
-	r.Add(r.iconBox)
 	// Set the button to a retry icon.
 	r.icon.SetPlaceholderIcon("view-refresh-symbolic", IconSize)
 }
@@ -338,25 +324,11 @@ func (r *Row) SetSession(ses cchat.Session) {
 	// Set the states.
 	r.Session = ses
 	r.sessionID = ses.ID()
-	r.SetTooltipMarkup(markup.Render(ses.Name()))
-	r.avatar.SetText(ses.Name().Content)
-
-	if r.icon == nil {
-		r.icon = newIcon(r.avatar)
-		r.iconBox.Add(r.icon)
-	}
-
 	r.icon.SetPlaceholderIcon(IconName, IconSize)
-
-	// If the session has an icon, then use it.
-	if iconer := ses.AsIconer(); iconer != nil {
-		r.icon.AsyncSetIconer(iconer, "failed to set session icon")
-	}
+	r.name.QueueNamer(context.Background(), ses)
 
 	// Update to indicate that we're done.
-	primitives.RemoveChildren(r)
 	r.SetSensitive(true)
-	r.Add(r.iconBox)
 
 	// Bind extra menu items before loading. These items won't be clickable
 	// during loading.
@@ -368,7 +340,7 @@ func (r *Row) SetSession(ses cchat.Session) {
 	// returns nil. As such, we assert with an ignored ok bool, allowing cmd to
 	// be nil.
 	if cmder := ses.AsCommander(); cmder != nil {
-		r.cmder = commander.NewBuffer(ses.Name().String(), cmder)
+		r.cmder = commander.NewBuffer(&r.name, cmder)
 		// Show the command button if the session actually supports the
 		// commander.
 		r.ActionsMenu.AddAction("Command Prompt", r.ShowCommander)

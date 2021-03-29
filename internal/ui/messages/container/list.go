@@ -1,15 +1,15 @@
 package container
 
 import (
-	"log"
 	"strings"
 	"time"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
-	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
+	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gtk"
 )
 
@@ -63,18 +63,19 @@ var messageListCSS = primitives.PrepareClassCSS("message-list", `
 	.message-list { background: transparent; }
 `)
 
-type ListStore struct {
-	ListBox *gtk.ListBox
+var fallbackAuthor = message.NewCustomAuthor("", text.Plain("self"))
 
-	Construct  Constructor
+type ListStore struct {
+	ListBox    *gtk.ListBox
 	Controller Controller
 
-	resetMe bool
+	self *message.Author
 
+	resetMe  bool
 	messages map[messageKey]*messageRow
 }
 
-func NewListStore(ctrl Controller, constr Constructor) *ListStore {
+func NewListStore(ctrl Controller) *ListStore {
 	listBox, _ := gtk.ListBoxNew()
 	listBox.SetSelectionMode(gtk.SELECTION_SINGLE)
 	listBox.Show()
@@ -82,9 +83,9 @@ func NewListStore(ctrl Controller, constr Constructor) *ListStore {
 
 	listStore := ListStore{
 		ListBox:    listBox,
-		Construct:  constr,
 		Controller: ctrl,
 		messages:   make(map[messageKey]*messageRow, BacklogLimit+1),
+		self:       &fallbackAuthor,
 	}
 
 	var selected bool
@@ -113,9 +114,29 @@ func NewListStore(ctrl Controller, constr Constructor) *ListStore {
 	return &listStore
 }
 
+// Reset resets the list store.
 func (c *ListStore) Reset() {
+	for _, msg := range c.messages {
+		destroyMsg(msg)
+	}
+
 	// Delegate removing children to the constructor.
 	c.messages = make(map[messageKey]*messageRow, BacklogLimit+1)
+
+	if c.self.ID != "" {
+		c.self.Name.Stop()
+	}
+}
+
+// SetSelf sets the current author to presend. If ID is empty or Namer is nil,
+// then the fallback author is used instead. The given author will be stopped
+// on reset.
+func (c *ListStore) SetSelf(self *message.Author) {
+	if self != nil {
+		c.self = self
+	} else {
+		c.self = &fallbackAuthor
+	}
 }
 
 func (c *ListStore) MessagesLen() int {
@@ -133,22 +154,27 @@ func (c *ListStore) SwapMessage(msg MessageRow) bool {
 		msg = m.MessageRow
 	}
 
+	msgState := msg.Unwrap(false)
+
 	// Get the current message's index.
-	oldMsg, ix := c.findIndex(msg.ID())
+	oldMsg, ix := c.findIndex(msgState.ID)
 	if ix == -1 {
 		return false
 	}
 
+	oldState := oldMsg.Unwrap(false)
+
 	// Remove the to-be-replaced message box. We should probably reuse the row.
-	c.ListBox.Remove(oldMsg.Row())
+	c.ListBox.Remove(oldState.Row)
 
 	// Add a row at index. The actual row we want to delete will be shifted
 	// downwards.
-	c.ListBox.Insert(msg.Row(), ix)
+	c.ListBox.Insert(msgState.Row, ix)
 
 	// Set the message into the map.
-	row := c.messages[idKey(msg.ID())]
+	row := c.messages[idKey(msgState.ID)]
 	row.MessageRow = msg
+	c.bindMessage(row)
 
 	return true
 }
@@ -168,8 +194,6 @@ func (c *ListStore) Around(id cchat.ID) (before, after MessageRow) {
 }
 
 func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
-	c.ensureEmpty()
-
 	var last *messageRow
 	var next bool
 
@@ -192,25 +216,8 @@ func (c *ListStore) around(aroundID cchat.ID) (before, after *messageRow) {
 	return
 }
 
-// LatestMessageFrom returns the latest message with the given user ID. This is
-// used for the input prompt.
-func (c *ListStore) LatestMessageFrom(userID string) (msgID string, ok bool) {
-	// FindMessage already looks from the latest messages.
-	var msg = c.FindMessage(func(msg MessageRow) bool {
-		return msg.Author().ID() == userID
-	})
-
-	if msg == nil {
-		return "", false
-	}
-
-	return msg.ID(), true
-}
-
 // findIndex searches backwards for id.
 func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
-	c.ensureEmpty()
-
 	// Faster implementation of findMessage: no map lookup is done until an ID
 	// match, so the worst case is a single string hash.
 	index = c.MessagesLen() - 1
@@ -235,8 +242,6 @@ func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
 }
 
 func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messageRow, int) {
-	c.ensureEmpty()
-
 	var r *messageRow
 	var i = c.MessagesLen() - 1
 
@@ -316,6 +321,9 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 	if nonce != "" {
 		// Things in this map are guaranteed to have presend != nil.
 		m, ok := c.messages[nonceKey(nonce)]
+
+		// This is honestly pretty dumb, but whatever.
+		// TODO: make message() getter not set.
 		if ok {
 			// Replace the nonce key with ID.
 			delete(c.messages, nonceKey(nonce))
@@ -334,135 +342,69 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 	return nil
 }
 
-// ensureEmpty ensures that if the message map is empty, then the container
-// should also be.
-func (c *ListStore) ensureEmpty() {
-	if len(c.messages) == 0 {
-		primitives.RemoveChildren(c.ListBox)
-	}
-}
-
 func (c *ListStore) bindMessage(msgc *messageRow) {
+	state := msgc.Unwrap(false)
+
 	// Bind the message ID to the row so we can easily do a lookup.
-	var key messageKey
-	if id := msgc.ID(); id != "" {
-		key.id = id
-	} else {
-		key.id = msgc.Nonce()
+	key := messageKey{
+		id: state.ID,
+	}
+
+	if state.Nonce != "" {
+		key.id = state.Nonce
 		key.nonce = true
 	}
 
-	msgc.Row().SetName(key.name())
-	msgc.SetReferenceHighlighter(c)
+	state.Row.SetName(key.name())
+	msgc.MessageRow.SetReferenceHighlighter(c)
+
 	c.Controller.BindMenu(msgc.MessageRow)
 }
 
-// AddPresendMessage inserts an input.PresendMessage into the container and
-// returning a wrapped widget interface.
-func (c *ListStore) AddPresendMessage(msg input.PresendMessage) PresendMessageRow {
-	c.ensureEmpty()
+func (c *ListStore) AddMessage(msg MessageRow) {
+	state := msg.Unwrap(false)
 
-	before := c.LastMessage()
-
-	if before != nil {
-		log.Println("Found before:", before.Author().Name())
-	} else {
-		log.Println("Before is nil")
-	}
-
-	presend := c.Construct.NewPresendMessage(msg, before)
-
-	msgc := &messageRow{
-		MessageRow: presend,
-		presend:    presend,
-	}
-
-	// Set the message into the list.
-	c.ListBox.Insert(msgc.Row(), c.MessagesLen())
-	// Set the NONCE into the message map.
-	c.messages[nonceKey(msgc.Nonce())] = msgc
-
-	c.bindMessage(msgc)
-
-	return presend
-}
-
-// Many attempts were made to have CreateMessageUnsafe return an index. That is
-// unreliable. The index might be off if the message buffer is cleaned up. Don't
-// rely on it.
-
-func (c *ListStore) CreateMessageUnsafe(msg cchat.MessageCreate) MessageRow {
-	// Call the event handler last.
-	defer c.Controller.AuthorEvent(msg.Author())
+	defer c.Controller.AuthorEvent(state.Author.ID)
 
 	// Do not attempt to update before insertion (aka upsert).
-	if msgc := c.message(msg.ID(), msg.Nonce()); msgc != nil {
-		msgc.UpdateAuthor(msg.Author())
-		msgc.UpdateContent(msg.Content(), false)
-		msgc.UpdateTimestamp(msg.Time())
-
-		c.bindMessage(msgc)
-		return msgc.MessageRow
+	if msgc := c.message(state.ID, state.Nonce); msgc != nil {
+		// This is kind of expensive, but it shouldn't really matter.
+		c.SwapMessage(msg)
+		return
 	}
-
-	c.ensureEmpty()
-
-	msgTime := msg.Time()
 
 	// Iterate and compare timestamp to find where to insert a message. Note
 	// that "before" is the message that will go before the to-be-inserted
 	// method.
 	before, index := c.findMessage(true, func(before *messageRow) bool {
-		return msgTime.After(before.Time())
+		return before.Unwrap(false).Time.After(state.Time)
 	})
 
 	msgc := &messageRow{
-		MessageRow: c.Construct.NewMessage(msg, unwrapRow(before)),
+		MessageRow: msg,
 	}
 
 	// Add the message. If before is nil, then the to-be-inserted message is the
 	// earliest message, therefore we prepend it.
 	if before == nil {
 		index = 0
-		c.ListBox.Prepend(msgc.Row())
+		c.ListBox.Prepend(state.Row)
 	} else {
 		index++ // insert right after
 
 		// Fast path: Insert did appear a lot on profiles, so we can try and use
 		// Add over Insert when we know.
 		if c.MessagesLen() == index {
-			c.ListBox.Add(msgc.Row())
+			c.ListBox.Add(state.Row)
 		} else {
-			c.ListBox.Insert(msgc.Row(), index)
+			c.ListBox.Insert(state.Row, index)
 		}
 	}
 
 	// Set the ID into the message map.
-	c.messages[idKey(msgc.ID())] = msgc
+	c.messages[idKey(state.ID)] = msgc
 
 	c.bindMessage(msgc)
-
-	return msgc.MessageRow
-}
-
-func (c *ListStore) UpdateMessageUnsafe(msg cchat.MessageUpdate) {
-	// Call the event handler last.
-	defer c.Controller.AuthorEvent(msg.Author())
-
-	if msgc := c.Message(msg.ID(), ""); msgc != nil {
-		if author := msg.Author(); author != nil {
-			msgc.UpdateAuthor(author)
-		}
-		if content := msg.Content(); !content.IsEmpty() {
-			msgc.UpdateContent(content, true)
-		}
-	}
-
-	return
-}
-
-func (c *ListStore) DeleteMessageUnsafe(msg cchat.MessageDelete) {
-	c.PopMessage(msg.ID())
 }
 
 // PopMessage deletes a message off of the list and return the deleted message.
@@ -475,7 +417,8 @@ func (c *ListStore) PopMessage(id cchat.ID) (msg MessageRow) {
 	msg = gridMsg.MessageRow
 
 	// Remove off of the Gtk grid.
-	gridMsg.Row().Destroy()
+	destroyMsg(gridMsg)
+
 	// Delete off the map.
 	delete(c.messages, idKey(id))
 
@@ -489,22 +432,23 @@ func (c *ListStore) DeleteEarliest(n int) {
 		return
 	}
 
-	c.ensureEmpty()
-
 	// Since container/list nils out the next element, we can't just call Next
 	// after deleting, so we have to call Next manually before Removing.
 	primitives.ForeachChild(c.ListBox, func(v interface{}) (stop bool) {
 		id := parseKeyFromNamer(v.(primitives.Namer))
 		gridMsg := c.message(id.expand())
 
-		if id := gridMsg.ID(); id != "" {
-			delete(c.messages, idKey(id))
-		}
-		if nonce := gridMsg.Nonce(); nonce != "" {
-			delete(c.messages, nonceKey(nonce))
+		state := gridMsg.Unwrap(false)
+
+		if state.ID != "" {
+			delete(c.messages, idKey(state.ID))
 		}
 
-		gridMsg.Row().Destroy()
+		if state.Nonce != "" {
+			delete(c.messages, nonceKey(state.Nonce))
+		}
+
+		destroyMsg(gridMsg)
 
 		n--
 		return n == 0
@@ -519,10 +463,16 @@ func (c *ListStore) HighlightReference(ref markup.ReferenceSegment) {
 }
 
 func (c *ListStore) Highlight(msg MessageRow) {
-	gts.ExecLater(func() {
-		row := msg.Row()
-		row.GrabFocus()
-		c.ListBox.DragHighlightRow(row)
+	gts.ExecAsync(func() {
+		state := msg.Unwrap(false)
+		state.Row.GrabFocus()
+		c.ListBox.DragHighlightRow(state.Row)
 		gts.DoAfter(2*time.Second, c.ListBox.DragUnhighlightRow)
 	})
+}
+
+func destroyMsg(row *messageRow) {
+	state := row.Unwrap(true)
+	state.Author.Name.Stop()
+	state.Row.Destroy()
 }

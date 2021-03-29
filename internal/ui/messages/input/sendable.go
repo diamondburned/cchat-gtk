@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/diamondburned/cchat"
-	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/input/attachment"
-	"github.com/diamondburned/cchat/text"
+	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/pkg/errors"
 	"github.com/twmb/murmur3"
 )
@@ -63,17 +62,9 @@ func (f *Field) sendInput() {
 		return
 	}
 
-	// Derive the author. Prefer the author of the current user from the message
-	// buffer over the one in the username feed, unless we can't find any.
-	var author = f.ctrl.Author(f.UserID)
-	if author == nil {
-		author = newAuthor(f)
-	}
-
-	f.SendMessage(SendMessageData{
+	f.ctrl.SendMessage(SendMessageData{
 		time:    time.Now().UTC(),
 		content: text,
-		author:  author,
 		nonce:   f.generateNonce(),
 		replyID: f.replyingID,
 		files:   attachments,
@@ -86,19 +77,23 @@ func (f *Field) sendInput() {
 	f.text.GrabFocus()
 }
 
-func (f *Field) SendMessage(data PresendMessage) {
-	// presend message into the container through the controller
-	var onErr = f.ctrl.AddPresendMessage(data)
+// func (f *Field) SendMessage(data message.PresendMessage) {
+// 	f.ctrl.SendMessage(data)
 
-	// Copy the sender to prevent race conditions.
-	var sender = f.Sender
-	gts.Async(func() (func(), error) {
-		if err := sender.Send(data); err != nil {
-			return func() { onErr(err) }, errors.Wrap(err, "Failed to send message")
-		}
-		return nil, nil
-	})
-}
+// 	// message.NewPresendState(f.Username.State, data)
+
+// 	// // presend message into the container through the controller
+// 	// var onErr = f.ctrl.AddPresendMessage(data)
+
+// 	// // Copy the sender to prevent race conditions.
+// 	// var sender = f.Sender
+// 	// gts.Async(func() (func(), error) {
+// 	// 	if err := sender.Send(data); err != nil {
+// 	// 		return func() { onErr(err) }, errors.Wrap(err, "Failed to send message")
+// 	// 	}
+// 	// 	return nil, nil
+// 	// })
+// }
 
 // Files is a list of attachments.
 type Files []attachment.File
@@ -117,56 +112,23 @@ func (files Files) Attachments() []cchat.MessageAttachment {
 type SendMessageData struct {
 	time    time.Time
 	content string
-	author  cchat.Author
 	nonce   string
 	replyID cchat.ID
 	files   Files
 }
 
-var _ cchat.SendableMessage = (*SendMessageData)(nil)
-
-// PresendMessage is an interface for any message about to be sent.
-type PresendMessage interface {
-	cchat.MessageHeader // returns nonce and time
-	cchat.SendableMessage
-	cchat.Noncer
-
-	// These methods are reserved for internal use.
-
-	Author() cchat.Author
-	Files() []attachment.File
-}
-
-var _ PresendMessage = (*SendMessageData)(nil)
+var (
+	_ cchat.SendableMessage  = (*SendMessageData)(nil)
+	_ message.PresendMessage = (*SendMessageData)(nil)
+)
 
 // ID returns a pseudo ID for internal use.
 func (s SendMessageData) ID() string                 { return s.nonce }
 func (s SendMessageData) Time() time.Time            { return s.time }
 func (s SendMessageData) Content() string            { return s.content }
-func (s SendMessageData) Author() cchat.Author       { return s.author }
 func (s SendMessageData) AsNoncer() cchat.Noncer     { return s }
 func (s SendMessageData) Nonce() string              { return s.nonce }
 func (s SendMessageData) Files() []attachment.File   { return s.files }
 func (s SendMessageData) AsAttacher() cchat.Attacher { return s.files }
 func (s SendMessageData) AsReplier() cchat.Replier   { return s }
 func (s SendMessageData) ReplyingTo() cchat.ID       { return s.replyID }
-
-type sendableAuthor struct {
-	id        cchat.ID
-	name      text.Rich
-	avatarURL string
-}
-
-func newAuthor(f *Field) sendableAuthor {
-	return sendableAuthor{
-		f.UserID,
-		f.Username.GetLabel(),
-		f.Username.GetIconURL(),
-	}
-}
-
-var _ cchat.Author = (*sendableAuthor)(nil)
-
-func (a sendableAuthor) ID() string      { return a.id }
-func (a sendableAuthor) Name() text.Rich { return a.name }
-func (a sendableAuthor) Avatar() string  { return a.avatarURL }

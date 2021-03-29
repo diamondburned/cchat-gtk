@@ -137,8 +137,8 @@ func (c *Container) Unborrow() {
 	}
 }
 
-func (c *Container) RemoveAuthor(author cchat.Author) {
-	c.state.removeTyper(author.ID())
+func (c *Container) RemoveAuthor(userID cchat.ID) {
+	c.state.removeTyper(userID)
 }
 
 func (c *Container) TrySubscribe(svmsg cchat.Messenger) bool {
@@ -155,7 +155,7 @@ var noMentionLinks = markup.RenderConfig{
 	NoMentionLinks: true,
 }
 
-func render(typers []cchat.Typer) string {
+func render(typers []typer) string {
 	// fast path
 	if len(typers) == 0 {
 		return ""
@@ -164,7 +164,7 @@ func render(typers []cchat.Typer) string {
 	var builder strings.Builder
 
 	for i, typer := range typers {
-		output := markup.RenderCmplxWithConfig(typer.Name(), noMentionLinks)
+		output := markup.RenderCmplxWithConfig(typer.s.Label(), noMentionLinks)
 
 		builder.WriteString("<b>")
 		builder.WriteString(output.Markup)

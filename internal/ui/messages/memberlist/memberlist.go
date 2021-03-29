@@ -3,7 +3,6 @@ package memberlist
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
@@ -128,20 +127,22 @@ func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
 	// to this function instead of Reset to not halt for too long.
 	primitives.RemoveChildren(c.Main)
 
-	var newSections = make([]*Section, len(sections))
+	newSections := make([]*Section, len(sections))
+	oldSections := c.Sections
 
 	for i, section := range sections {
 		sc, ok := c.Sections[section.ID()]
 		if !ok {
 			sc = NewSection(section, &c.eventQueue)
 		} else {
-			sc.Update(section.Name(), section.Total())
+			sc.Update(section)
 		}
 
 		newSections[i] = sc
 	}
 
 	// Remove all old sections.
+
 	for id := range c.Sections {
 		delete(c.Sections, id)
 	}
@@ -150,6 +151,16 @@ func (c *Container) SetSectionsUnsafe(sections []cchat.MemberSection) {
 	for _, section := range newSections {
 		c.Main.Add(section)
 		c.Sections[section.ID] = section
+	}
+
+	// Destroy old sections.
+	for _, section := range oldSections {
+		_, notOld := c.Sections[section.ID]
+		if notOld {
+			continue
+		}
+
+		section.Destroy()
 	}
 
 	c.ctrl.MemberListUpdated(c)
@@ -173,7 +184,7 @@ type Section struct {
 	ID string
 
 	// state
-	name  text.Rich
+	name  rich.NameContainer
 	total int
 
 	Header *rich.Label
@@ -197,26 +208,40 @@ var sectionBodyCSS = primitives.PrepareClassCSS("section-body", `
 `)
 
 func NewSection(sect cchat.MemberSection, evq EventQueuer) *Section {
-	header := rich.NewLabel(text.Rich{})
-	header.Show()
-	sectionHeaderCSS(header)
+	section := &Section{
+		ID:   sect.ID(),
+		name: rich.NameContainer{},
+	}
 
-	body, _ := gtk.ListBoxNew()
-	body.SetSelectionMode(gtk.SELECTION_NONE)
-	body.SetActivateOnSingleClick(true)
-	body.SetSortFunc(listSortNameAsc) // A-Z
-	body.Show()
-	sectionBodyCSS(body)
+	section.Header = rich.NewLabel(&section.name)
+	section.Header.Show()
+	sectionHeaderCSS(section.Header)
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	box.PackStart(header, false, false, 0)
-	box.PackStart(body, false, false, 0)
-	box.Show()
+	section.Header.SetRenderer(func(rich text.Rich) markup.RenderOutput {
+		out := markup.RenderCmplx(rich)
+		if section.total > 0 {
+			out.Markup += fmt.Sprintf("—%d", section.total)
+		}
+
+		return out
+	})
+
+	section.Body, _ = gtk.ListBoxNew()
+	section.Body.SetSelectionMode(gtk.SELECTION_NONE)
+	section.Body.SetActivateOnSingleClick(true)
+	section.Body.SetSortFunc(listSortNameAsc) // A-Z
+	section.Body.Show()
+	sectionBodyCSS(section.Body)
+
+	section.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	section.Box.PackStart(section.Header, false, false, 0)
+	section.Box.PackStart(section.Body, false, false, 0)
+	section.Box.Show()
 
 	var members = map[string]*Member{}
 
 	// On row click, show the mention popup if any.
-	body.Connect("row-activated", func(_ *gtk.ListBox, r *gtk.ListBoxRow) {
+	section.Body.Connect("row-activated", func(_ *gtk.ListBox, r *gtk.ListBoxRow) {
 		var i = r.GetIndex()
 		// Cold path; we can afford searching in the map.
 		for _, member := range members {
@@ -226,32 +251,20 @@ func NewSection(sect cchat.MemberSection, evq EventQueuer) *Section {
 		}
 	})
 
-	section := &Section{
-		ID:      sect.ID(),
-		Box:     box,
-		Header:  header,
-		Body:    body,
-		Members: members,
-	}
-
-	section.Update(sect.Name(), sect.Total())
+	section.name.QueueNamer(context.Background(), sect)
+	section.Header.Connect("destroy", section.name.Stop)
 
 	return section
 }
 
-func (s *Section) Update(name text.Rich, total int) {
-	s.name = name
-	s.total = total
+func (s *Section) Destroy() {
+	s.name.Stop()
+	s.Box.Destroy()
+}
 
-	var content = s.name.Content
-	if total > 0 {
-		content += fmt.Sprintf("—%d", total)
-	}
-
-	s.Header.SetLabelUnsafe(text.Rich{
-		Content:  content,
-		Segments: s.name.Segments,
-	})
+func (s *Section) Update(sect cchat.MemberSection) {
+	s.total = sect.Total()
+	s.name.QueueNamer(context.Background(), sect)
 }
 
 func (s *Section) SetMember(member cchat.ListMember) {
@@ -292,14 +305,16 @@ type Member struct {
 	*gtk.ListBoxRow
 	Main *gtk.Box
 
-	Avatar *rich.Icon
-	Name   *gtk.Label
-	output markup.RenderOutput
+	Avatar *roundimage.StillImage
+	Name   *rich.Label
 
+	name   rich.LabelState
+	second text.Rich
+	status cchat.Status
 	parent *gtk.ListBox
 }
 
-const AvatarSize = 34
+const AvatarSize = 32
 
 var memberRowCSS = primitives.PrepareClassCSS("member-row", `
 	.member-row {
@@ -320,46 +335,61 @@ var avatarMemberCSS = primitives.PrepareClassCSS("avatar-member", `
 `)
 
 func NewMember(member cchat.ListMember) *Member {
+	m := Member{}
+
 	evb, _ := gtk.EventBoxNew()
 	evb.AddEvents(int(gdk.EVENT_ENTER_NOTIFY) | int(gdk.EVENT_LEAVE_NOTIFY))
 	evb.Show()
 
-	img, _ := roundimage.NewStaticImage(evb, 0)
-	img.Show()
+	m.Avatar = roundimage.NewStillImage(evb, 9999)
+	m.Avatar.SetSize(AvatarSize)
+	m.Avatar.SetPlaceholderIcon("user-info-symbolic", AvatarSize)
+	m.Avatar.Show()
+	avatarMemberCSS(m.Avatar)
 
-	icon := rich.NewCustomIcon(img, AvatarSize)
-	icon.SetPlaceholderIcon("user-info-symbolic", AvatarSize)
-	icon.Show()
-	avatarMemberCSS(icon)
+	rich.BindRoundImage(m.Avatar, &m.name, true)
 
-	lbl, _ := gtk.LabelNew("")
-	lbl.SetUseMarkup(true)
-	lbl.SetXAlign(0)
-	lbl.SetEllipsize(pango.ELLIPSIZE_END)
-	lbl.Show()
+	m.Name = rich.NewLabel(&m.name)
+	m.Name.SetUseMarkup(true)
+	m.Name.SetXAlign(0)
+	m.Name.SetEllipsize(pango.ELLIPSIZE_END)
+	m.Name.Show()
 
-	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	box.PackStart(icon, false, false, 0)
-	box.PackStart(lbl, true, true, 0)
-	box.Show()
-	memberBoxCSS(box)
+	m.Name.SetRenderer(func(rich text.Rich) markup.RenderOutput {
+		out := markup.RenderCmplx(rich)
 
-	evb.Add(box)
+		if m.status != cchat.StatusUnknown {
+			out.Markup = fmt.Sprintf(
+				`<span color="#%06X" size="large">●</span> %s`,
+				statusColors(member.Status()), out.Markup,
+			)
+		}
 
-	r, _ := gtk.ListBoxRowNew()
-	memberRowCSS(r)
-	r.Add(evb)
+		if !m.second.IsEmpty() {
+			out.Markup += fmt.Sprintf(
+				"\n"+`<span alpha="85%%"><sup>%s</sup></span>`,
+				markup.Render(m.second),
+			)
+		}
 
-	m := &Member{
-		ListBoxRow: r,
-		Main:       box,
-		Avatar:     icon,
-		Name:       lbl,
-	}
+		return out
+	})
+
+	m.Main, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	m.Main.PackStart(m.Avatar, false, false, 0)
+	m.Main.PackStart(m.Name, true, true, 0)
+	m.Main.Show()
+	memberBoxCSS(m.Main)
+
+	evb.Add(m.Main)
+
+	m.ListBoxRow, _ = gtk.ListBoxRowNew()
+	m.ListBoxRow.Add(evb)
+	memberRowCSS(m.ListBoxRow)
 
 	m.Update(member)
 
-	return m
+	return &m
 }
 
 var noMentionLinks = markup.RenderConfig{
@@ -368,38 +398,22 @@ var noMentionLinks = markup.RenderConfig{
 }
 
 func (m *Member) Update(member cchat.ListMember) {
+	m.status = member.Status()
+	m.second = member.Secondary()
+
+	m.name.SetLabel(member.Name())
 	m.ListBoxRow.SetName(member.Name().Content)
-
-	if iconer := member.AsIconer(); iconer != nil {
-		m.Avatar.AsyncSetIconer(iconer, "Failed to get member list icon")
-	}
-
-	m.output = markup.RenderCmplxWithConfig(member.Name(), noMentionLinks)
-
-	txt := strings.Builder{}
-	txt.WriteString(fmt.Sprintf(
-		`<span color="#%06X" size="large">●</span> %s`,
-		statusColors(member.Status()), m.output.Markup,
-	))
-
-	if bot := member.Secondary(); !bot.IsEmpty() {
-		txt.WriteByte('\n')
-		txt.WriteString(fmt.Sprintf(
-			`<span alpha="85%%"><sup>%s</sup></span>`,
-			markup.Render(bot),
-		))
-	}
-
-	m.Name.SetMarkup(txt.String())
 }
 
 // Popup pops up the mention popover if any.
 func (m *Member) Popup(evq EventQueuer) {
-	if len(m.output.Mentions) == 0 {
+	out := m.Name.Output()
+
+	if len(out.Mentions) == 0 {
 		return
 	}
 
-	p := labeluri.NewPopoverMentioner(m, m.output.Input, m.output.Mentions[0])
+	p := labeluri.NewPopoverMentioner(m, out.Input, out.Mentions[0])
 	if p == nil {
 		return
 	}

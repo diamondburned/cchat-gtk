@@ -56,12 +56,12 @@ func SaveToFile(file string, v []byte) error {
 
 	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_SYNC|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.Wrap(err, "Failed to open file")
+		return errors.Wrap(err, "failed to open file")
 	}
 	defer f.Close()
 
 	if _, err := f.Write(v); err != nil {
-		return errors.Wrap(err, "Failed to write")
+		return errors.Wrap(err, "failed to write")
 	}
 
 	return nil
@@ -72,14 +72,19 @@ func SaveToFile(file string, v []byte) error {
 func MarshalToFile(file string, from interface{}) error {
 	file = filepath.Join(DirPath(), file)
 
+	dir := filepath.Dir(file)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "failed to create config dir")
+	}
+
 	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_SYNC|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.Wrap(err, "Failed to open file")
+		return errors.Wrap(err, "failed to open file")
 	}
 	defer f.Close()
 
 	if err := PrettyMarshal(f, from); err != nil {
-		return errors.Wrap(err, "Failed to marshal given struct")
+		return errors.Wrap(err, "failed to marshal given struct")
 	}
 
 	return nil

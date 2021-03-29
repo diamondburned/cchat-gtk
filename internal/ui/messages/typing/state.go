@@ -1,17 +1,25 @@
 package typing
 
 import (
+	"context"
 	"sort"
 	"time"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/pkg/errors"
 )
 
+type typer struct {
+	cchat.User
+	s *rich.NameContainer
+	t time.Time
+}
+
 type State struct {
 	// states
-	typers      []cchat.Typer
+	typers      []typer
 	timeout     time.Duration
 	canceler    func()
 	invalidated bool
@@ -67,35 +75,54 @@ func (s *State) loop() {
 
 	// Call the event handler if things are invalidated.
 	if s.invalidated {
-		s.changed(s, len(s.typers) == 0)
+		s.update()
 		s.invalidated = false
 	}
+}
+
+// update force-runs th callback.
+func (s *State) update() {
+	s.changed(s, len(s.typers) == 0)
 }
 
 // invalidate sorts and invalidates the state.
 func (s *State) invalidate() {
 	// Sort the list of typers again.
 	sort.Slice(s.typers, func(i, j int) bool {
-		return s.typers[i].Time().Before(s.typers[j].Time())
+		return s.typers[i].t.Before(s.typers[j].t)
 	})
 
 	s.invalidated = true
 }
 
 // AddTyper is thread-safe.
-func (s *State) AddTyper(typer cchat.Typer) {
+func (s *State) AddTyper(user cchat.User) {
+	now := time.Now()
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+
+	state := rich.NameContainer{}
+	state.QueueNamer(ctx, user)
+
 	gts.ExecAsync(func() {
+		defer cancel()
 		defer s.invalidate()
 
 		// If the typer already exists, then pop them to the start of the list.
 		for i, t := range s.typers {
-			if t.ID() == typer.ID() {
+			if t.ID() == user.ID() {
 				s.typers[i] = t
 				return
 			}
 		}
 
-		s.typers = append(s.typers, typer)
+		state.OnUpdate(s.update)
+
+		s.typers = append(s.typers, typer{
+			User: user,
+			s:    &state,
+			t:    now,
+		})
 	})
 }
 
@@ -108,19 +135,24 @@ func (s *State) removeTyper(typerID string) {
 	defer s.invalidate()
 
 	for i, t := range s.typers {
-		if t.ID() == typerID {
-			// Remove the quick way. Sort will take care of ordering.
-			l := len(s.typers) - 1
-			s.typers[i] = s.typers[l]
-			s.typers[l] = nil
-			s.typers = s.typers[:l]
-
-			return
+		if t.ID() != typerID {
+			continue
 		}
+
+		// Invalidate the typer's label state.
+		t.s.Stop()
+
+		// Remove the quick way. Sort will take care of ordering.
+		l := len(s.typers) - 1
+		s.typers[i] = s.typers[l]
+		s.typers[l] = typer{}
+		s.typers = s.typers[:l]
+
+		return
 	}
 }
 
-func filterTypers(typers []cchat.Typer, timeout time.Duration) ([]cchat.Typer, bool) {
+func filterTypers(typers []typer, timeout time.Duration) ([]typer, bool) {
 	// Fast path.
 	if len(typers) == 0 || timeout == 0 {
 		return nil, false
@@ -130,14 +162,15 @@ func filterTypers(typers []cchat.Typer, timeout time.Duration) ([]cchat.Typer, b
 	var cut int
 
 	for _, t := range typers {
-		if now.Sub(t.Time()) < timeout {
+		if now.Sub(t.t) < timeout {
 			typers[cut] = t
 			cut++
 		}
 	}
 
 	for i := cut; i < len(typers); i++ {
-		typers[i] = nil
+		typers[i].s.Stop()
+		typers[i] = typer{}
 	}
 
 	var changed = cut != len(typers)

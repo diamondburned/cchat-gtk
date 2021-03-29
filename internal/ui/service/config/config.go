@@ -4,15 +4,12 @@ package config
 
 import (
 	"fmt"
-	"hash/fnv"
-	"io"
-	"strconv"
 
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/menu"
-	"github.com/diamondburned/cchat/text"
+	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
@@ -31,17 +28,17 @@ func Restore(conf Configurator) {
 	gts.Async(func() (func(), error) {
 		c, err := conf.Configuration()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get %s config", conf.Name())
+			return nil, errors.Wrapf(err, "failed to get %s config", conf.ID())
 		}
 
 		file := serviceFile(conf)
 
 		if err := config.UnmarshalFromFile(file, &c); err != nil {
-			return nil, errors.Wrapf(err, "failed to unmarshal %s config", conf.Name())
+			return nil, errors.Wrapf(err, "failed to unmarshal %s config", conf.ID())
 		}
 
 		if err := conf.SetConfiguration(c); err != nil {
-			return nil, errors.Wrapf(err, "failed to set %s config", conf.Name())
+			return nil, errors.Wrapf(err, "failed to set %s config", conf.ID())
 		}
 
 		return nil, nil
@@ -52,16 +49,16 @@ func Spawn(conf Configurator) error {
 	gts.Async(func() (func(), error) {
 		c, err := conf.Configuration()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get %s config", conf.Name())
+			return nil, errors.Wrapf(err, "failed to get %s config", conf.ID())
 		}
 
 		file := serviceFile(conf)
 
 		err = config.UnmarshalFromFile(file, &c)
-		err = errors.Wrapf(err, "failed to unmarshal %s config", conf.Name())
+		err = errors.Wrapf(err, "failed to unmarshal %s config", conf.ID())
 
 		return func() {
-			spawn(conf.Name().String(), c, func(finalized bool) error {
+			spawn(conf, c, func(finalized bool) error {
 				if err := conf.SetConfiguration(c); err != nil {
 					return err
 				}
@@ -81,16 +78,10 @@ func Spawn(conf Configurator) error {
 }
 
 func serviceFile(conf Configurator) string {
-	return fmt.Sprintf("service-%s.json", dumbHash(conf.Name()))
+	return fmt.Sprintf("services/%s.json", conf.ID())
 }
 
-func dumbHash(name text.Rich) string {
-	hash := fnv.New32a()
-	io.WriteString(hash, name.String())
-	return strconv.FormatUint(uint64(hash.Sum32()), 36)
-}
-
-func spawn(name string, conf map[string]string, apply func(final bool) error) {
+func spawn(c Configurator, conf map[string]string, apply func(final bool) error) {
 	container := newContainer(conf, func() error { return apply(false) })
 	container.Grid.SetVAlign(gtk.ALIGN_START)
 
@@ -107,20 +98,25 @@ func spawn(name string, conf map[string]string, apply func(final bool) error) {
 	b.PackStart(container.ErrHeader, false, false, 0)
 	b.Show()
 
-	var title = "Configure " + name
-
 	h, _ := gtk.HeaderBarNew()
-	h.SetTitle(title)
+	h.SetTitle("Configure " + c.ID())
 	h.SetShowCloseButton(true)
 	h.Show()
+
+	var state rich.NameContainer
+	state.OnUpdate(func() {
+		h.SetTitle("Configure " + state.String())
+	})
 
 	d, _ := gts.NewEmptyModalDialog()
 	d.SetDefaultSize(400, 300)
 	d.Add(b)
-	d.SetTitle(title)
 	d.SetTitlebar(h)
 
-	d.Connect("destroy", func(*gtk.Dialog) { apply(true) })
+	// Bind the title.
+	state.BindNamer(d, "response", c)
+	// Bind the updater.
+	d.Connect("response", func(*gtk.Dialog) { apply(true) })
 
 	d.Show()
 }

@@ -28,6 +28,7 @@ type Avatar struct {
 	pixbuf *gdk.Pixbuf
 	url    string
 	size   int
+	cancel context.CancelFunc
 }
 
 // Make a better API that allows scaling.
@@ -49,6 +50,7 @@ func NewAvatar(size int) *Avatar {
 	return &avatar
 }
 
+// GetSizeRequest returns the virtual size.
 func (a *Avatar) GetSizeRequest() (int, int) {
 	return a.size, a.size
 }
@@ -66,7 +68,6 @@ func (a *Avatar) SetSizeRequest(w, h int) {
 }
 
 func (a *Avatar) loadFunc(size int) *gdk.Pixbuf {
-	// No URL, draw nothing.
 	if a.url == "" {
 		return nil
 	}
@@ -75,44 +76,54 @@ func (a *Avatar) loadFunc(size int) *gdk.Pixbuf {
 		return a.pixbuf
 	}
 
-	// Refetch and rescale.
 	a.size = size
-	// Technically, this will recurse. However, we're changing the size, so
-	// eventually it should stop.
-	httputil.AsyncImage(context.Background(), a, a.url)
+	a.refetch()
 
-	if a.pixbuf == nil {
-		return nil
+	return nil
+}
+
+func (a *Avatar) refetch() {
+	a.cancelCtx()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
+
+	httputil.AsyncImage(ctx, a, a.url)
+}
+
+func (a *Avatar) cancelCtx() {
+	if a.cancel != nil {
+		a.cancel()
+		a.cancel = nil
 	}
-
-	// 	// Temporarily resize for now.
-	// 	p, err := a.pixbuf.ScaleSimple(size, size, gdk.INTERP_HYPER)
-	// 	if err != nil {
-	// 		p = a.pixbuf
-	// 	}
-
-	return a.pixbuf
 }
 
 // SetRadius is a no-op.
 func (a *Avatar) SetRadius(float64) {}
 
+// SetImageURL sets the avatar's source URL and reloads it asynchronously.
 func (a *Avatar) SetImageURL(url string) {
 	a.url = url
-	a.Avatar.SetImageLoadFunc(a.loadFunc)
+	a.refetch()
 }
 
 // SetFromPixbuf sets the pixbuf.
 func (a *Avatar) SetFromPixbuf(pb *gdk.Pixbuf) {
+	a.cancelCtx()
 	a.pixbuf = pb
-	a.Avatar.SetImageLoadFunc(a.loadFunc)
+	// a.Avatar.SetImageLoadFunc(a.loadFunc)
+	a.Avatar.QueueDraw()
 }
 
+// SetFromAnimation sets the first frame of the animation.
 func (a *Avatar) SetFromAnimation(pa *gdk.PixbufAnimation) {
+	a.cancelCtx()
 	a.pixbuf = pa.GetStaticImage()
-	a.Avatar.SetImageLoadFunc(a.loadFunc)
+	// a.Avatar.SetImageLoadFunc(a.loadFunc)
+	a.Avatar.QueueDraw()
 }
 
+// GetPixbuf returns the underlying pixbuf.
 func (a *Avatar) GetPixbuf() *gdk.Pixbuf {
 	return a.pixbuf
 }
@@ -127,6 +138,7 @@ func (a *Avatar) GetImage() *gtk.Image {
 	return nil
 }
 
+// GetStorageType always returns IMAGE_PIXBUF.
 func (a *Avatar) GetStorageType() gtk.ImageType {
 	return gtk.IMAGE_PIXBUF
 }

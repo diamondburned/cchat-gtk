@@ -3,12 +3,20 @@ package icons
 import (
 	"log"
 
+	_ "embed"
+
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 )
 
 // static assets
 // var assets = map[string]*gdk.Pixbuf{}
+
+//go:embed cchat_256.png
+var __cchat_256 []byte
+
+//go:embed cchat-variant2_256.png
+var __cchat_variant2_256 []byte
 
 func Logo256Variant2(sz, scale int) *cairo.Surface {
 	return mustSurface(loadPixbuf(__cchat_variant2_256, sz, scale), scale)

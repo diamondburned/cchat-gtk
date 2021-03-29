@@ -1,25 +1,24 @@
 package server
 
 import (
+	"context"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/log"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/actions"
-	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/savepath"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/button"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/commander"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
-	"github.com/diamondburned/cchat/text"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
 	"github.com/pkg/errors"
 )
 
-const ChildrenMargin = 24
-const IconSize = 32
+const ChildrenMargin = 0 // refer to style.css
 
 func AssertUnhollow(hollower interface{ IsHollow() bool }) {
 	if hollower.IsHollow() {
@@ -27,14 +26,21 @@ func AssertUnhollow(hollower interface{ IsHollow() bool }) {
 	}
 }
 
+// ParentController controls ServerRow's container, which is the Children
+// struct.
+type ParentController interface {
+	Controller
+	ForceIcons()
+}
+
 type ServerRow struct {
 	*gtk.Box
-	Avatar      *roundimage.Avatar
-	Button      *button.ToggleButtonImage
+	Button      *button.ToggleButton
 	ActionsMenu *actions.Menu
 
 	Server cchat.Server
-	ctrl   Controller
+	name   rich.NameContainer
+	ctrl   ParentController
 
 	parentcrumb traverse.Breadcrumber
 
@@ -46,10 +52,12 @@ type ServerRow struct {
 	childrev   *gtk.Revealer
 	children   *Children
 	serverList cchat.Lister
+	serverStop func()
 
 	// State that's updated even when stale. Initializations will use these.
 	unread    bool
 	mentioned bool
+	showLabel bool
 
 	// callback to cancel unread indicator
 	cancelUnread func()
@@ -59,25 +67,28 @@ var serverCSS = primitives.PrepareClassCSS("server", `
 	/* Ignore first child because .server-children already covers this */
 	.server:not(:first-child) {
 		margin: 0;
-		margin-top: 3px;
 		border-radius: 0;
+	}
+
+	.server.active-column {
+		background-color: mix(@theme_bg_color, @theme_selected_bg_color, 0.25);
 	}
 `)
 
 // NewHollowServer creates a new hollow ServerRow. It will automatically create
 // hollow children containers and rows for the given server.
-func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl Controller) *ServerRow {
-	var serverRow = &ServerRow{
+func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl ParentController) *ServerRow {
+	serverRow := ServerRow{
 		parentcrumb:  p,
 		ctrl:         ctrl,
 		Server:       sv,
 		cancelUnread: func() {},
 	}
 
-	var (
-		lister    = sv.AsLister()
-		messenger = sv.AsMessenger()
-	)
+	serverRow.name.QueueNamer(context.Background(), sv)
+
+	lister := sv.AsLister()
+	messenger := sv.AsMessenger()
 
 	switch {
 	case lister != nil:
@@ -87,7 +98,7 @@ func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl Controller) 
 	case messenger != nil:
 		if unreader := messenger.AsUnreadIndicator(); unreader != nil {
 			gts.Async(func() (func(), error) {
-				c, err := unreader.UnreadIndicate(serverRow)
+				c, err := unreader.UnreadIndicate(&serverRow)
 				if err != nil {
 					return nil, errors.Wrap(err, "Failed to use unread indicator")
 				}
@@ -97,7 +108,7 @@ func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl Controller) 
 		}
 	}
 
-	return serverRow
+	return &serverRow
 }
 
 // Init brings the row out of the hollow state. It loads the children (if any),
@@ -108,19 +119,13 @@ func (r *ServerRow) Init() {
 	}
 
 	// Initialize the row, which would fill up the button and others as well.
-	r.Avatar = roundimage.NewAvatar(IconSize)
-	r.Avatar.SetText(r.Server.Name().Content)
-	r.Avatar.Show()
 
-	btn := rich.NewCustomToggleButtonImage(r.Avatar, r.Server.Name())
-	btn.Show()
-
-	r.Button = button.WrapToggleButtonImage(btn)
-	r.Button.Box.SetHAlign(gtk.ALIGN_START)
-	r.Button.SetRelief(gtk.RELIEF_NONE)
+	r.Button = button.NewToggleButton(&r.name)
+	r.Button.SetShowLabel(r.showLabel)
 	r.Button.Show()
 
 	r.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+	r.Box.SetHAlign(gtk.ALIGN_FILL)
 	r.Box.PackStart(r.Button, false, false, 0)
 	serverCSS(r.Box)
 
@@ -131,9 +136,6 @@ func (r *ServerRow) Init() {
 	// Ensure errors are displayed.
 	r.childrenSetErr(r.childrenErr)
 
-	// Try to set an icon.
-	r.SetIconer(r.Server)
-
 	// Connect the destroyer, if any.
 	r.Connect("destroy", func(interface{}) { r.cancelUnread() })
 
@@ -141,7 +143,7 @@ func (r *ServerRow) Init() {
 	r.Button.SetUnreadUnsafe(r.unread, r.mentioned) // update with state
 
 	if cmder := r.Server.AsCommander(); cmder != nil {
-		r.cmder = commander.NewBuffer(r.Server.Name().String(), cmder)
+		r.cmder = commander.NewBuffer(&r.name, cmder)
 		r.ActionsMenu.AddAction("Command Prompt", r.cmder.ShowDialog)
 	}
 
@@ -152,13 +154,21 @@ func (r *ServerRow) Init() {
 		}
 	})
 
+	// Bring up the icons of all the current level's rows if we have one.
+	r.name.OnUpdate(func() {
+		if r.name.Image().HasImage() {
+			r.ctrl.ForceIcons()
+		}
+	})
+
 	var (
 		lister    = r.Server.AsLister()
+		columnate = lister != nil && lister.Columnate()
 		messenger = r.Server.AsMessenger()
 	)
 
 	switch {
-	case lister != nil:
+	case lister != nil && !columnate:
 		primitives.AddClass(r, "server-list")
 		r.children.Init()
 		r.children.Show()
@@ -171,15 +181,35 @@ func (r *ServerRow) Init() {
 		r.Box.PackStart(r.childrev, false, false, 0)
 		r.Button.SetClicked(r.SetRevealChild)
 
+	case lister != nil && columnate:
+		primitives.AddClass(r, "server-list")
+		primitives.AddClass(r, "server-columnate")
+		r.Button.SetClicked(func(active bool) {
+			if active {
+				r.ctrl.SelectColumnatedLister(r, lister)
+			} else {
+				r.ctrl.SelectColumnatedLister(r, nil)
+			}
+		})
+
 	case messenger != nil:
 		primitives.AddClass(r, "server-message")
-		r.Button.SetClicked(func(bool) { r.ctrl.MessengerSelected(r) })
+		r.Button.SetClicked(func(active bool) {
+			if active {
+				r.ctrl.MessengerSelected(r)
+			} else {
+				r.ctrl.ClearMessenger()
+			}
+		})
 	}
+
+	// Restore the label visibility state.
+	r.SetShowLabel(r.showLabel)
 }
 
-// GetActiveServerMessage returns true if the row is currently selected AND it
+// IsActiveServerMessage returns true if the row is currently selected AND it
 // is a message row.
-func (r *ServerRow) GetActiveServerMessage() bool {
+func (r *ServerRow) IsActiveServerMessage() bool {
 	// If the button is nil, then that probably means we're still in a hollow
 	// state. This obviously means nothing is being selected.
 	if r.Button == nil {
@@ -196,7 +226,7 @@ func (r *ServerRow) SetUnread(unread, mentioned bool) {
 
 func (r *ServerRow) SetUnreadUnsafe(unread, mentioned bool) {
 	// We're never unread if we're reading this current server.
-	if r.GetActiveServerMessage() {
+	if r.IsActiveServerMessage() {
 		unread, mentioned = false, false
 	}
 
@@ -243,12 +273,14 @@ func (r *ServerRow) load(finish func(error)) {
 	}
 
 	go func() {
-		var err = list.Servers(children)
+		stop, err := list.Servers(children)
 		if err != nil {
 			log.Error(errors.Wrap(err, "Failed to get servers"))
 		}
 
 		gts.ExecAsync(func() {
+			r.serverStop = stop
+
 			// Announce that we're not loading anymore.
 			r.children.setNotLoading()
 
@@ -271,6 +303,11 @@ func (r *ServerRow) Reset() {
 	if r.children != nil {
 		r.children.Reset()
 		r.children.Destroy()
+	}
+
+	if r.serverStop != nil {
+		r.serverStop()
+		r.serverStop = nil
 	}
 
 	// Reset the state.
@@ -298,14 +335,36 @@ func (r *ServerRow) childrenSetErr(err error) {
 // UseEmptyIcon forces the row to show a placeholder icon.
 func (r *ServerRow) UseEmptyIcon() {
 	AssertUnhollow(r)
-
-	r.Button.Image.SetSize(IconSize)
-	r.Button.Image.SetRevealChild(true)
+	r.Button.UseEmptyIcon()
 }
 
 // HasIcon returns true if the current row has an icon.
 func (r *ServerRow) HasIcon() bool {
-	return !r.IsHollow() && r.Button.Image.GetRevealChild()
+	return !r.IsHollow() && r.Button.Image != nil
+}
+
+// SetShowLabel sets whether or not to show the button's (and its children's, if
+// any)'s icons.
+func (r *ServerRow) SetShowLabel(showLabel bool) {
+	r.showLabel = showLabel
+
+	if r.IsHollow() {
+		return
+	}
+
+	r.Button.SetShowLabel(showLabel)
+
+	// We'd want the button to be wide if we're showing the label. Otherwise,
+	// it can be small.
+	if r.Button.GetShowLabel() {
+		r.Box.SetHAlign(gtk.ALIGN_FILL)
+	} else {
+		r.Box.SetHAlign(gtk.ALIGN_START)
+	}
+
+	if r.children != nil && !r.children.IsHollow() {
+		r.children.SetExpand(showLabel)
+	}
 }
 
 func (r *ServerRow) ParentBreadcrumb() traverse.Breadcrumber {
@@ -316,28 +375,18 @@ func (r *ServerRow) Breadcrumb() string {
 	if r.IsHollow() {
 		return ""
 	}
-	return r.Button.GetText()
+
+	return r.name.String()
 }
 
+// ID returns the server ID.
 func (r *ServerRow) ID() cchat.ID {
 	return r.Server.ID()
 }
 
-func (r *ServerRow) SetLabelUnsafe(name text.Rich) {
-	AssertUnhollow(r)
-
-	r.Button.SetLabelUnsafe(name)
-	r.Avatar.SetText(name.Content)
-}
-
-// SetIconer takes in a Namer for AsIconer.
-func (r *ServerRow) SetIconer(v cchat.Namer) {
-	AssertUnhollow(r)
-
-	if iconer := v.AsIconer(); iconer != nil {
-		r.Button.Image.SetSize(IconSize)
-		r.Button.Image.AsyncSetIconer(iconer, "Error getting server icon URL")
-	}
+// Name returns the name state.
+func (r *ServerRow) Name() rich.LabelStateStorer {
+	return &r.name
 }
 
 // SetLoading is called by the parent struct.
@@ -357,7 +406,6 @@ func (r *ServerRow) SetFailed(err error, retry func()) {
 	r.SetSensitive(true)
 	r.SetTooltipText(err.Error())
 	r.Button.SetFailed(err, retry)
-	r.Button.Label.SetMarkup(rich.MakeRed(r.Button.GetLabel()))
 	r.ActionsMenu.Reset()
 	r.ActionsMenu.AddAction("Retry", retry)
 }
@@ -371,14 +419,6 @@ func (r *ServerRow) SetDone() {
 	r.SetSensitive(true)
 	r.SetTooltipText("")
 }
-
-// func (r *ServerRow) SetNormalExtraMenu(items []menu.Item) {
-// 	AssertUnhollow(r)
-
-// 	r.Button.SetNormalExtraMenu(items)
-// 	r.SetSensitive(true)
-// 	r.SetTooltipText("")
-// }
 
 // SetSelected is used for highlighting the current message server.
 func (r *ServerRow) SetSelected(selected bool) {
@@ -410,6 +450,12 @@ func (r *ServerRow) SetRevealChild(reveal bool) {
 
 	// Save the path.
 	savepath.Update(r, reveal)
+
+	if reveal {
+		primitives.AddClass(r, "expanded")
+	} else {
+		primitives.RemoveClass(r, "expanded")
+	}
 
 	// If this isn't a reveal, then we don't need to load.
 	if !reveal {

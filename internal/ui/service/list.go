@@ -35,7 +35,8 @@ var _ ListController = (*List)(nil)
 var listCSS = primitives.PrepareClassCSS("service-list", `
 	.service-list {
 		padding: 0;
-		background-color: mix(@theme_bg_color, @theme_fg_color, 0.03);
+		background-color: @theme_bg_color;
+		/* background-color: mix(@theme_bg_color, @theme_fg_color, 0.03); */
 	}
 `)
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/diamondburned/cchat"
@@ -11,7 +12,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/drag"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives/roundimage"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich"
-	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/markup"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/config"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
@@ -19,7 +19,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-const IconSize = 48
+const IconSize = 42
 
 type ListController interface {
 	// ClearMessenger is called when a nil slice of servers is set.
@@ -43,13 +43,14 @@ type Service struct {
 
 	*gtk.Box
 	Button *gtk.ToggleButton
-	Icon   *rich.Icon
+	Icon   *roundimage.StillImage
 	Menu   *actions.Menu
 
 	BodyRev  *gtk.Revealer // revealed
 	BodyList *session.List // not really supposed to be here
 
 	service      cchat.Service // state
+	Name         rich.NameContainer
 	Configurator cchat.Configurator
 }
 
@@ -67,7 +68,7 @@ var serviceCSS = primitives.PrepareClassCSS("service", `
 
 var serviceButtonCSS = primitives.PrepareClassCSS("service-button", `
 	.service-button {
-		padding: 2px;
+		padding: 6px;
 		margin:  0;
 	}
 
@@ -78,58 +79,51 @@ var serviceButtonCSS = primitives.PrepareClassCSS("service-button", `
 
 	.service-button:checked {
 		border-radius: 14px 14px 0 0;
-		background-color: alpha(@theme_fg_color, 0.2);
+		/* background-color: alpha(@theme_fg_color, 0.2); */
 	}
 `)
 
-var serviceIconCSS = primitives.PrepareClassCSS("service-icon", `
-	.service-icon { padding: 4px }
-`)
+var serviceIconCSS = primitives.PrepareClassCSS("service-icon", ``)
 
 func NewService(svc cchat.Service, svclctrl ListController) *Service {
-	service := &Service{
+	service := Service{
 		service:        svc,
 		ListController: svclctrl,
 	}
+	service.Name.QueueNamer(context.Background(), svc)
 
-	service.BodyList = session.NewList(service)
+	service.BodyList = session.NewList(&service)
 	service.BodyList.Show()
 
 	service.BodyRev, _ = gtk.RevealerNew()
 	service.BodyRev.SetRevealChild(false) // TODO persistent state
-	service.BodyRev.SetTransitionDuration(50)
+	service.BodyRev.SetTransitionDuration(100)
 	service.BodyRev.SetTransitionType(gtk.REVEALER_TRANSITION_TYPE_SLIDE_DOWN)
 	service.BodyRev.Add(service.BodyList)
 	service.BodyRev.Show()
 
 	// TODO: have it so the button changes to the session avatar when collapsed
 
-	avatar := roundimage.NewAvatar(IconSize)
-	avatar.SetText(svc.Name().String())
-	avatar.Show()
-
-	service.Icon = rich.NewCustomIcon(avatar, IconSize)
-	service.Icon.Show()
-	// potentially nonstandard
-	service.Icon.SetPlaceholderIcon("text-html-symbolic", IconSize)
-	// TODO: hover for name. We use tooltip for now.
-	service.Icon.SetTooltipMarkup(markup.Render(svc.Name()))
-	serviceIconCSS(service.Icon)
-
-	if iconer := svc.AsIconer(); iconer != nil {
-		service.Icon.AsyncSetIconer(iconer, "Failed to set service icon")
-	}
-
 	service.Button, _ = gtk.ToggleButtonNew()
-	service.Button.Add(service.Icon)
 	service.Button.SetRelief(gtk.RELIEF_NONE)
 	service.Button.Show()
+	serviceButtonCSS(service.Button)
+
+	service.Icon = roundimage.NewStillImage(service.Button, 0)
+	service.Icon.SetSize(IconSize)
+	service.Icon.UseInitialsIfNone(service.Name.String)
+	service.Icon.Show()
+	serviceIconCSS(service.Icon)
+
+	rich.BindRoundImage(service.Icon, &service.Name, true)
+	// TODO: hover for name. We use tooltip for now.
+
+	service.Button.Add(service.Icon)
 	service.Button.Connect("clicked", func(tb *gtk.ToggleButton) {
 		revealed := !service.GetRevealChild()
 		service.SetRevealChild(revealed)
 		tb.SetActive(revealed)
 	})
-	serviceButtonCSS(service.Button)
 
 	// Bind session.* actions into row.
 	service.Menu = actions.NewMenu("service")
@@ -153,9 +147,9 @@ func NewService(svc cchat.Service, svclctrl ListController) *Service {
 	serviceCSS(service.Box)
 
 	// Bind a drag and drop on the button instead of the entire box.
-	drag.BindDraggable(service, "network-workgroup", svclctrl.MoveService, service.Button)
+	drag.BindDraggable(&service, "network-workgroup", svclctrl.MoveService, service.Button)
 
-	return service
+	return &service
 }
 
 // SetRevealChild sets whether or not the service should reveal all sessions.
@@ -204,7 +198,7 @@ func (s *Service) AddSession(ses cchat.Session) *session.Row {
 }
 
 func (s *Service) ID() string {
-	return s.service.Name().Content
+	return s.service.ID()
 }
 
 func (s *Service) Service() cchat.Service {
@@ -232,7 +226,7 @@ func (s *Service) MoveSession(id, movingID string) {
 }
 
 func (s *Service) Breadcrumb() string {
-	return s.service.Name().Content
+	return s.Name.String()
 }
 
 func (s *Service) ParentBreadcrumb() traverse.Breadcrumber {
@@ -241,15 +235,13 @@ func (s *Service) ParentBreadcrumb() traverse.Breadcrumber {
 
 func (s *Service) SaveAllSessions() {
 	var sessions = s.BodyList.Sessions()
-	var keyrings = make([]keyring.Session, 0, len(sessions))
+	var keyrings = keyring.NewService(s.service, len(sessions))
 
-	for _, s := range sessions {
-		if k := keyring.ConvertSession(s.Session); k != nil {
-			keyrings = append(keyrings, *k)
-		}
+	for _, session := range sessions {
+		keyrings.Add(session.Session, s.Name.String())
 	}
 
-	keyring.SaveSessions(s.service, keyrings)
+	keyrings.Save()
 }
 
 func (s *Service) RestoreSession(row *session.Row, id string) {
@@ -265,7 +257,7 @@ func (s *Service) RestoreSession(row *session.Row, id string) {
 
 	log.Error(fmt.Errorf(
 		"Missing keyring for service %s, session ID %s",
-		s.service.Name().Content, id,
+		s.service.ID(), id,
 	))
 }
 
@@ -276,8 +268,10 @@ func (s *Service) restoreAll() {
 		return
 	}
 
-	// Session is not a pointer, so we can pass it into arguments safely.
-	for _, ses := range keyring.RestoreSessions(s.service) {
+	service := keyring.Restore(s.service)
+
+	for _, ses := range service.Sessions {
+		// Session is not a pointer, so we can pass it into arguments safely.
 		row := s.AddLoadingSession(ses.ID, ses.Name)
 		row.RestoreSession(rs, ses)
 	}

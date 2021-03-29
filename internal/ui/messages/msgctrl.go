@@ -84,11 +84,11 @@ func (mc *MessageControl) Enable(msg container.MessageRow, names MessageItemName
 	mc.SetSensitive(true)
 	mc.SetRevealChild(true && !mc.hide)
 
-	items := msg.MenuItems()
+	unwrap := msg.Unwrap(false)
 
-	mc.Reply.bind(menu.FindItemFunc(items, names.Reply))
-	mc.Edit.bind(menu.FindItemFunc(items, names.Edit))
-	mc.Delete.bind(menu.FindItemFunc(items, names.Delete))
+	mc.Reply.bind(menu.FindItemFunc(unwrap.MenuItems, names.Reply))
+	mc.Edit.bind(menu.FindItemFunc(unwrap.MenuItems, names.Edit))
+	mc.Delete.bind(menu.FindItemFunc(unwrap.MenuItems, names.Delete))
 }
 
 // SetHidden sets whether or not the control should be hidden.

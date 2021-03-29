@@ -39,9 +39,13 @@ func SpawnDialog(buf *Buffer) {
 	s.Show()
 
 	h, _ := gtk.HeaderBarNew()
-	h.SetTitle("Commander: " + buf.name)
 	h.SetShowCloseButton(true)
 	h.Show()
+
+	rm := buf.name.OnUpdate(func() {
+		h.SetTitle("Commander: " + buf.name.Label().Content)
+	})
+	h.Connect("destroy", rm)
 
 	d, _ := gts.NewEmptyModalDialog()
 	d.SetDefaultSize(450, 250)

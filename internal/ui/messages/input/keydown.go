@@ -48,11 +48,13 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 		}
 
 		// Try and find the latest message ID that is ours.
-		id, ok := f.ctrl.LatestMessageFrom(f.UserID)
-		if !ok {
+		msgr := f.ctrl.LatestMessageFrom(f.UserID)
+		if msgr == nil {
 			// No messages found, so we can passthrough normally.
 			return false
 		}
+
+		id := msgr.Unwrap(false).ID
 
 		// If we don't support message editing, then passthrough events.
 		if !f.Editable(id) {

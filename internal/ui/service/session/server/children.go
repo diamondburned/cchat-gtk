@@ -13,22 +13,28 @@ import (
 )
 
 type Controller interface {
+	ClearMessenger()
 	MessengerSelected(*ServerRow)
+	// SelectColumnatedLister is called when the user clicks a server lister
+	// with its with Columnate method returning true. If lister is nil, then the
+	// impl should clear it.
+	SelectColumnatedLister(*ServerRow, cchat.Lister)
 }
 
 // Children is a children server with a reference to the parent. By default, a
 // children will contain hollow rows. They are rows that do not yet have any
 // widgets. This changes as soon as Row's Load is called.
 type Children struct {
-	*gtk.Box
+	gtk.Box
+	Controller
 
 	load    *loading.Button // only not nil while loading
 	loading bool
 
-	Rows []*ServerRow
+	Rows   []*ServerRow
+	expand bool
 
-	Parent  traverse.Breadcrumber
-	rowctrl Controller
+	Parent traverse.Breadcrumber
 
 	// Unreadable state for children rows to use. The parent row that has this
 	// Children will bind a handler to this.
@@ -37,8 +43,6 @@ type Children struct {
 
 var childrenCSS = primitives.PrepareClassCSS("server-children", `
 	.server-children {
-		margin: 0;
-		margin-top: 3px;
 		border-radius: 0;
 	}
 `)
@@ -47,8 +51,8 @@ var childrenCSS = primitives.PrepareClassCSS("server-children", `
 // widgets.
 func NewHollowChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
 	return &Children{
-		Parent:  p,
-		rowctrl: ctrl,
+		Parent:     p,
+		Controller: ctrl,
 	}
 }
 
@@ -60,7 +64,7 @@ func NewChildren(p traverse.Breadcrumber, ctrl Controller) *Children {
 }
 
 func (c *Children) IsHollow() bool {
-	return c.Box == nil
+	return c.Box.Object == nil
 }
 
 // Init ensures that the children container is not hollow. It does nothing after
@@ -70,10 +74,13 @@ func (c *Children) IsHollow() bool {
 // Nothing but ServerRow should call this method.
 func (c *Children) Init() {
 	if c.IsHollow() {
-		c.Box, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-		c.Box.SetMarginStart(ChildrenMargin)
-		c.Box.SetHExpand(true)
-		childrenCSS(c.Box)
+		box, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+		box.SetMarginStart(ChildrenMargin)
+		c.Box = *box
+		childrenCSS(box)
+
+		// Show all margins by default.
+		c.SetExpand(true)
 
 		// Check if we're still loading. This is effectively restoring the
 		// state that was set before we had widgets.
@@ -90,7 +97,7 @@ func (c *Children) Init() {
 func (c *Children) Reset() {
 	// If the children container isn't hollow, then we have to remove the known
 	// rows from the container box.
-	if c.Box != nil {
+	if c.Box.Object != nil {
 		// Remove old servers from the list.
 		for _, row := range c.Rows {
 			if row.IsHollow() {
@@ -102,6 +109,26 @@ func (c *Children) Reset() {
 
 	// Wipe the list empty.
 	c.Rows = nil
+}
+
+// SetExpand sets whether or not to expand the margin and show the labels.
+func (c *Children) SetExpand(expand bool) {
+	AssertUnhollow(c)
+	c.expand = expand
+
+	if expand {
+		primitives.AddClass(c, "expand")
+	} else {
+		primitives.RemoveClass(c, "expand")
+	}
+
+	for _, row := range c.Rows {
+		// Ensure that the row is initialized. If we're expanded, then show the
+		// label.
+		if row.Button != nil {
+			row.SetShowLabel(expand)
+		}
+	}
 }
 
 // setLoading shows the loading circle as a list child. If hollow, this function
@@ -168,7 +195,7 @@ func (c *Children) SetServersUnsafe(servers []cchat.Server) {
 		if server == nil {
 			log.Panicln("one of given servers in SetServers is nil at ", i)
 		}
-		c.Rows[i] = NewHollowServer(c, server, c.rowctrl)
+		c.Rows[i] = NewHollowServer(c, server, c)
 	}
 
 	// We should not unhollow everything here, but rather on uncollapse.
@@ -205,7 +232,7 @@ func (c *Children) UpdateServerUnsafe(update cchat.ServerUpdate) {
 	prevID, replace := update.PreviousID()
 
 	// TODO: I don't think this code unhollows a new server.
-	var newServer = NewHollowServer(c, update, c.rowctrl)
+	var newServer = NewHollowServer(c, update, c)
 	var i, oldRow = c.findID(prevID)
 
 	// If we're appending a new row, then replace is false.
@@ -246,23 +273,13 @@ func (c *Children) LoadAll() {
 		// Restore expansion if possible.
 		savepath.Restore(row, row.Button)
 	}
+}
 
-	// Check if we have icons.
-	var hasIcon bool
-
+// ForceIcons forces all of the children's row to show icons.
+func (c *Children) ForceIcons() {
 	for _, row := range c.Rows {
-		if row.HasIcon() {
-			hasIcon = true
-			break
-		}
-	}
-
-	// If we have an icon, then show all other possibly empty icons. HdyAvatar
-	// will generate a placeholder.
-	if hasIcon {
-		for _, row := range c.Rows {
-			row.UseEmptyIcon()
-		}
+		row.UseEmptyIcon()
+		row.SetShowLabel(c.expand)
 	}
 }
 
