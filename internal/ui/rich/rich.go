@@ -62,29 +62,23 @@ func (namec *NameContainer) Stop() {
 	if namec.state != nil {
 		namec.state.Stop()
 		namec.LabelState.setLabel(text.Plain(""))
+	} else {
+		namec.state = &containerState{
+			current: func() {},
+			stop:    func() {},
+		}
+		runtime.SetFinalizer(namec.state, (*containerState).Stop)
 	}
 }
 
 func (state *containerState) Stop() {
-	if state.current != nil {
-		state.current()
-		state.current = nil
-	}
-
-	if state.stop != nil {
-		state.stop()
-		state.stop = nil
-	}
+	state.current()
+	state.stop()
 }
 
 // QueueNamer tries using the namer in the background and queue the setter onto
 // the next GLib loop iteration.
 func (namec *NameContainer) QueueNamer(ctx context.Context, namer cchat.Namer) {
-	if namec.state == nil {
-		namec.state = &containerState{}
-		runtime.SetFinalizer(namec.state, (*containerState).Stop)
-	}
-
 	namec.Stop()
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -98,7 +92,6 @@ func (namec *NameContainer) QueueNamer(ctx context.Context, namer cchat.Namer) {
 
 		gts.ExecAsync(func() {
 			namec.state.current()
-			namec.state.current = nil
 			namec.state.stop = stop
 		})
 	}()
@@ -115,11 +108,11 @@ func (namec *NameContainer) BindNamer(w primitives.Connector, sig string, namer 
 	// namec.Stop()
 
 	// ctx, cancel := context.WithCancel(context.Background())
-	// namec.current = cancel
+	// namec.state.current = cancel
 
 	// // TODO: this might leak, because namec.Stop references the fns list which
 	// // might reference w indirectly.
-	// w.Connect(sig, namec.Stop)
+	// handle := w.Connect(sig, namec.Stop)
 
 	// go func() {
 	// 	stop, err := namer.Name(ctx, namec)
@@ -128,9 +121,18 @@ func (namec *NameContainer) BindNamer(w primitives.Connector, sig string, namer 
 	// 	}
 
 	// 	gts.ExecAsync(func() {
-	// 		namec.current()
-	// 		namec.current = nil
-	// 		namec.stop = stop // nil is OK.
+	// 		namec.state.current()
+
+	// 		if stop != nil {
+	// 			namec.state.stop = func() {
+	// 				w.HandlerDisconnect(handle)
+	// 				stop()
+	// 			}
+	// 		} else {
+	// 			namec.state.stop = func() {
+	// 				w.HandlerDisconnect(handle)
+	// 			}
+	// 		}
 	// 	})
 	// }()
 }

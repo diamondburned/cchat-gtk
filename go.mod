@@ -2,13 +2,11 @@ module github.com/diamondburned/cchat-gtk
 
 go 1.16
 
-replace github.com/diamondburned/cchat-discord => ../cchat-discord
-
 require (
 	github.com/Xuanwo/go-locale v1.0.0
 	github.com/alecthomas/chroma v0.7.3
 	github.com/diamondburned/cchat v0.6.4
-	github.com/diamondburned/cchat-discord v0.0.0-20210326063953-deb4ccb32bff
+	github.com/diamondburned/cchat-discord v0.0.0-20210501072434-cc2b2ee4c799
 	github.com/diamondburned/gspell v0.0.0-20201229064336-e43698fd5828
 	github.com/diamondburned/handy v0.0.0-20210329054445-387ad28eb2c2
 	github.com/diamondburned/imgutil v0.0.0-20200710174014-8a3be144a972

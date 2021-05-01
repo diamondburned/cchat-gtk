@@ -19,10 +19,11 @@ import (
 // made for containers to override; methods not meant to be override are not
 // exposed and will be done directly on the State.
 type Container interface {
-	// Unwrap unwraps the message container and, if revert is true, revert the
-	// state to a clean version. Containers must implement this method by
-	// itself.
-	Unwrap(revert bool) *State
+	// Unwrap returns the internal message state.
+	Unwrap() *State
+	// Revert unwraps and reverts all widget changes to the internal state then
+	// returns that state.
+	Revert() *State
 
 	// UpdateContent updates the underlying content widget.
 	UpdateContent(content text.Rich, edited bool)
@@ -50,8 +51,7 @@ type State struct {
 	MenuItems []menu.Item
 }
 
-// NewState creates a new message state with the given ID and nonce. It does not
-// update the widgets, so FillContainer should be called afterwards.
+// NewState creates a new message state with the given MessageCreate.
 func NewState(msg cchat.MessageCreate) *State {
 	author := msg.Author()
 
@@ -61,6 +61,7 @@ func NewState(msg cchat.MessageCreate) *State {
 	c.ID = msg.ID()
 	c.Time = msg.Time()
 	c.Nonce = msg.Nonce()
+	c.UpdateContent(msg.Content(), false)
 
 	return c
 }
@@ -69,8 +70,7 @@ func NewState(msg cchat.MessageCreate) *State {
 // immediately afterwards; it is invalid once the state is used.
 func NewEmptyState() *State {
 	ctbody := labeluri.NewLabel(text.Rich{})
-	ctbody.SetVExpand(true)
-	ctbody.SetHAlign(gtk.ALIGN_START)
+	ctbody.SetHAlign(gtk.ALIGN_FILL)
 	ctbody.SetEllipsize(pango.ELLIPSIZE_NONE)
 	ctbody.SetLineWrap(true)
 	ctbody.SetLineWrapMode(pango.WRAP_WORD_CHAR)
@@ -84,10 +84,11 @@ func NewEmptyState() *State {
 
 	// Wrap the content label inside a content box.
 	ctbox, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	ctbox.SetHExpand(true)
 	ctbox.PackStart(ctbody, false, false, 0)
+	ctbox.SetHAlign(gtk.ALIGN_FILL)
 	ctbox.Show()
 
+	// Box that belongs to the implementations of messages.
 	box, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
 	box.Show()
 
@@ -122,13 +123,38 @@ func NewEmptyState() *State {
 	return gc
 }
 
+// ClearBox clears the state's widget container.
+func (m *State) ClearBox() {
+	primitives.RemoveChildren(m)
+	m.SetClass("")
+}
+
+// // For debugging use only.
+// func (m *State) PackStart(child gtk.IWidget, expand bool, fill bool, padding uint) {
+// 	paths := make([]string, 0, 5)
+// 	for i := 1; i < 5; i++ {
+// 		_, file, line, ok := runtime.Caller(i)
+// 		if !ok {
+// 			break
+// 		}
+//
+// 		paths = append(paths, fmt.Sprintf("%s:%d", filepath.Base(file), line))
+// 	}
+//
+// 	log.Println("child packstart", m.ID, "at", strings.Join(paths, " < "))
+// 	m.Box.PackStart(child, expand, fill, padding)
+// }
+
 // SetClass sets the internal row's class.
 func (m *State) SetClass(class string) {
 	if m.class != "" {
 		primitives.RemoveClass(m.Row, m.class)
 	}
 
-	primitives.AddClass(m.Row, class)
+	if class != "" {
+		primitives.AddClass(m.Row, class)
+	}
+
 	m.class = class
 }
 
@@ -153,3 +179,6 @@ func (m *State) UpdateContent(content text.Rich, edited bool) {
 func (m *State) Focusable() gtk.IWidget {
 	return m.Content
 }
+
+// Unwrap returns itself.
+func (m *State) Unwrap() *State { return m }

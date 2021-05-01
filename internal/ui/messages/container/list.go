@@ -1,6 +1,7 @@
 package container
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -21,6 +22,19 @@ type messageKey struct {
 func nonceKey(nonce string) messageKey { return messageKey{nonce, true} }
 func idKey(id cchat.ID) messageKey     { return messageKey{id, false} }
 
+// newKey creates a new message key.
+func newKey(state *message.State) messageKey {
+	if state.ID != "" {
+		return messageKey{state.ID, false}
+	}
+	if state.Nonce != "" {
+		return messageKey{state.Nonce, true}
+	}
+
+	log.Printf("state is missing both ID and Nonce: \n%#v\n", state)
+	return messageKey{}
+}
+
 func parseKeyFromNamer(n primitives.Namer) messageKey {
 	name, err := n.GetName()
 	if err != nil {
@@ -38,7 +52,7 @@ func parseKeyFromNamer(n primitives.Namer) messageKey {
 	case "nonce":
 		return messageKey{id: parts[1], nonce: true}
 	default:
-		panic("Unknown prefix in row name " + parts[0])
+		panic("unknown prefix in message row name " + parts[0])
 	}
 }
 
@@ -123,9 +137,7 @@ func (c *ListStore) Reset() {
 	// Delegate removing children to the constructor.
 	c.messages = make(map[messageKey]*messageRow, BacklogLimit+1)
 
-	if c.self.ID != "" {
-		c.self.Name.Stop()
-	}
+	c.self.Name.Stop()
 }
 
 // SetSelf sets the current author to presend. If ID is empty or Namer is nil,
@@ -149,32 +161,38 @@ func (c *ListStore) MessagesLen() int {
 // TODO: combine compact and full so they share the same attach method.
 func (c *ListStore) SwapMessage(msg MessageRow) bool {
 	// Unwrap msg from a *messageRow if it's not already.
-	m, ok := msg.(*messageRow)
-	if ok {
-		msg = m.MessageRow
+	if mrow, ok := msg.(*messageRow); ok {
+		msg = mrow.MessageRow
 	}
 
-	msgState := msg.Unwrap(false)
+	state := msg.Unwrap()
 
 	// Get the current message's index.
-	oldMsg, ix := c.findIndex(msgState.ID)
+	oldMsg, ix := c.findIndex(state.ID)
 	if ix == -1 {
 		return false
 	}
 
-	oldState := oldMsg.Unwrap(false)
+	// Remove the previous message off the message map using the key from its
+	// state.
+	delete(c.messages, newKey(oldMsg.state))
 
-	// Remove the to-be-replaced message box. We should probably reuse the row.
-	c.ListBox.Remove(oldState.Row)
+	// Remove the to-be-replaced message box.
+	// TODO: We should probably reuse the row.
+	c.ListBox.Remove(oldMsg.state.Row)
 
 	// Add a row at index. The actual row we want to delete will be shifted
 	// downwards.
-	c.ListBox.Insert(msgState.Row, ix)
+	c.ListBox.Insert(state.Row, ix)
+
+	row := messageRow{
+		MessageRow: msg,
+		state:      state,
+	}
 
 	// Set the message into the map.
-	row := c.messages[idKey(msgState.ID)]
-	row.MessageRow = msg
-	c.bindMessage(row)
+	c.messages[newKey(state)] = &row
+	c.bindMessage(&row)
 
 	return true
 }
@@ -241,6 +259,15 @@ func (c *ListStore) findIndex(findID cchat.ID) (found *messageRow, index int) {
 	return
 }
 
+// Fast path interface.
+type messageFinder interface {
+	findMessage(presend bool, fn func(*messageRow) bool) (*messageRow, int)
+}
+
+var _ messageFinder = (*ListStore)(nil)
+
+// findMessage finds a message with the given callback as the filter. If presend
+// is false, then presend messages are ignored.
 func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messageRow, int) {
 	var r *messageRow
 	var i = c.MessagesLen() - 1
@@ -251,7 +278,7 @@ func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messa
 
 		// If gridMsg is actually nil, then we have bigger issues.
 		if gridMsg != nil {
-			// Ignore sending messages.
+			// Ignore sending messages if presend is false.
 			if (presend || gridMsg.presend == nil) && fn(gridMsg) {
 				r = gridMsg
 				return true
@@ -271,12 +298,12 @@ func (c *ListStore) findMessage(presend bool, fn func(*messageRow) bool) (*messa
 }
 
 // FindMessage iterates backwards and returns the message if isMessage() returns
-// true on that message. It does not search presend messages.
-func (c *ListStore) FindMessage(isMessage func(MessageRow) bool) MessageRow {
-	msg, _ := c.findMessage(false, func(row *messageRow) bool {
+// true on that message.
+func (c *ListStore) FindMessage(isMessage func(MessageRow) bool) (MessageRow, int) {
+	msg, ix := c.findMessage(true, func(row *messageRow) bool {
 		return isMessage(row.MessageRow)
 	})
-	return unwrapRow(msg)
+	return unwrapRow(msg), ix
 }
 
 func (c *ListStore) nthMessage(n int) *messageRow {
@@ -292,16 +319,6 @@ func (c *ListStore) nthMessage(n int) *messageRow {
 // NthMessage returns the nth message.
 func (c *ListStore) NthMessage(n int) MessageRow {
 	return unwrapRow(c.nthMessage(n))
-}
-
-// FirstMessage returns the first message.
-func (c *ListStore) FirstMessage() MessageRow {
-	return c.NthMessage(0)
-}
-
-// LastMessage returns the latest message.
-func (c *ListStore) LastMessage() MessageRow {
-	return c.NthMessage(c.MessagesLen() - 1)
 }
 
 // Message finds the message state in the container. It is not thread-safe. This
@@ -343,26 +360,24 @@ func (c *ListStore) message(msgID cchat.ID, nonce string) *messageRow {
 }
 
 func (c *ListStore) bindMessage(msgc *messageRow) {
-	state := msgc.Unwrap(false)
-
 	// Bind the message ID to the row so we can easily do a lookup.
 	key := messageKey{
-		id: state.ID,
+		id: msgc.state.ID,
 	}
 
-	if state.Nonce != "" {
-		key.id = state.Nonce
+	if msgc.state.Nonce != "" {
+		key.id = msgc.state.Nonce
 		key.nonce = true
 	}
 
-	state.Row.SetName(key.name())
+	msgc.state.Row.SetName(key.name())
 	msgc.MessageRow.SetReferenceHighlighter(c)
 
 	c.Controller.BindMenu(msgc.MessageRow)
 }
 
-func (c *ListStore) AddMessage(msg MessageRow) {
-	state := msg.Unwrap(false)
+func (c *ListStore) AddMessageAt(msg MessageRow, ix int) {
+	state := msg.Unwrap()
 
 	defer c.Controller.AuthorEvent(state.Author.ID)
 
@@ -373,37 +388,34 @@ func (c *ListStore) AddMessage(msg MessageRow) {
 		return
 	}
 
-	// Iterate and compare timestamp to find where to insert a message. Note
-	// that "before" is the message that will go before the to-be-inserted
-	// method.
-	before, index := c.findMessage(true, func(before *messageRow) bool {
-		return before.Unwrap(false).Time.After(state.Time)
-	})
+	// Attempt to guess if this is a presend message or not. This should be
+	// unwrapped once it's finalized.
+	presend, _ := msg.(message.Presender)
 
 	msgc := &messageRow{
 		MessageRow: msg,
+		presend:    presend,
+		state:      state,
 	}
 
 	// Add the message. If before is nil, then the to-be-inserted message is the
 	// earliest message, therefore we prepend it.
-	if before == nil {
-		index = 0
+	if ix < 0 {
+		ix = 0
 		c.ListBox.Prepend(state.Row)
 	} else {
-		index++ // insert right after
+		ix++ // insert right after
 
 		// Fast path: Insert did appear a lot on profiles, so we can try and use
 		// Add over Insert when we know.
-		if c.MessagesLen() == index {
+		if c.MessagesLen() == ix {
 			c.ListBox.Add(state.Row)
 		} else {
-			c.ListBox.Insert(state.Row, index)
+			c.ListBox.Insert(state.Row, ix)
 		}
 	}
 
-	// Set the ID into the message map.
-	c.messages[idKey(state.ID)] = msgc
-
+	c.messages[newKey(state)] = msgc
 	c.bindMessage(msgc)
 }
 
@@ -436,19 +448,14 @@ func (c *ListStore) DeleteEarliest(n int) {
 	// after deleting, so we have to call Next manually before Removing.
 	primitives.ForeachChild(c.ListBox, func(v interface{}) (stop bool) {
 		id := parseKeyFromNamer(v.(primitives.Namer))
-		gridMsg := c.message(id.expand())
 
-		state := gridMsg.Unwrap(false)
-
-		if state.ID != "" {
-			delete(c.messages, idKey(state.ID))
+		mr, ok := c.messages[id]
+		if !ok {
+			log.Panicln("message with ID", id, "not found in map")
 		}
 
-		if state.Nonce != "" {
-			delete(c.messages, nonceKey(state.Nonce))
-		}
-
-		destroyMsg(gridMsg)
+		delete(c.messages, id)
+		destroyMsg(mr)
 
 		n--
 		return n == 0
@@ -464,7 +471,7 @@ func (c *ListStore) HighlightReference(ref markup.ReferenceSegment) {
 
 func (c *ListStore) Highlight(msg MessageRow) {
 	gts.ExecAsync(func() {
-		state := msg.Unwrap(false)
+		state := msg.Unwrap()
 		state.Row.GrabFocus()
 		c.ListBox.DragHighlightRow(state.Row)
 		gts.DoAfter(2*time.Second, c.ListBox.DragUnhighlightRow)
@@ -472,7 +479,6 @@ func (c *ListStore) Highlight(msg MessageRow) {
 }
 
 func destroyMsg(row *messageRow) {
-	state := row.Unwrap(true)
-	state.Author.Name.Stop()
-	state.Row.Destroy()
+	row.state.Author.Name.Stop()
+	row.state.Row.Destroy()
 }

@@ -173,17 +173,15 @@ func (i *Image) SetImageURLInto(url string, otherImage httputil.ImageContainer) 
 		return
 	}
 
-	if i.icon.name != "" {
-		primitives.SetImageIcon(i, i.icon.name, i.icon.size)
-		goto noImage
-	}
-
 	if i.ifNone != nil {
 		i.ifNone(ctx)
 		return
 	}
 
-noImage:
+	if i.icon.name != "" {
+		primitives.SetImageIcon(i, i.icon.name, i.icon.size)
+	}
+
 	i.Image.SetFromPixbuf(nil)
 	i.cancel()
 }
@@ -216,9 +214,14 @@ func (i *Image) drawer(image *gtk.Image, cc *cairo.Context) bool {
 		return false
 	}
 
-	a := image.GetAllocation()
-	w := float64(a.GetWidth())
-	h := float64(a.GetHeight())
+	var w, h float64
+	if reqW, reqH := image.GetSizeRequest(); reqW > 0 && reqH > 0 {
+		w = float64(reqW)
+		h = float64(reqH)
+	} else {
+		w = float64(image.GetAllocatedWidth())
+		h = float64(image.GetAllocatedHeight())
+	}
 
 	min := w
 	// Use the largest side for radius calculation.

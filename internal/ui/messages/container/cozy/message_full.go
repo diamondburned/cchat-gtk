@@ -14,9 +14,6 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-// TopFullMargin is the margin on top of every full message.
-const TopFullMargin = 4
-
 type FullMessage struct {
 	*message.State
 
@@ -37,9 +34,19 @@ var (
 )
 
 var avatarCSS = primitives.PrepareClassCSS("cozy-avatar", `
+	.cozy-avatar {
+		margin-top: 2px;
+	}
+
 	/* Slightly dip down on click */
 	.cozy-avatar:active {
 	    margin-top: 1px;
+	}
+`)
+
+var mainCSS = primitives.PrepareClassCSS("cozy-main", `
+	.cozy-main {
+		margin-top: 4px;
 	}
 `)
 
@@ -54,7 +61,6 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	header.Show()
 
 	avatar := NewAvatar(gc.Row)
-	avatar.SetMarginTop(TopFullMargin / 2)
 	avatar.SetMarginStart(container.ColumnSpacing * 2)
 	avatar.Connect("clicked", func(w gtk.IWidget) {
 		if output := header.Output(); len(output.Mentions) > 0 {
@@ -72,7 +78,6 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.PackStart(header, false, false, 0)
 	main.PackStart(gc.Content, false, false, 0)
-	main.SetMarginTop(TopFullMargin)
 	main.SetMarginEnd(container.ColumnSpacing * 2)
 	main.SetMarginStart(container.ColumnSpacing)
 	main.Show()
@@ -84,6 +89,11 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	gc.PackStart(main, true, true, 0)
 	gc.SetClass("cozy-full")
 
+	removeUpdate := gc.Author.Name.OnUpdate(func() {
+		avatar.SetImage(gc.Author.Name.Image())
+		header.SetLabel(gc.Author.Name.Label())
+	})
+
 	msg := &FullMessage{
 		State:     gc,
 		timestamp: formatLongTime(gc.Time),
@@ -92,17 +102,14 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 		MainBox:     main,
 		HeaderLabel: header,
 
-		unwrap: gc.Author.Name.OnUpdate(func() {
-			avatar.SetImage(gc.Author.Name.Image())
-			header.SetLabel(gc.Author.Name.Label())
-		}),
+		unwrap: func() { removeUpdate() },
 	}
 
-	header.SetRenderer(func(rich text.Rich) markup.RenderOutput {
-		cfg := markup.RenderConfig{}
-		cfg.NoReferencing = true
-		cfg.SetForegroundAnchor(gc.ContentBodyStyle)
+	cfg := markup.RenderConfig{}
+	cfg.NoReferencing = true
+	cfg.SetForegroundAnchor(gc.ContentBodyStyle)
 
+	header.SetRenderer(func(rich text.Rich) markup.RenderOutput {
 		output := markup.RenderCmplxWithConfig(rich, cfg)
 		output.Markup = `<span font_weight="600">` + output.Markup + "</span>"
 		output.Markup += msg.timestamp
@@ -113,27 +120,30 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	return msg
 }
 
-func (m *FullMessage) Collapsed() bool { return false }
+func (m *FullMessage) Revert() *message.State {
+	// Remove the handlers.
+	m.unwrap()
 
-func (m *FullMessage) Unwrap(revert bool) *message.State {
-	if revert {
-		// Remove the handlers.
-		m.unwrap()
+	// Destroy the bottom leaf widgets first.
+	m.Avatar.Destroy()
+	m.HeaderLabel.Destroy()
 
-		// Remove State's widgets from the containers.
-		m.HeaderLabel.Destroy()
-		m.MainBox.Remove(m.Content) // not ours, so don't destroy.
+	// Remove the content label from main then destroy it, in case destroying it
+	// ruins the label.
+	m.MainBox.Remove(m.Content)
+	m.MainBox.Destroy()
 
-		// Remove the message from the grid.
-		m.Avatar.Destroy()
-		m.MainBox.Destroy()
-	}
+	m.ClearBox()
 
-	return m.State
+	return m.Unwrap()
 }
 
+type full interface{ full() }
+
+func (m *FullMessage) full() {}
+
 func formatLongTime(t time.Time) string {
-	return `<span alpha="70%" size="small">` + humanize.TimeAgoLong(t) + `</span>`
+	return ` <span alpha="70%" size="small">` + humanize.TimeAgoLong(t) + `</span>`
 }
 
 type FullSendingMessage struct {

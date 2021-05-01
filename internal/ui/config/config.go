@@ -96,8 +96,6 @@ func Restore() {
 		log.Error(errors.Wrap(err, "Failed to unmarshal main config.json"))
 	}
 
-	log.Printlnf("To restore: %#v", toRestore)
-
 	for path, v := range toRestore {
 		if err := UnmarshalFromFile(path, v); err != nil {
 			log.Error(errors.Wrapf(err, "Failed to unmarshal %s", path))

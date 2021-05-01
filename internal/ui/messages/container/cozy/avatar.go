@@ -14,7 +14,7 @@ type Avatar struct {
 }
 
 func NewAvatar(parent primitives.Connector) *Avatar {
-	img := roundimage.NewStillImage(nil, 0)
+	img := roundimage.NewStillImage(parent, 0)
 	img.SetSizeRequest(AvatarSize, AvatarSize)
 	img.Show()
 

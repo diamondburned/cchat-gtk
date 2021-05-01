@@ -54,7 +54,7 @@ func (f *Field) keyDown(tv *gtk.TextView, ev *gdk.Event) bool {
 			return false
 		}
 
-		id := msgr.Unwrap(false).ID
+		id := msgr.Unwrap().ID
 
 		// If we don't support message editing, then passthrough events.
 		if !f.Editable(id) {

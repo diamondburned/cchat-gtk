@@ -1,6 +1,8 @@
 package container
 
 import (
+	"time"
+
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/ui/messages/message"
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
@@ -37,21 +39,21 @@ type Container interface {
 	// NewPresendMessage creates and adds a presend message state into the list.
 	NewPresendMessage(state *message.PresendState) PresendMessageRow
 
-	// AddMessage adds a new message into the list.
-	AddMessage(row MessageRow)
+	// AddMessageAt adds a new message into the list at the given index.
+	AddMessageAt(row MessageRow, ix int)
 
-	// FirstMessage returns the first message in the buffer. Nil is returned if
-	// there's nothing.
-	FirstMessage() MessageRow
-	// LastMessage returns the last message in the buffer or nil if there's
+	// MessagesLen returns the current number of messages.
+	MessagesLen() int
+	// NthMessage returns the nth message in the buffer or nil if there's
 	// nothing.
-	LastMessage() MessageRow
+	NthMessage(ix int) MessageRow
+
 	// Message finds and returns the message, if any. It performs maximum 2
 	// constant-time lookups.
 	Message(id cchat.ID, nonce string) MessageRow
 	// FindMessage finds a message that satisfies the given callback. It
 	// iterates the message buffer from latest to earliest.
-	FindMessage(isMessage func(MessageRow) bool) MessageRow
+	FindMessage(isMessage func(MessageRow) bool) (MessageRow, int)
 
 	// Highlight temporarily highlights the given message for a short while.
 	Highlight(msg MessageRow)
@@ -71,10 +73,56 @@ func UpdateMessage(ct Container, update cchat.MessageUpdate) {
 }
 
 // LatestMessageFrom returns the latest message from the given author ID.
-func LatestMessageFrom(ct Container, authorID cchat.ID) MessageRow {
-	return ct.FindMessage(func(msg MessageRow) bool {
-		return msg.Unwrap(false).Author.ID == authorID
+func LatestMessageFrom(ct Container, authorID cchat.ID) (MessageRow, int) {
+	finder, ok := ct.(messageFinder)
+	if !ok {
+		return ct.FindMessage(func(msg MessageRow) bool {
+			return msg.Unwrap().Author.ID == authorID
+		})
+	}
+
+	msg, ix := finder.findMessage(true, func(msg *messageRow) bool {
+		return msg.state.Author.ID == authorID
 	})
+
+	return unwrapRow(msg), ix
+}
+
+// FirstMessage returns the first message in the buffer. Nil is returned if
+// there's nothing.
+func FirstMessage(ct Container) MessageRow {
+	return ct.NthMessage(0)
+}
+
+// LastMessage returns the last message in the buffer or nil if there's nothing.
+func LastMessage(ct Container) MessageRow {
+	return ct.NthMessage(ct.MessagesLen() - 1)
+}
+
+// InsertPosition returns the message that is before the given time (or nil) and
+// the new index of the message with the given timestamp. If -1 is returned,
+// then there is no message prior, and the message should be prepended on top.
+func InsertPosition(ct Container, t time.Time) (MessageRow, int) {
+	var row MessageRow
+	var mIx int
+
+	finder, ok := ct.(messageFinder)
+	if !ok {
+		row, mIx = ct.FindMessage(func(msg MessageRow) bool {
+			return t.After(msg.Unwrap().Time)
+		})
+	} else {
+		// Iterate and compare timestamp to find where to insert a message. Note
+		// that "before" is the message that will go before the to-be-inserted
+		// method.
+		msg, ix := finder.findMessage(true, func(msg *messageRow) bool {
+			return t.After(msg.state.Time)
+		})
+		row = unwrapRow(msg)
+		mIx = ix
+	}
+
+	return row, mIx
 }
 
 // Controller is for menu actions.
@@ -109,6 +157,7 @@ type ListContainer struct {
 // messageRow w/ required internals
 type messageRow struct {
 	MessageRow
+	state   *message.State
 	presend message.Presender // this shouldn't be here but i'm lazy
 }
 
@@ -138,11 +187,6 @@ func NewListContainer(ctrl Controller) *ListContainer {
 		ListStore:  listStore,
 		Controller: ctrl,
 	}
-}
-
-func (c *ListContainer) AddMessage(row MessageRow) {
-	c.ListStore.AddMessage(row)
-	c.CleanMessages()
 }
 
 // CleanMessages cleans up the oldest messages if the user is scrolled to the

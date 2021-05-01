@@ -1,21 +1,19 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ unstable ? import <unstable> {} }:
 
-pkgs.stdenv.mkDerivation rec {
+unstable.stdenv.mkDerivation rec {
 	name = "cchat-gtk";
 	version = "0.0.2";
 
-	buildInputs = [
-		pkgs.libhandy
-		pkgs.gnome3.gspell
-		pkgs.gnome3.glib
-		pkgs.gnome3.gtk
+	buildInputs = with unstable; [
+		libhandy
+		gnome3.gspell
+		gnome3.glib
+		gnome3.gtk
 	];
 
-	nativeBuildInputs = with pkgs; [
-		pkgconfig go
+	nativeBuildInputs = with unstable; [
+		pkgconfig
+		go
+		wrapGAppsHook
 	];
-
-	# Debug flags.
-	CGO_CFLAGS   = "-g";
-	CGO_CXXFLAGS = "-g";
 }

@@ -114,9 +114,10 @@ func NewView(c Controller) *View {
 	view.MsgBox.Show()
 
 	view.Scroller = autoscroll.NewScrolledWindow()
-	view.Scroller.Add(view.MsgBox)
+	view.Scroller.SetPolicy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
 	view.Scroller.SetVExpand(true)
 	view.Scroller.SetHExpand(true)
+	view.Scroller.Add(view.MsgBox)
 	view.Scroller.Show()
 	messageScroller(view.Scroller)
 
@@ -352,12 +353,12 @@ func (v *View) JoinServer(ses *session.Row, srv *server.ServerRow, bc traverse.B
 }
 
 func (v *View) FetchBacklog() {
-	var backlogger = v.state.Backlogger()
+	backlogger := v.state.Backlogger()
 	if backlogger == nil {
 		return
 	}
 
-	var firstMsg = v.Container.FirstMessage()
+	firstMsg := container.FirstMessage(v.Container)
 	if firstMsg == nil {
 		return
 	}
@@ -365,12 +366,12 @@ func (v *View) FetchBacklog() {
 	// Set the window as busy. TODO: loading circles.
 	v.ctrl.OnMessageBusy()
 
-	var done = func() {
+	done := func() {
 		v.ctrl.OnMessageDone()
 		v.Container.Highlight(firstMsg)
 	}
 
-	firstID := firstMsg.Unwrap(false).ID
+	firstID := firstMsg.Unwrap().ID
 
 	gts.Async(func() (func(), error) {
 		ctx, cancel := context.WithTimeout(context.TODO(), 3*time.Second)
@@ -396,59 +397,62 @@ func (v *View) MessageAuthor(msgID cchat.ID) *message.Author {
 		return nil
 	}
 
-	return msg.Unwrap(false).Author
+	return msg.Unwrap().Author
 }
 
 // Author returns the author from the message list with the given author ID.
 func (v *View) Author(authorID cchat.ID) rich.LabelStateStorer {
-	msg := v.Container.FindMessage(func(msg container.MessageRow) bool {
-		return msg.Unwrap(false).Author.ID == authorID
+	msg, _ := v.Container.FindMessage(func(msg container.MessageRow) bool {
+		return msg.Unwrap().Author.ID == authorID
 	})
 	if msg == nil {
 		return nil
 	}
 
-	state := msg.Unwrap(false)
+	state := msg.Unwrap()
 	return &state.Author.Name
 }
 
 // LatestMessageFrom returns the last message ID with that author.
 func (v *View) LatestMessageFrom(userID cchat.ID) container.MessageRow {
-	return container.LatestMessageFrom(v.Container, userID)
+	msg, _ := container.LatestMessageFrom(v.Container, userID)
+	return msg
 }
 
 func (v *View) SendMessage(msg message.PresendMessage) {
 	state := message.NewPresendState(v.InputView.Username.State, msg)
 	msgr := v.Container.NewPresendMessage(state)
-
-	v.retryMessage(msgr)
+	v.retryMessage(state, msgr)
 }
 
 // retryMessage sends the message.
-func (v *View) retryMessage(presend container.PresendMessageRow) {
+func (v *View) retryMessage(state *message.PresendState, presend container.PresendMessageRow) {
 	var sender = v.InputView.Sender
 	if sender == nil {
 		return
 	}
 
+	// Ensure the message is set to loading.
+	presend.SetLoading()
+
 	go func() {
-		if err := sender.Send(presend.SendingMessage()); err != nil {
-			// Set the message's state to errored again, but we don't need to
-			// rebind the menu.
-			gts.ExecAsync(func() {
-				// Set the retry message.
-				presend.SetSentError(err)
-				// Only attach the menu once. Further retries do not need to be
-				// reattached.
-				state := presend.Unwrap(false)
-				state.MenuItems = []menu.Item{
-					menu.SimpleItem("Retry", func() {
-						presend.SetLoading()
-						v.retryMessage(presend)
-					}),
-				}
-			})
+		err := sender.Send(presend.SendingMessage())
+		if err == nil {
+			return
 		}
+
+		// Set the message's state to errored again, but we don't need to rebind
+		// the menu.
+		gts.ExecAsync(func() {
+			presend.SetSentError(err)
+
+			state.MenuItems = []menu.Item{
+				menu.SimpleItem("Retry", func() {
+					presend.SetLoading()
+					v.retryMessage(state, presend)
+				}),
+			}
+		})
 	}()
 }
 
@@ -461,7 +465,7 @@ var messageItemNames = MessageItemNames{
 // BindMenu attaches the menu constructor into the message with the needed
 // states and callbacks.
 func (v *View) BindMenu(msg container.MessageRow) {
-	state := msg.Unwrap(false)
+	state := msg.Unwrap()
 
 	// Add 1 for the edit menu item.
 	var mitems = []menu.Item{

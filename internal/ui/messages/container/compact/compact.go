@@ -22,15 +22,21 @@ func NewContainer(ctrl container.Controller) *Container {
 
 func (c *Container) NewPresendMessage(state *message.PresendState) container.PresendMessageRow {
 	msg := WrapPresendMessage(state)
-	c.AddMessage(msg)
+	c.addMessage(msg)
 	return msg
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
 		msg := WrapMessage(message.NewState(msg))
-		c.ListContainer.AddMessage(msg)
+		c.addMessage(msg)
+		c.CleanMessages()
 	})
+}
+
+func (c *Container) addMessage(msg container.MessageRow) {
+	_, at := container.InsertPosition(c, msg.Unwrap().Time)
+	c.AddMessageAt(msg, at)
 }
 
 func (c *Container) UpdateMessage(msg cchat.MessageUpdate) {

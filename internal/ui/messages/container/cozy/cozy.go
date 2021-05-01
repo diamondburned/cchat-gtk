@@ -10,20 +10,6 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 )
 
-// Collapsible is an interface for cozy messages to return whether or not
-// they're full or collapsed.
-type Collapsible interface {
-	// Compact returns true if the message is a compact one and not full.
-	Collapsed() bool
-}
-
-var (
-	_ Collapsible = (*CollapsedMessage)(nil)
-	_ Collapsible = (*CollapsedSendingMessage)(nil)
-	_ Collapsible = (*FullMessage)(nil)
-	_ Collapsible = (*FullSendingMessage)(nil)
-)
-
 const (
 	AvatarSize   = 40
 	AvatarMargin = 10
@@ -61,69 +47,58 @@ func NewContainer(ctrl container.Controller) *Container {
 	return &Container{ListContainer: c}
 }
 
-func (c *Container) findAuthorID(authorID string) container.MessageRow {
-	// Search the old author if we have any.
-	return c.ListStore.FindMessage(func(msgc container.MessageRow) bool {
-		return msgc.Unwrap(false).Author.ID == authorID
-	})
-}
-
 const splitDuration = 10 * time.Minute
 
 // isCollapsible returns true if the given lastMsg has matching conditions with
 // the given msg.
 func isCollapsible(last container.MessageRow, msg *message.State) bool {
-	if last == nil || msg.ID == "" {
+	if last == nil || msg == nil {
 		return false
 	}
 
-	lastMsg := last.Unwrap(false)
+	lastMsg := last.Unwrap()
 
 	return true &&
-		lastMsg.Author.ID == msg.ID &&
+		lastMsg.Author.ID == msg.Author.ID &&
 		lastMsg.Time.Add(splitDuration).After(msg.Time)
 }
 
 func (c *Container) NewPresendMessage(state *message.PresendState) container.PresendMessageRow {
-	msgr := NewPresendMessage(state, c.LastMessage())
-	c.AddMessage(msgr)
+	before, at := container.InsertPosition(c, state.Time)
+	msgr := NewPresendMessage(state, before)
+	c.AddMessageAt(msgr, at)
 	return msgr
 }
 
 func (c *Container) CreateMessage(msg cchat.MessageCreate) {
 	gts.ExecAsync(func() {
+		before, at := container.InsertPosition(c, msg.Time())
 		state := message.NewState(msg)
-		msgr := NewMessage(state, c.LastMessage())
-
-		c.AddMessage(msgr)
+		msgr := NewMessage(state, before)
+		c.AddMessageAt(msgr, at)
 	})
 }
 
 // AddMessage adds the given message.
-func (c *Container) AddMessage(msgr container.MessageRow) {
+func (c *Container) AddMessageAt(msgr container.MessageRow, ix int) {
 	// Create the message in the parent's handler. This handler will also
 	// wipe old messages.
-	c.ListContainer.AddMessage(msgr)
+	c.ListContainer.AddMessageAt(msgr, ix)
 
 	// Did the handler wipe old messages? It will only do so if the user is
 	// scrolled to the bottom.
 	if c.ListContainer.CleanMessages() {
 		// We need to uncollapse the first (top) message. No length check is
 		// needed here, as we just inserted a message.
-		c.uncompact(c.FirstMessage())
+		c.uncompact(container.FirstMessage(c))
 	}
 
 	// If we've prepended the message, then see if we need to collapse the
 	// second message.
-	if first := c.ListContainer.FirstMessage(); first != nil {
-		firstState := first.Unwrap(false)
-		msgState := msgr.Unwrap(false)
-
-		if firstState.ID == msgState.ID {
-			// If the author is the same, then collapse.
-			if sec := c.NthMessage(1); isCollapsible(sec, firstState) {
-				c.compact(sec)
-			}
+	if ix == -1 {
+		// If the author is the same, then collapse.
+		if sec := c.NthMessage(1); isCollapsible(sec, msgr.Unwrap()) {
+			c.compact(sec)
 		}
 	}
 }
@@ -152,10 +127,10 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 			return
 		}
 
-		msgHeader := msg.Unwrap(false)
+		msgHeader := msg.Unwrap()
 
-		prevHeader := prev.Unwrap(false)
-		nextHeader := next.Unwrap(false)
+		prevHeader := prev.Unwrap()
+		nextHeader := next.Unwrap()
 
 		// Check if the last message is the author's (relative to i):
 		if prevHeader.Author.ID == msgHeader.Author.ID {
@@ -176,11 +151,21 @@ func (c *Container) DeleteMessage(msg cchat.MessageDelete) {
 }
 
 func (c *Container) uncompact(msg container.MessageRow) {
-	full := WrapFullMessage(msg.Unwrap(true))
+	_, isFull := msg.(full)
+	if isFull {
+		return
+	}
+
+	full := WrapFullMessage(msg.Revert())
 	c.ListStore.SwapMessage(full)
 }
 
 func (c *Container) compact(msg container.MessageRow) {
-	compact := WrapCollapsedMessage(msg.Unwrap(true))
+	_, isCollapsed := msg.(collapsed)
+	if isCollapsed {
+		return
+	}
+
+	compact := WrapCollapsedMessage(msg.Revert())
 	c.ListStore.SwapMessage(compact)
 }

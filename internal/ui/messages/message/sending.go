@@ -45,14 +45,10 @@ type PresendState struct {
 	uploads *attachment.MessageUploader
 }
 
-var (
-	_ Presender = (*PresendState)(nil)
-)
+var _ Presender = (*PresendState)(nil)
 
-type SendMessageData struct {
-}
-
-// NewPresendState creates a new presend state.
+// NewPresendState creates a new presend state. The caller must call one of the
+// state setters, usually SetLoading.
 func NewPresendState(self *Author, msg PresendMessage) *PresendState {
 	c := NewEmptyState()
 	c.Author = self
@@ -64,7 +60,7 @@ func NewPresendState(self *Author, msg PresendMessage) *PresendState {
 		presend: msg,
 		uploads: attachment.NewMessageUploader(msg.Files()),
 	}
-	p.SetLoading()
+	// p.SetLoading()
 
 	return p
 }

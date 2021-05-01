@@ -103,19 +103,19 @@ func (u *Container) shouldReveal() bool {
 
 func (u *Container) Reset() {
 	u.SetRevealChild(false)
+	u.State.ID = ""
 	u.State.Name.Stop()
 }
 
 // Update is not thread-safe.
 func (u *Container) Update(session cchat.Session, messenger cchat.Messenger) {
-	// Set the fallback username.
-	u.State.Name.BindNamer(u.main, "destroy", session)
-	// Reveal the name if it's not empty.
+	u.State.ID = session.ID()
 	u.SetRevealChild(true)
 
-	// Does messenger implement Nicknamer? If yes, use it.
 	if nicknamer := messenger.AsNicknamer(); nicknamer != nil {
 		u.State.Name.BindNamer(u.main, "destroy", nicknamer)
+	} else {
+		u.State.Name.BindNamer(u.main, "destroy", session)
 	}
 }
 

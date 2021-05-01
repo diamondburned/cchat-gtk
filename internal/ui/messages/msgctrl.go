@@ -84,7 +84,7 @@ func (mc *MessageControl) Enable(msg container.MessageRow, names MessageItemName
 	mc.SetSensitive(true)
 	mc.SetRevealChild(true && !mc.hide)
 
-	unwrap := msg.Unwrap(false)
+	unwrap := msg.Unwrap()
 
 	mc.Reply.bind(menu.FindItemFunc(unwrap.MenuItems, names.Reply))
 	mc.Edit.bind(menu.FindItemFunc(unwrap.MenuItems, names.Edit))

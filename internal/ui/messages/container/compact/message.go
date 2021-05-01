@@ -94,13 +94,9 @@ func (m Message) SetReferenceHighlighter(r labeluri.ReferenceHighlighter) {
 	m.Username.SetReferenceHighlighter(r)
 }
 
-func (m Message) Unwrap(revert bool) *message.State {
-	if revert {
-		m.unwrap()
+func (m Message) Revert() *message.State {
+	m.unwrap()
+	m.ClearBox()
 
-		primitives.RemoveChildren(m)
-		m.SetClass("")
-	}
-
-	return m.State
+	return m.Unwrap()
 }

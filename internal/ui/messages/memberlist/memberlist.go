@@ -238,11 +238,12 @@ func NewSection(sect cchat.MemberSection, evq EventQueuer) *Section {
 	section.Box.PackStart(section.Body, false, false, 0)
 	section.Box.Show()
 
-	var members = map[string]*Member{}
+	members := map[string]*Member{}
 
 	// On row click, show the mention popup if any.
 	section.Body.Connect("row-activated", func(_ *gtk.ListBox, r *gtk.ListBoxRow) {
-		var i = r.GetIndex()
+		i := r.GetIndex()
+
 		// Cold path; we can afford searching in the map.
 		for _, member := range members {
 			if member.ListBoxRow.GetIndex() == i {
@@ -253,6 +254,7 @@ func NewSection(sect cchat.MemberSection, evq EventQueuer) *Section {
 
 	section.name.QueueNamer(context.Background(), sect)
 	section.Header.Connect("destroy", section.name.Stop)
+	section.Members = members
 
 	return section
 }
@@ -328,11 +330,29 @@ var memberBoxCSS = primitives.PrepareClassCSS("member-box", `
 	}
 `)
 
-var avatarMemberCSS = primitives.PrepareClassCSS("avatar-member", `
-	.avatar-member {
-		padding-right: 10px;
+var avatarBoxMemberCSS = primitives.PrepareClassCSS("avatar-box-member", `
+	.avatar-box-member {
+		margin-right: 10px;
+		padding: 2px;
+		border: 1.5px solid;
+		border-color: #747F8D; /* Offline Grey */
+		border-radius: 99px;
+	}
+
+	.avatar-box-member.online {
+		border-color: #43B581;
+	}
+	
+	.avatar-box-member.busy {
+		border-color: #F04747;
+	}
+	
+	.avatar-box-member.idle {
+		border-color: #FAA61A;
 	}
 `)
+
+var labelMemberCSS = primitives.PrepareClassCSS("label-member", ``)
 
 func NewMember(member cchat.ListMember) *Member {
 	m := Member{}
@@ -341,33 +361,44 @@ func NewMember(member cchat.ListMember) *Member {
 	evb.AddEvents(int(gdk.EVENT_ENTER_NOTIFY) | int(gdk.EVENT_LEAVE_NOTIFY))
 	evb.Show()
 
-	m.Avatar = roundimage.NewStillImage(evb, 9999)
+	m.Avatar = roundimage.NewStillImage(evb, 0)
 	m.Avatar.SetSize(AvatarSize)
 	m.Avatar.SetPlaceholderIcon("user-info-symbolic", AvatarSize)
 	m.Avatar.Show()
-	avatarMemberCSS(m.Avatar)
-
 	rich.BindRoundImage(m.Avatar, &m.name, true)
+
+	avaBox, _ := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
+	avaBox.SetVAlign(gtk.ALIGN_CENTER)
+	avaBox.PackStart(m.Avatar, false, false, 0)
+	avaBox.Show()
+	avatarBoxMemberCSS(avaBox)
 
 	m.Name = rich.NewLabel(&m.name)
 	m.Name.SetUseMarkup(true)
 	m.Name.SetXAlign(0)
 	m.Name.SetEllipsize(pango.ELLIPSIZE_END)
 	m.Name.Show()
+	labelMemberCSS(m.Name)
+
+	// Keep track of the current status class to replace.
+	var statusClass string
+	styler, _ := avaBox.GetStyleContext()
 
 	m.Name.SetRenderer(func(rich text.Rich) markup.RenderOutput {
-		out := markup.RenderCmplx(rich)
+		out := markup.RenderCmplxWithConfig(rich, markup.RenderConfig{
+			NoMentionLinks: true,
+		})
 
-		if m.status != cchat.StatusUnknown {
-			out.Markup = fmt.Sprintf(
-				`<span color="#%06X" size="large">●</span> %s`,
-				statusColors(member.Status()), out.Markup,
-			)
+		if statusClass != "" {
+			styler.RemoveClass(statusClass)
 		}
+
+		statusClass = statusClassName(m.status)
+		styler.AddClass(statusClass)
 
 		if !m.second.IsEmpty() {
 			out.Markup += fmt.Sprintf(
-				"\n"+`<span alpha="85%%"><sup>%s</sup></span>`,
+				`<span alpha="85%%" size="small">`+"\n"+`%s</span>`,
 				markup.Render(m.second),
 			)
 		}
@@ -376,7 +407,7 @@ func NewMember(member cchat.ListMember) *Member {
 	})
 
 	m.Main, _ = gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 0)
-	m.Main.PackStart(m.Avatar, false, false, 0)
+	m.Main.PackStart(avaBox, false, false, 0)
 	m.Main.PackStart(m.Name, true, true, 0)
 	m.Main.Show()
 	memberBoxCSS(m.Main)
@@ -390,6 +421,25 @@ func NewMember(member cchat.ListMember) *Member {
 	m.Update(member)
 
 	return &m
+}
+
+func statusClassName(status cchat.Status) string {
+	switch status {
+	case cchat.StatusOnline:
+		return "online"
+	case cchat.StatusBusy:
+		return "busy"
+	case cchat.StatusAway:
+		fallthrough
+	case cchat.StatusIdle:
+		return "idle"
+	case cchat.StatusInvisible:
+		fallthrough
+	case cchat.StatusOffline:
+		fallthrough
+	default:
+		return ""
+	}
 }
 
 var noMentionLinks = markup.RenderConfig{

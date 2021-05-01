@@ -1,8 +1,6 @@
 package session
 
 import (
-	"fmt"
-
 	"github.com/diamondburned/cchat"
 	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/humanize"
@@ -11,8 +9,8 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/server/traverse"
 	"github.com/diamondburned/cchat-gtk/internal/ui/service/session/serverpane"
+	"github.com/diamondburned/handy"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/gotk3/gotk3/pango"
 )
 
 const FaceSize = 48 // gtk.ICON_SIZE_DIALOG
@@ -212,33 +210,20 @@ func (s *Servers) setFailed(err error) {
 		s.Stack.Remove(w)
 	}
 
-	// Create a BLANK label for padding.
-	ltop, _ := gtk.LabelNew("")
-	ltop.Show()
-
 	// Create a retry button.
-	btn, _ := gtk.ButtonNewFromIconName("view-refresh-symbolic", gtk.ICON_SIZE_DIALOG)
+	btn, _ := gtk.ButtonNewFromIconName("view-refresh-symbolic", gtk.ICON_SIZE_BUTTON)
+	btn.SetLabel("Retry")
+	btn.Connect("clicked", s.load)
 	btn.Show()
-	btn.Connect("clicked", func(interface{}) { s.load() })
 
-	// Create a bottom label for the error itself.
-	lerr, _ := gtk.LabelNew("")
-	lerr.SetSingleLineMode(true)
-	lerr.SetEllipsize(pango.ELLIPSIZE_MIDDLE)
-	lerr.SetMarkup(fmt.Sprintf(
-		`<span color="red"><b>Error:</b> %s</span>`,
-		humanize.Error(err),
-	))
-	lerr.Show()
+	page := handy.StatusPageNew()
+	page.SetTitle("Error")
+	page.SetIconName("dialog-error")
+	page.SetTooltipText(err.Error())
+	page.SetDescription(humanize.Error(err))
+	page.Add(btn)
 
-	// Add these items into the box.
-	b, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
-	b.PackStart(ltop, false, false, 0)
-	b.PackStart(btn, false, false, 10) // pad
-	b.PackStart(lerr, false, false, 0)
-	b.Show()
-
-	s.Stack.AddNamed(b, "error")
+	s.Stack.AddNamed(page, "error")
 	s.Stack.SetVisibleChildName("error")
 }
 

@@ -124,17 +124,13 @@ func (h *Header) SetSessionMenu(s *session.Row) {
 }
 
 type sizeBinder interface {
-	primitives.Connector
-	GetAllocatedWidth() int
+	gtk.IWidget
 }
 
 var _ sizeBinder = (*List)(nil)
 
 func (h *Header) AppMenuBindSize(c sizeBinder) {
-	update := func(c sizeBinder) {
-		h.AppMenu.SetSizeRequest(c.GetAllocatedWidth(), -1)
-	}
-
-	c.Connect("size-allocate", update)
-	update(c)
+	sg, _ := gtk.SizeGroupNew(gtk.SIZE_GROUP_HORIZONTAL)
+	sg.AddWidget(c)
+	sg.AddWidget(h.AppMenu)
 }

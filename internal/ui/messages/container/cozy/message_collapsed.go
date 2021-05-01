@@ -25,7 +25,7 @@ func WrapCollapsedMessage(gc *message.State) *CollapsedMessage {
 	ts.SetMarginStart(container.ColumnSpacing * 2)
 
 	// Set Content's padding accordingly to FullMessage's main box.
-	gc.Content.ToWidget().SetMarginEnd(container.ColumnSpacing * 2)
+	gc.Content.SetMarginEnd(container.ColumnSpacing * 2)
 
 	gc.PackStart(ts, false, false, 0)
 	gc.PackStart(gc.Content, true, true, 0)
@@ -37,17 +37,18 @@ func WrapCollapsedMessage(gc *message.State) *CollapsedMessage {
 	}
 }
 
-func (c *CollapsedMessage) Collapsed() bool { return true }
-
-func (c *CollapsedMessage) Unwrap(revert bool) *message.State {
-	if revert {
-		// Remove State's widgets from the containers.
-		c.Remove(c.Timestamp)
-		c.Remove(c.Content)
-	}
-
-	return c.State
+func (c *CollapsedMessage) Revert() *message.State {
+	c.ClearBox()
+	c.Content.SetMarginEnd(0)
+	c.Timestamp.Destroy()
+	return c.Unwrap()
 }
+
+type collapsed interface {
+	collapsed()
+}
+
+func (c *CollapsedMessage) collapsed() {}
 
 type CollapsedSendingMessage struct {
 	*CollapsedMessage
