@@ -1,6 +1,7 @@
 package gts
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
@@ -154,6 +155,7 @@ func Main(wfn func() MainApplication) {
 
 // Async runs fn asynchronously, then runs the function it returns in the Gtk
 // main thread.
+// TODO: deprecate Async.
 func Async(fn func() (func(), error)) {
 	go func() {
 		f, err := fn()
@@ -168,27 +170,66 @@ func Async(fn func() (func(), error)) {
 	}()
 }
 
+// AsyncCancel is similar to AsyncCtx, but the context is created internally.
+func AsyncCancel(fn func(ctx context.Context) (func(), error)) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		// fn() is assumed to use the same given ctx.
+		f, err := fn(ctx)
+		if err != nil {
+			log.Error(err)
+		}
+
+		// Attempt to run the callback if it's there.
+		if f != nil {
+			ExecAsyncCtx(ctx, f)
+		}
+	}()
+
+	return cancel
+}
+
+// AsyncCtx does what Async does, except the returned callback will not be
+// executed if the given context has expired or the returned callback is called.
+func AsyncCtx(ctx context.Context, fn func() (func(), error)) {
+	go func() {
+		// fn() is assumed to use the same given ctx.
+		f, err := fn()
+		if err != nil {
+			log.Error(err)
+		}
+
+		// Attempt to run the callback if it's there.
+		if f != nil {
+			ExecAsyncCtx(ctx, f)
+		}
+	}()
+}
+
 // ExecLater executes the function asynchronously with a low priority.
 func ExecLater(fn func()) {
 	glib.IdleAddPriority(glib.PRIORITY_DEFAULT_IDLE, fn)
 }
 
 // ExecAsync executes function asynchronously in the Gtk main thread.
+// TODO: deprecate Async.
 func ExecAsync(fn func()) {
 	glib.IdleAddPriority(glib.PRIORITY_HIGH, fn)
 }
 
-// ExecSync executes the function asynchronously, but returns a channel that
-// indicates when the job is done.
-func ExecSync(fn func()) <-chan struct{} {
-	var ch = make(chan struct{})
+// ExecAsyncCtx executes the function asynchronously in the Gtk main thread only
+// if the context has not expired. This API has absolutely no race conditions if
+// the context is only canceled in the main thread.
+func ExecAsyncCtx(ctx context.Context, fn func()) {
+	ExecAsync(func() {
+		select {
+		case <-ctx.Done():
 
-	glib.IdleAddPriority(glib.PRIORITY_HIGH, func() {
-		fn()
-		close(ch)
+		default:
+			fn()
+		}
 	})
-
-	return ch
 }
 
 // DoAfter calls f after the given duration in the Gtk main loop.

@@ -15,6 +15,8 @@ import (
 	"github.com/gotk3/gotk3/pango"
 )
 
+const AvatarSize = 40
+
 // Container describes a message container that wraps a state. These methods are
 // made for containers to override; methods not meant to be override are not
 // exposed and will be done directly on the State.
@@ -70,6 +72,7 @@ func NewState(msg cchat.MessageCreate) *State {
 // immediately afterwards; it is invalid once the state is used.
 func NewEmptyState() *State {
 	ctbody := labeluri.NewLabel(text.Rich{})
+	ctbody.Tooltip = false
 	ctbody.SetHAlign(gtk.ALIGN_FILL)
 	ctbody.SetEllipsize(pango.ELLIPSIZE_NONE)
 	ctbody.SetLineWrap(true)

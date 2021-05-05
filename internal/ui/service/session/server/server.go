@@ -59,6 +59,7 @@ type ServerRow struct {
 	mentioned bool
 	showLabel bool
 
+	UnreadIndicator cchat.UnreadIndicator
 	// callback to cancel unread indicator
 	cancelUnread func()
 }
@@ -96,9 +97,10 @@ func NewHollowServer(p traverse.Breadcrumber, sv cchat.Server, ctrl ParentContro
 		serverRow.children.SetUnreadHandler(serverRow.SetUnreadUnsafe)
 
 	case messenger != nil:
-		if unreader := messenger.AsUnreadIndicator(); unreader != nil {
+		serverRow.UnreadIndicator = messenger.AsUnreadIndicator()
+		if serverRow.UnreadIndicator != nil {
 			gts.Async(func() (func(), error) {
-				c, err := unreader.UnreadIndicate(&serverRow)
+				c, err := serverRow.UnreadIndicator.UnreadIndicate(&serverRow)
 				if err != nil {
 					return nil, errors.Wrap(err, "Failed to use unread indicator")
 				}

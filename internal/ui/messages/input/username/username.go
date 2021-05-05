@@ -14,14 +14,16 @@ import (
 
 const AvatarSize = 24
 
-var showUser = true
-var currentRevealer = func(bool) {} // noop by default
+var (
+	showUser = true
+	updaters config.Updaters
+)
 
 func init() {
 	// Bind this revealer in settings.
 	config.AppearanceAdd("Show Username in Input", config.Switch(
 		&showUser,
-		func(b bool) { currentRevealer(b) },
+		func(b bool) { updaters.Updated() },
 	))
 }
 
@@ -55,7 +57,7 @@ func NewContainer() *Container {
 	// Bind the current global revealer to this revealer for settings. This
 	// operation should be thread-safe, as everything is being done in the main
 	// thread.
-	currentRevealer = rev.SetRevealChild
+	updaters.Add(func() { rev.SetRevealChild(showUser) })
 
 	author := message.NewCustomAuthor("", text.Plain("self"))
 
@@ -68,6 +70,7 @@ func NewContainer() *Container {
 
 	u.avatar = roundimage.NewImage(0)
 	u.avatar.SetSize(AvatarSize)
+	u.avatar.SetHAlign(gtk.ALIGN_CENTER)
 	u.avatar.SetPlaceholderIcon("user-available-symbolic", AvatarSize)
 	u.avatar.Show()
 

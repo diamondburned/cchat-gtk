@@ -16,8 +16,7 @@ import (
 
 var messageTimeCSS = primitives.PrepareClassCSS("", `
 	.message-time {
-		margin-left:  1em;
-		margin-right: 1em;
+		margin: 0 8px;
 	}
 `)
 
@@ -52,13 +51,18 @@ var _ container.MessageRow = (*Message)(nil)
 func WrapMessage(ct *message.State) Message {
 	ts := message.NewTimestamp()
 	ts.SetVAlign(gtk.ALIGN_START)
+	ts.SetHAlign(gtk.ALIGN_END)
+	ts.SetXAlign(1.00)
 	ts.SetText(humanize.TimeAgo(ct.Time))
 	ts.SetTooltipText(ct.Time.Format(time.Stamp))
 	ts.Show()
 	messageTimeCSS(ts)
 
 	user := message.NewUsername()
-	user.SetMaxWidthChars(25)
+	user.SetMaxWidthChars(22)
+	user.SetHAlign(gtk.ALIGN_END)
+	user.SetXAlign(1.0)
+	user.SetJustify(gtk.JUSTIFY_RIGHT)
 	user.SetEllipsize(pango.ELLIPSIZE_NONE)
 	user.SetLineWrap(true)
 	user.SetLineWrapMode(pango.WRAP_WORD_CHAR)

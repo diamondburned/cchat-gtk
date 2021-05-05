@@ -10,10 +10,7 @@ import (
 	"github.com/diamondburned/cchat-gtk/internal/ui/primitives"
 )
 
-const (
-	AvatarSize   = 40
-	AvatarMargin = 10
-)
+const AvatarSize = message.AvatarSize
 
 // NewMessage creates a new message.
 func NewMessage(
@@ -47,7 +44,7 @@ func NewContainer(ctrl container.Controller) *Container {
 	return &Container{ListContainer: c}
 }
 
-const splitDuration = 10 * time.Minute
+const splitDuration = 3 * time.Minute
 
 // isCollapsible returns true if the given lastMsg has matching conditions with
 // the given msg.

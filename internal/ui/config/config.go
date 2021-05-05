@@ -110,3 +110,16 @@ var toRestore = map[string]interface{}{}
 func RegisterConfig(filename string, jsonValue interface{}) {
 	toRestore[filename] = jsonValue
 }
+
+// Updaters contains a list of callbacks to be called when something is updated.
+type Updaters []func()
+
+func (us *Updaters) Add(f func()) {
+	*us = append(*us, f)
+}
+
+func (us *Updaters) Updated() {
+	for _, f := range *us {
+		f()
+	}
+}

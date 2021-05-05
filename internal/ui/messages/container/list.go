@@ -479,6 +479,7 @@ func (c *ListStore) Highlight(msg MessageRow) {
 }
 
 func destroyMsg(row *messageRow) {
+	row.Revert()
 	row.state.Author.Name.Stop()
 	row.state.Row.Destroy()
 }

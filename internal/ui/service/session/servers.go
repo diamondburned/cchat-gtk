@@ -181,8 +181,10 @@ func (s *Servers) setDone() {
 	s.SetVisibleChild(s.Main)
 
 	// stop the spinner.
-	s.spinner.Destroy()
-	s.spinner = nil
+	if s.spinner != nil {
+		s.spinner.Destroy()
+		s.spinner = nil
+	}
 }
 
 // setLoading shows a loading spinner. Use this after the session row is

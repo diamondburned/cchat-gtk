@@ -24,6 +24,8 @@ func RenderSkipImages(rich text.Rich) markup.RenderOutput {
 // need to manually
 type Label struct {
 	gtk.Label
+	Tooltip bool
+
 	label  text.Rich
 	output markup.RenderOutput
 	render LabelRenderer
@@ -41,7 +43,7 @@ func NewStaticLabel(rich text.Rich) *Label {
 		label.SetMarkup(markup.Render(rich))
 	}
 
-	return &Label{Label: *label}
+	return &Label{Label: *label, Tooltip: true}
 }
 
 // NewLabel creates a self-updating label.
@@ -83,7 +85,10 @@ func (l *Label) SetLabel(content text.Rich) {
 
 	l.output = out
 	l.SetMarkup(out.Markup)
-	l.SetTooltipMarkup(out.Markup)
+
+	if l.Tooltip {
+		l.SetTooltipMarkup(out.Markup)
+	}
 }
 
 // SetRenderer sets a custom renderer. If the given renderer is nil, then the

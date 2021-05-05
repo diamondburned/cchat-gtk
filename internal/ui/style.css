@@ -20,7 +20,12 @@ undershoot { background-size: 0 }
  */
 
 .top-level .server-list.expanded {
-	background-color: @borders;
+	background-color: @theme_bg_color;
+}
+
+.top-level .server-list.expanded > .server-button,
+.top-level .server-list.expanded > revealer > .server-children {
+	background-color: mix(alpha(@theme_selected_bg_color, 0.5), @borders, 0.25);
 }
 
 .top-level .server-button {

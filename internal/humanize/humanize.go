@@ -21,8 +21,8 @@ type truncator struct {
 var shortTruncators = []truncator{
 	{d: Day, s: "15:04"},
 	{d: Week, s: "Mon 15:04"},
-	{d: Year, s: "15:04 02/01"},
-	{d: -1, s: "15:04 02/01/2006"},
+	{d: Year, s: "02/01 15:04"},
+	{d: -1, s: "02/01/2006 15:04"},
 }
 
 func TimeAgo(t time.Time) string {

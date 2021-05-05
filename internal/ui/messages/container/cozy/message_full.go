@@ -61,7 +61,7 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	header.Show()
 
 	avatar := NewAvatar(gc.Row)
-	avatar.SetMarginStart(container.ColumnSpacing * 2)
+	avatar.SetMarginStart(container.ColumnSpacing)
 	avatar.Connect("clicked", func(w gtk.IWidget) {
 		if output := header.Output(); len(output.Mentions) > 0 {
 			labeluri.PopoverMentioner(w, output.Input, output.Mentions[0])
@@ -78,12 +78,10 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 	main, _ := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
 	main.PackStart(header, false, false, 0)
 	main.PackStart(gc.Content, false, false, 0)
-	main.SetMarginEnd(container.ColumnSpacing * 2)
+	main.SetMarginEnd(container.ColumnSpacing)
 	main.SetMarginStart(container.ColumnSpacing)
 	main.Show()
-
-	// Also attach a class for the main box shown on the right.
-	primitives.AddClass(main, "cozy-main")
+	mainCSS(main)
 
 	gc.PackStart(avatar, false, false, 0)
 	gc.PackStart(main, true, true, 0)
