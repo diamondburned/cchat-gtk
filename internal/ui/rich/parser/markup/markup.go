@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"log"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/diamondburned/cchat-gtk/internal/gts"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/attrmap"
 	"github.com/diamondburned/cchat-gtk/internal/ui/rich/parser/hl"
 	"github.com/diamondburned/cchat/text"
@@ -136,13 +138,10 @@ type RenderConfig struct {
 	}
 }
 
-// SetForegroundAnchor sets the AnchorColor of the render config to be that of
+// setForegroundAnchor sets the AnchorColor of the render config to be that of
 // the regular text foreground color.
-func (c *RenderConfig) SetForegroundAnchor(ctx *gtk.StyleContext) {
-	rgba := ctx.GetColor(gtk.STATE_FLAG_NORMAL)
-	if rgba == nil {
-		return
-	}
+func (c *RenderConfig) setForegroundAnchor(ctx *gtk.StyleContext) {
+	rgba := ctx.GetColor(gtk.STATE_FLAG_ACTIVE)
 
 	var color uint32
 	for _, v := range rgba.Floats() { // [0.0, 1.0]
@@ -151,6 +150,21 @@ func (c *RenderConfig) SetForegroundAnchor(ctx *gtk.StyleContext) {
 
 	c.AnchorColor.bool = true
 	c.AnchorColor.uint32 = text.SolidColor(color) // force alpha 100%
+}
+
+// ensureAnchorColor ensures the RenderConfig has an AnchorColor.
+func (c *RenderConfig) ensureAnchorColor() {
+	if c.AnchorColor.bool {
+		return
+	}
+
+	styleCtx, _ := gts.App.Window.GetStyleContext()
+	if styleCtx == nil {
+		log.Println("Window's StyleCtx is nil.")
+		return
+	}
+
+	c.setForegroundAnchor(styleCtx)
 }
 
 func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
@@ -232,7 +246,8 @@ func RenderCmplxWithConfig(content text.Rich, cfg RenderConfig) RenderOutput {
 
 		if colorer := segment.AsColorer(); colorer != nil {
 			appended.Span(start, end, colorAttrs(colorer.Color(), false)...)
-		} else if hasAnchor && cfg.AnchorColor.bool {
+		} else if hasAnchor {
+			cfg.ensureAnchorColor()
 			appended.Span(start, end, colorAttrs(cfg.AnchorColor.uint32, false)...)
 		}
 

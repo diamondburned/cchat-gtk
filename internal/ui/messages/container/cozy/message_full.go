@@ -54,6 +54,10 @@ func NewFullMessage(msg cchat.MessageCreate) *FullMessage {
 	return WrapFullMessage(message.NewState(msg))
 }
 
+var renderCfg = markup.RenderConfig{
+	NoReferencing: true,
+}
+
 func WrapFullMessage(gc *message.State) *FullMessage {
 	header := labeluri.NewLabel(text.Rich{})
 	header.SetHAlign(gtk.ALIGN_START) // left-align
@@ -103,12 +107,8 @@ func WrapFullMessage(gc *message.State) *FullMessage {
 		unwrap: func() { removeUpdate() },
 	}
 
-	cfg := markup.RenderConfig{}
-	cfg.NoReferencing = true
-	cfg.SetForegroundAnchor(gc.ContentBodyStyle)
-
 	header.SetRenderer(func(rich text.Rich) markup.RenderOutput {
-		output := markup.RenderCmplxWithConfig(rich, cfg)
+		output := markup.RenderCmplxWithConfig(rich, renderCfg)
 		output.Markup = `<span font_weight="600">` + output.Markup + "</span>"
 		output.Markup += msg.timestamp
 

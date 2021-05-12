@@ -48,6 +48,10 @@ type Message struct {
 
 var _ container.MessageRow = (*Message)(nil)
 
+var renderCfg = markup.RenderConfig{
+	NoReferencing: true,
+}
+
 func WrapMessage(ct *message.State) Message {
 	ts := message.NewTimestamp()
 	ts.SetVAlign(gtk.ALIGN_START)
@@ -74,12 +78,8 @@ func WrapMessage(ct *message.State) Message {
 	ct.PackStart(ct.Content, true, true, 0)
 	ct.SetClass("compact")
 
-	rcfg := markup.RenderConfig{}
-	rcfg.NoReferencing = true
-	rcfg.SetForegroundAnchor(ct.ContentBodyStyle)
-
 	user.SetRenderer(func(rich text.Rich) markup.RenderOutput {
-		return markup.RenderCmplxWithConfig(rich, rcfg)
+		return markup.RenderCmplxWithConfig(rich, renderCfg)
 	})
 
 	return Message{

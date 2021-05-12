@@ -46,7 +46,7 @@ func (m *MenuButton) Bind(menu *Menu) {
 		// menu items.
 		m.SetSensitive(model.GetNItems() > 0)
 		// Subscribe the button to menu update events.
-		m.lastsig = model.Connect("items-changed", func(model *glib.MenuModel) {
+		m.lastsig = model.Connect("items-changed", func() {
 			m.SetSensitive(model.GetNItems() > 0)
 		})
 	} else {

@@ -135,16 +135,17 @@ func (s *Servers) SetList(slist cchat.Lister) {
 }
 
 func (s *Servers) load() {
-	// Return if we're loading.
-	if s.IsLoading() {
+	if s.Lister == nil || s.IsLoading() {
 		return
 	}
 
 	// Mark the servers list as loading.
 	s.setLoading()
 
+	lister := s.Lister
+
 	go func() {
-		stop, err := s.Lister.Servers(s)
+		stop, err := lister.Servers(s)
 		gts.ExecAsync(func() {
 			if err != nil {
 				s.setFailed(err)
