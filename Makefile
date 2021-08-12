@@ -1,5 +1,7 @@
 BIN ?= cchat-gtk
+
 GO ?= go
+STRIP ?= strip
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
@@ -7,7 +9,7 @@ DATADIR ?= $(PREFIX)/share
 
 cchat-gtk: 
 	$(GO) build -v -o bin/$(BIN)
-	@strip bin/$(BIN)
+	@$(STRIP) bin/$(BIN)
 
 install:
 	install -Dm775 bin/$(BIN) $(DESTDIR)$(BINDIR)/$(BIN)
